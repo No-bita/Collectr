@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "id": "UploadFromBrowser",
+      "allowed": {
+        "origins": ["*"],
+        "methods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+        "headers": ["*"]
+      },
+      "maxAgeSeconds": 3000
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+name = "lekho-edge"
+compatibility_date = "2026-05-24"
+main = "src/index.js"
+
+[vars]
+# Add public environment variables here
+ENVIRONMENT = "production"
+
+# Turso or Neon Database Config
+# DATABASE_URL = ""
+# DATABASE_AUTH_TOKEN = ""
+
+# Gemini API Key (Will be set via secrets)
+# GEMINI_API_KEY = ""
+
+[[r2_buckets]]
+binding = "DOCUMENT_BUCKET"
+bucket_name = "lekho-documents"
+preview_bucket_name = "lekho-documents-preview"
+
+[assets]
+directory = "./frontend"

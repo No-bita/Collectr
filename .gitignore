@@ -1,0 +1,12 @@
+node_modules/
+.env
+.dev.vars
+*vars*
+credentials.json
+.DS_Store
+.cursor/
+.tmp/
+.venv/
+.wrangler/
+*.mp4*
+*.part

@@ -1,0 +1,5 @@
+ALTER TABLE leads ADD COLUMN name TEXT;
+ALTER TABLE leads ADD COLUMN firm_name TEXT;
+ALTER TABLE leads ADD COLUMN needs_follow_up INTEGER DEFAULT 0;
+ALTER TABLE leads ADD COLUMN follow_up_note TEXT;
+ALTER TABLE leads ADD COLUMN last_updated DATETIME;

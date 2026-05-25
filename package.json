@@ -1,0 +1,30 @@
+{
+  "name": "lekho",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "tunnel": "ngrok http 3000",
+    "test:upload:drive": "node scripts/isolate-upload.mjs drive",
+    "test:upload:media": "node scripts/isolate-upload.mjs media",
+    "sheet:headers": "node scripts/sync-sheet-headers.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1053.0",
+    "@aws-sdk/s3-request-presigner": "^3.1053.0",
+    "@google/genai": "^2.6.0",
+    "@libsql/client": "^0.17.3",
+    "dotenv": "^17.4.1",
+    "express": "^4.21.0",
+    "googleapis": "^171.4.0",
+    "hono": "^4.12.22",
+    "multer": "^2.1.1",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260524.1",
+    "wrangler": "^4.94.0"
+  }
+}
