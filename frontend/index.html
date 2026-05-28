@@ -19,7 +19,6 @@
         <div class="dashboard-top-left">
           <div>
             <h1>Collectr</h1>
-            <p class="dashboard-sub">Overview of your clients and document follow-ups</p>
           </div>
         </div>
         <div class="dashboard-top-right">
@@ -47,7 +46,7 @@
                 type="search"
                 id="q"
                 class="search-input"
-                placeholder="Search clients, docs..."
+                placeholder="Search clients"
                 autocomplete="off"
                 title="Search by client name or phone"
               />
@@ -85,7 +84,7 @@
             <div class="profile-pill">
               <div class="profile-avatar" aria-hidden="true">A</div>
               <div class="profile-meta">
-                <span class="profile-name">Arjun Mehta</span>
+                <span class="profile-name">Aaryan Shah</span>
                 <span class="profile-role">Admin</span>
               </div>
             </div>
@@ -335,6 +334,23 @@
         <div class="modal-footer">
           <button type="button" class="btn" id="cancelDeleteBtn">Cancel</button>
           <button type="button" class="btn btn-primary" style="background: #dc2626; border-color: #dc2626;" id="confirmDeleteBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reject Confirmation Modal -->
+    <div class="modal-backdrop" id="rejectModalBackdrop" hidden role="dialog" aria-modal="true" aria-labelledby="rejectModalTitle">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="rejectModalTitle">Reject Document</h2>
+          <button type="button" class="modal-close" id="closeRejectModalBtn" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to reject this document? It will be marked as pending again.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" id="cancelRejectBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" style="background: #dc2626; border-color: #dc2626;" id="confirmRejectBtn">Reject</button>
         </div>
       </div>
     </div>

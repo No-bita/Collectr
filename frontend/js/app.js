@@ -126,16 +126,25 @@ function openRowMenu(lead, triggerBtn) {
   menu.className = "row-menu-dropdown";
   menu.setAttribute("role", "menu");
   
-  // Add Document
-  const addDocItem = document.createElement("button");
-  addDocItem.className = "row-menu-item";
-  addDocItem.setAttribute("role", "menuitem");
-  addDocItem.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg> Add document';
-  addDocItem.onclick = function (e) {
-    e.stopPropagation();
-    closeRowMenu();
-    openEditLead(lead); // Use existing edit modal to add docs
-  };
+  // Copy Link
+  const copyLinkItem = document.createElement("button");
+  copyLinkItem.className = "row-menu-item";
+  copyLinkItem.setAttribute("role", "menuitem");
+  copyLinkItem.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Copy link';
+  
+  if (!lead.token) {
+    copyLinkItem.disabled = true;
+    copyLinkItem.title = "Portal link unavailable";
+  } else {
+    copyLinkItem.onclick = function(e) {
+      e.stopPropagation();
+      closeRowMenu();
+      const link = window.location.origin + "/upload.html?t=" + lead.token;
+      navigator.clipboard.writeText(link).then(() => {
+        showBanner("Link copied to clipboard!");
+      });
+    };
+  }
 
   // Delete
   const delItem = document.createElement("button");
@@ -148,7 +157,7 @@ function openRowMenu(lead, triggerBtn) {
     openDeleteLeadModal(lead);
   };
 
-  menu.appendChild(addDocItem);
+  menu.appendChild(copyLinkItem);
   menu.appendChild(delItem);
 
   document.body.appendChild(menu);
@@ -277,6 +286,8 @@ function openRowMenu(lead, triggerBtn) {
                 statementStart = value;
               } else if (lowerKey === 'statementperiodend' || lowerKey === 'statement_period_end') {
                 statementEnd = value;
+              } else if (lowerKey === 'documenttype' || lowerKey === 'document_type') {
+                // Ignore document type in preview
               } else {
                 // Convert camelCase/snake_case keys to Title Case for display
                 const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, str => str.toUpperCase());
@@ -298,12 +309,16 @@ function openRowMenu(lead, triggerBtn) {
         wrap.style.display = "inline-flex";
         wrap.style.alignItems = "flex-start";
         wrap.style.gap = "0.35rem";
+        wrap.style.padding = "0.5rem 0.75rem";
+        wrap.style.borderRadius = "var(--radius-sm)";
+        wrap.style.border = "1px solid #16a34a";
+        wrap.style.backgroundColor = "var(--neutral-bg)";
         
         // If it's flagged, format it as requested
         if (entry.status === 'flagged' || ocr.anomaly) {
           const reason = ocr.anomalyReason || ocr.anomaly_reason || ocr.anomalyReason || "Flagged for manual review.";
           wrap.style.color = "var(--accent)";
-          wrap.style.borderColor = "var(--accent)";
+          wrap.style.border = "1px solid #ea580c";
           wrap.style.backgroundColor = "var(--surface)";
           
           const textSpan = document.createElement("span");
@@ -621,6 +636,10 @@ function buildCol2Docs(lead) {
     if (st === "received") {
       iconWrapper.classList.add("received");
       iconWrapper.innerHTML = '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M22 4L12 14.01l-3-3"/></svg>';
+    } else if (st === "flagged") {
+      iconWrapper.classList.add("flagged");
+      iconWrapper.innerHTML = '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+      iconWrapper.style.color = "#ea580c";
     } else {
       iconWrapper.innerHTML = '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="14 2 14 8 20 8"/></svg>';
     }
@@ -642,11 +661,16 @@ function buildCol2Docs(lead) {
     
     if (st === "received" && link) {
       const viewBtn = document.createElement("button");
+      viewBtn.type = "button";
       viewBtn.className = "btn-stack btn-stack-outline";
       viewBtn.style.padding = "2px 8px";
       viewBtn.style.fontSize = "0.75rem";
       viewBtn.innerHTML = 'View File';
-      viewBtn.onclick = () => window.open(link, "_blank");
+      viewBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(link, "_blank");
+      };
       pillsArea.appendChild(viewBtn);
     } else {
       if (st !== "flagged") {
@@ -654,11 +678,16 @@ function buildCol2Docs(lead) {
       }
       if (st === "flagged" && link) {
         const viewBtn = document.createElement("button");
+        viewBtn.type = "button";
         viewBtn.className = "btn-stack btn-stack-outline";
         viewBtn.style.padding = "2px 8px";
         viewBtn.style.fontSize = "0.75rem";
         viewBtn.innerHTML = 'View File';
-        viewBtn.onclick = () => window.open(link, "_blank");
+        viewBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(link, "_blank");
+        };
         pillsArea.appendChild(viewBtn);
       }
     }
@@ -721,6 +750,61 @@ function buildCol3Status(lead) {
   lastAct.textContent = "Last Activity: " + getRelativeTime(lead.lastUpdated || lead.createdAt || new Date().toISOString());
   col.appendChild(lastAct);
 
+  // If WhatsApp delivery failed, show a prominent failure message and copy link CTA
+  if (lead.whatsappDeliveryStatus === "failed") {
+    const waError = document.createElement("div");
+    waError.style.marginTop = "0.5rem";
+    waError.style.fontSize = "0.75rem";
+    waError.style.color = "#dc2626"; // red
+    waError.style.fontWeight = "600";
+    waError.innerHTML = `⚠️ WhatsApp Delivery Failed`;
+    col.appendChild(waError);
+
+    if (lead.token) {
+      const cta = document.createElement("button");
+      cta.className = "btn-stack btn-stack-outline";
+      cta.style.marginTop = "0.4rem";
+      cta.style.fontSize = "0.7rem";
+      cta.style.padding = "4px 8px";
+      cta.style.height = "auto";
+      cta.style.borderColor = "#fecaca"; // soft red border
+      cta.style.color = "#b91c1c"; // red text
+      cta.style.backgroundColor = "#fef2f2"; // soft red bg
+      cta.style.display = "inline-flex";
+      cta.style.alignItems = "center";
+      cta.style.gap = "4px";
+      cta.style.transition = "all 0.2s ease";
+      
+      cta.onmouseover = () => {
+        cta.style.backgroundColor = "#fee2e2";
+        cta.style.borderColor = "#fca5a5";
+      };
+      cta.onmouseout = () => {
+        cta.style.backgroundColor = "#fef2f2";
+        cta.style.borderColor = "#fecaca";
+      };
+
+      cta.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Copy manual link`;
+      
+      cta.onclick = function(e) {
+        e.preventDefault();
+        const link = window.location.origin + "/upload.html?t=" + lead.token;
+        navigator.clipboard.writeText(link).then(() => {
+          cta.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg> Copied!`;
+          cta.style.backgroundColor = "#dcfce7"; // soft green bg
+          cta.style.borderColor = "#bbf7d0";
+          cta.style.color = "#15803d";
+          setTimeout(() => {
+            cta.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Copy manual link`;
+            cta.style.backgroundColor = "#fef2f2";
+            cta.style.borderColor = "#fecaca";
+            cta.style.color = "#b91c1c";
+          }, 2000);
+        });
+      };
+      col.appendChild(cta);
+    }
+  }
   
   return col;
 }
@@ -783,27 +867,14 @@ function buildCol5Actions(lead) {
   }
   actionsWrap.appendChild(fuBtn);
   
-  // Copy portal link button
-  const copyBtn = document.createElement("button");
-  copyBtn.className = "btn-stack btn-stack-outline";
-  copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Copy Link';
-  
-  if (!lead.token) {
-    copyBtn.disabled = true;
-    copyBtn.title = "Portal link unavailable";
-  } else {
-    copyBtn.onclick = function(e) {
-      const link = window.location.origin + "/upload.html?t=" + lead.token;
-      navigator.clipboard.writeText(link).then(() => {
-        const originalHtml = copyBtn.innerHTML;
-        copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg> Copied!';
-        setTimeout(() => {
-          copyBtn.innerHTML = originalHtml;
-        }, 2000);
-      });
-    };
-  }
-  actionsWrap.appendChild(copyBtn);
+  // Add Document button
+  const addDocBtn = document.createElement("button");
+  addDocBtn.className = "btn-stack btn-stack-outline";
+  addDocBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Add Document';
+  addDocBtn.onclick = function() {
+    openEditLead(lead);
+  };
+  actionsWrap.appendChild(addDocBtn);
   
   // Note: View File button removed completely as requested. Users use the doc links in Column 2.
   
@@ -871,7 +942,12 @@ function buildCol5Actions(lead) {
         s = s || {};
         const total = s.total || 0;
         const completed = s.completed || 0;
-        const followUpDue = s.followUpDue || 0;
+        const followUpDue = allLeads.filter(lead => {
+          if (lead.status === "Completed") return false;
+          const lastUpdatedMs = lead.lastUpdated ? new Date(lead.lastUpdated).getTime() : new Date(lead.createdAt || Date.now()).getTime();
+          const minutesSinceLastUpdate = (Date.now() - lastUpdatedMs) / (1000 * 60);
+          return minutesSinceLastUpdate >= 10;
+        }).length;
         
         el("statTotal").textContent = total;
         el("statDone").textContent = completed;
@@ -1033,7 +1109,7 @@ function buildCol5Actions(lead) {
           });
           if (!res.ok) throw new Error("Failed to delete");
           closeDeleteModal();
-          fetchLeads(); // refresh dashboard
+          load(); // refresh dashboard
         } catch (e) {
           alert("Error deleting lead.");
         } finally {
@@ -1131,19 +1207,41 @@ function buildCol5Actions(lead) {
         load();
       });
 
-      window.rejectDocument = async function (leadId, documentId) {
-        if (!confirm("Are you sure you want to reject this document? It will be marked as pending again.")) return;
+      let docToReject = null;
+
+      function closeRejectModal() {
+        el("rejectModalBackdrop").hidden = true;
+        docToReject = null;
+      }
+
+      el("cancelRejectBtn")?.addEventListener("click", closeRejectModal);
+      el("closeRejectModalBtn")?.addEventListener("click", closeRejectModal);
+
+      el("confirmRejectBtn")?.addEventListener("click", async () => {
+        if (!docToReject) return;
+        const btn = el("confirmRejectBtn");
+        btn.disabled = true;
+        btn.textContent = "Rejecting...";
         try {
           const res = await fetch("/api/reject-document", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ leadId, documentId })
+            body: JSON.stringify({ leadId: docToReject.leadId, documentId: docToReject.documentId })
           });
           if (!res.ok) throw new Error("Failed to reject document");
+          closeRejectModal();
           load();
         } catch (e) {
           alert("Error rejecting document: " + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Reject";
         }
+      });
+
+      window.rejectDocument = function (leadId, documentId) {
+        docToReject = { leadId, documentId };
+        el("rejectModalBackdrop").hidden = false;
       };
 
       el("openAdd").addEventListener("click", function () {
@@ -1299,7 +1397,8 @@ function buildCol5Actions(lead) {
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {
-                modalErr.textContent = data.error || "Could not update.";
+                keepSubmitDisabled = false;
+                modalErr.textContent = data.error || "Could not update client details.";
                 modalErr.hidden = false;
                 return;
               }
@@ -1311,19 +1410,12 @@ function buildCol5Actions(lead) {
                 el("success").hidden = true;
               }, 4000);
               return;
-            } catch {
-              modalErr.textContent = "Network error. Try again.";
+            } catch (err) {
+              keepSubmitDisabled = false;
+              modalErr.textContent = "Network error. Please check your connection and try again.";
               modalErr.hidden = false;
               return;
             }
-            closeModal();
-            el("success").textContent = "Lead updated.";
-            el("success").hidden = false;
-            await load();
-            setTimeout(() => {
-              el("success").hidden = true;
-            }, 4000);
-            return;
           }
 
           showModalAddLoading();
@@ -1336,49 +1428,65 @@ function buildCol5Actions(lead) {
           if (Object.keys(requiredDocCounts).length > 0) {
             postBody.requiredDocCounts = requiredDocCounts;
           }
-          const res = await fetch("/api/leads", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(postBody),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
+          try {
+            const res = await fetch("/api/leads", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(postBody),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              hideModalAddLoading();
+              keepSubmitDisabled = false;
+              modalErr.textContent = data.error || "Failed to save client. Please check details.";
+              modalErr.hidden = false;
+              return;
+            }
+            await load();
+            el("modalAddLoading").hidden = true;
+            
+            // Show custom delivery warnings if WhatsApp configuration errored out
+            if (data.whatsappWarning) {
+              console.warn(data.whatsappWarning);
+            }
+            
+            showModalAddCelebrate();
+            keepSubmitDisabled = true;
+            clearAddClientCelebrateTimer();
+            addClientCelebrateTimer = setTimeout(function () {
+              addClientCelebrateTimer = null;
+              showModalAddSuccess();
+              clearAddClientCloseTimer();
+              addClientCloseTimer = setTimeout(function () {
+                addClientCloseTimer = null;
+                closeModal();
+                
+                let successMessage = `Client has been added. <a href="/upload.html?t=${data.token}" target="_blank" style="color: white; text-decoration: underline; margin-left: 10px;">Open Secure Portal manually</a>`;
+                if (data.whatsappWarning) {
+                  successMessage += `<div style="margin-top: 8px; color: #fef08a; font-weight: 500; font-size: 0.85rem;">⚠️ WhatsApp delivery failed. Please copy the manual link above to send manually.</div>`;
+                }
+                
+                el("success").innerHTML = successMessage;
+                el("success").hidden = false;
+                setTimeout(function () {
+                  if (el("success").innerHTML.includes("Open Secure Portal manually")) {
+                    el("success").hidden = true;
+                  }
+                }, 15000);
+              }, 1000);
+            }, CELEBRATE_BEFORE_SUCCESS_MS);
+          } catch (err) {
             hideModalAddLoading();
             keepSubmitDisabled = false;
-            modalErr.textContent = data.error || "Could not save.";
+            modalErr.textContent = "Network error. Please check your connection and try again.";
             modalErr.hidden = false;
-            return;
+          } finally {
+            if (!keepSubmitDisabled) {
+              submitBtn.disabled = false;
+            }
           }
-          await load();
-          el("modalAddLoading").hidden = true;
-          showModalAddCelebrate();
-          keepSubmitDisabled = true;
-          clearAddClientCelebrateTimer();
-          addClientCelebrateTimer = setTimeout(function () {
-            addClientCelebrateTimer = null;
-            showModalAddSuccess();
-            clearAddClientCloseTimer();
-            addClientCloseTimer = setTimeout(function () {
-              addClientCloseTimer = null;
-              closeModal();
-              el("success").innerHTML = `Client has been added. <a href="/upload.html?t=${data.token}" target="_blank" style="color: white; text-decoration: underline; margin-left: 10px;">Open Secure Portal manually</a>`;
-              el("success").hidden = false;
-              setTimeout(function () {
-                if (el("success").innerHTML.includes("Open Secure Portal manually")) {
-                  el("success").hidden = true;
-                }
-              }, 15000);
-            }, 1000);
-          }, CELEBRATE_BEFORE_SUCCESS_MS);
-        } catch {
-          hideModalAddLoading();
-          keepSubmitDisabled = false;
-          modalErr.textContent = "Network error. Try again.";
-          modalErr.hidden = false;
-        } finally {
-          if (!keepSubmitDisabled) {
-            submitBtn.disabled = false;
-          }
+        } catch (e) {
+          submitBtn.disabled = false;
         }
       });
 

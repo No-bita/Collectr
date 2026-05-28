@@ -1,4 +1,5 @@
 import { getDbClient } from "../db/client.js";
+import { logSystemFailure } from "./failures.js";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
 export async function handleUploadComplete(c) {
@@ -18,10 +19,16 @@ export async function handleUploadComplete(c) {
   if (tokenRes.rows.length === 0) return c.json({ error: "Invalid token" }, 403);
   const lead_id = tokenRes.rows[0].lead_id;
 
-  // 2. Mark document as received and get its S3 key
+  // 2. Mark document as received and update lead's last_updated timestamp
   await db.execute({
     sql: "UPDATE document_requests SET status = 'received' WHERE lead_id = ? AND id = ?",
     args: [lead_id, documentId]
+  });
+
+  // Bump the lead's last_updated so "Last Activity" reflects this upload
+  await db.execute({
+    sql: "UPDATE leads SET last_updated = datetime('now') WHERE id = ?",
+    args: [lead_id]
   });
 
   const docRes = await db.execute({
@@ -127,8 +134,33 @@ Return a rigid JSON structure EXACTLY like this:
       args: [rawText, newStatus, docId]
     });
 
+    if (parsed.anomaly) {
+      // Find lead_id for this doc request
+      const leadLookup = await db.execute({
+        sql: "SELECT lead_id FROM document_requests WHERE id = ?",
+        args: [docId]
+      });
+      const leadId = leadLookup.rows[0]?.lead_id || null;
+      await logSystemFailure(db, "ocr_anomaly", leadId, {
+        document_id: docId,
+        anomaly_reason: parsed.anomalyReason,
+        fields: parsed.fields
+      });
+    }
+
   } catch (err) {
     console.error("OCR execution failed on edge:", err);
+    // Find lead_id for this doc request
+    let leadId = null;
+    try {
+      const leadLookup = await db.execute({
+        sql: "SELECT lead_id FROM document_requests WHERE id = ?",
+        args: [docId]
+      });
+      leadId = leadLookup.rows[0]?.lead_id || null;
+    } catch (e) {}
+    
+    await logSystemFailure(db, "ocr_processing", leadId, err.message || err);
     try {
       await db.execute({
         sql: "UPDATE document_requests SET status = 'failed' WHERE id = ?",

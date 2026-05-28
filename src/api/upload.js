@@ -52,8 +52,16 @@ export async function handleUploadUrlRequest(c) {
     },
   });
 
-  // Unique object key
-  const fileKey = `${lead_id}/${doc.document_type}-${Date.now()}`;
+  // Fetch client name for naming convention
+  const leadRes = await db.execute({
+    sql: "SELECT name FROM leads WHERE id = ?",
+    args: [lead_id]
+  });
+  const clientNameRaw = leadRes.rows.length > 0 && leadRes.rows[0].name ? leadRes.rows[0].name : "Client";
+  const clientName = clientNameRaw.replace(/[^a-zA-Z0-9]/g, "_");
+
+  // Unique object key following convention: <client_name>_<document_name>
+  const fileKey = `${lead_id}/${clientName}_${doc.document_type}`;
 
   const command = new PutObjectCommand({
     Bucket: "lekho-documents",

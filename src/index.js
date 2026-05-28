@@ -5,6 +5,8 @@ import { handleUploadUrlRequest } from "./api/upload.js";
 import { handleWebhookVerify, handleWebhookEvent } from "./api/webhook.js";
 import { handleUploadComplete } from "./api/ocr.js";
 import { handleCreateLead, handleGetLeads, handleFollowUp, handleDocumentCatalog, handleDeleteLead, handleRejectDocument, handleEditLead } from "./api/leads.js";
+import { basicAuth } from "hono/basic-auth";
+import { handleGetAdminDashboard, handleGetAdminFailures, handleDeleteAdminFailure, handleClearAllFailures } from "./api/admin.js";
 
 const app = new Hono();
 
@@ -25,7 +27,7 @@ app.get("/api/document-catalog", handleDocumentCatalog);
 app.post("/api/reject-document", handleRejectDocument);
 
 app.get("/api/documents/*", async (c) => {
-  const key = c.req.param("*");
+  const key = c.req.path.substring("/api/documents/".length);
   try {
     const object = await c.env.DOCUMENT_BUCKET.get(key);
     if (!object) {
@@ -48,5 +50,27 @@ app.get("/api/documents/*", async (c) => {
 // Webhook routes
 app.get("/api/webhook", handleWebhookVerify);
 app.post("/api/webhook", handleWebhookEvent);
+
+// Admin Observability & Failures Dashboard (Route Blocked with Basic Auth)
+app.use("/dd", async (c, next) => {
+  const auth = basicAuth({
+    username: c.env.ADMIN_USERNAME || "admin",
+    password: c.env.ADMIN_PASSWORD || "admin123",
+  });
+  return auth(c, next);
+});
+
+app.use("/api/admin*", async (c, next) => {
+  const auth = basicAuth({
+    username: c.env.ADMIN_USERNAME || "admin",
+    password: c.env.ADMIN_PASSWORD || "admin123",
+  });
+  return auth(c, next);
+});
+
+app.get("/dd", handleGetAdminDashboard);
+app.get("/api/admin/failures", handleGetAdminFailures);
+app.delete("/api/admin/failures", handleClearAllFailures);
+app.delete("/api/admin/failures/:id", handleDeleteAdminFailure);
 
 export default app;

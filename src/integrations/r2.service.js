@@ -1,6 +1,5 @@
 import fetch from "node-fetch";
-import { Readable } from "node:stream";
-import { drive } from "../infrastructure/google-clients.js";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { config } from "../config/env.js";
 import { digitsOnly } from "../modules/shared/phone.js";
 
@@ -21,21 +20,12 @@ function extensionFromFilenameAndMime(filename, mimeType) {
   return map[mime] || ".bin";
 }
 
-export function resolveDriveFolderId() {
-  let raw = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  if (raw == null || raw === "") return "";
-  raw = String(raw).trim().replace(/^["']|["']$/g, "");
-  const fromUrl = raw.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-  if (fromUrl) return fromUrl[1];
-  return raw;
-}
-
 async function fetchWhatsAppMediaMeta(mediaId) {
   const res = await fetch(
     `https://graph.facebook.com/${config.WHATSAPP_GRAPH_VERSION}/${encodeURIComponent(mediaId)}`,
     {
       headers: { Authorization: `Bearer ${config.TOKEN}` },
-    },
+    }
   );
   if (!res.ok) {
     const t = await res.text();
@@ -50,36 +40,29 @@ async function downloadWhatsAppMedia(mediaUrl) {
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function uploadBufferToDrivePublic(buffer, fileName, mimeType) {
-  const folderId = resolveDriveFolderId();
-  if (!folderId) throw new Error("GOOGLE_DRIVE_FOLDER_ID is not set or empty");
-
-  const { data: created } = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [folderId],
+async function uploadBufferToR2(buffer, fileKey, mimeType) {
+  const S3 = new S3Client({
+    region: "auto",
+    endpoint: `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: process.env.R2_AK_id,
+      secretAccessKey: process.env.R2_SAK,
     },
-    media: {
-      mimeType: mimeType || "application/octet-stream",
-      body: Readable.from(buffer),
-    },
-    fields: "id, parents, name, driveId",
-    supportsAllDrives: true,
   });
 
-  await drive.permissions.create({
-    fileId: created.id,
-    requestBody: {
-      type: "anyone",
-      role: "reader",
-    },
-    supportsAllDrives: true,
+  const command = new PutObjectCommand({
+    Bucket: "lekho-documents",
+    Key: fileKey,
+    ContentType: mimeType || "application/octet-stream",
+    Body: buffer,
   });
 
-  return `https://drive.google.com/file/d/${created.id}/view`;
+  await S3.send(command);
+  // Return the dashboard-compatible view URL
+  return `/api/documents/${fileKey}`;
 }
 
-export async function processMediaToDriveWithPayload(mediaId, from, docId, message, clientName) {
+export async function processMediaToR2WithPayload(mediaId, from, docId, message, clientName) {
   const meta = await fetchWhatsAppMediaMeta(mediaId);
   const mediaUrl = meta.url;
   if (!mediaUrl) throw new Error("No media URL from Graph API");
@@ -91,20 +74,16 @@ export async function processMediaToDriveWithPayload(mediaId, from, docId, messa
   const buffer = await downloadWhatsAppMedia(mediaUrl);
   const ext = extensionFromFilenameAndMime(message.document?.filename, mimeType);
   const cName = (clientName || "Client").replace(/[^a-zA-Z0-9]/g, "_");
-  const fileName = `${cName}_${docId}${ext}`;
+  const fileKey = `${digitsOnly(from)}/${cName}_${docId}${ext}`;
 
-  const driveLink = await uploadBufferToDrivePublic(buffer, fileName, mimeType);
+  const driveLink = await uploadBufferToR2(buffer, fileKey, mimeType);
   return {
     driveLink,
-    fileName,
+    fileName: fileKey,
+    fileKey,
     mimeType,
     buffer,
   };
-}
-
-export async function processMediaToDrive(mediaId, from, docId, message) {
-  const payload = await processMediaToDriveWithPayload(mediaId, from, docId, message);
-  return payload.driveLink;
 }
 
 export async function tryTwice(fn) {
@@ -112,7 +91,7 @@ export async function tryTwice(fn) {
     try {
       return await fn();
     } catch (err) {
-      console.error(`Drive/media attempt ${attempt} failed:`, err.message || err);
+      console.error(`Media attempt ${attempt} failed:`, err.message || err);
     }
   }
   return null;

@@ -1,4 +1,5 @@
 import { getDbClient } from "../db/client.js";
+import { logSystemFailure } from "./failures.js";
 
 async function sendWhatsAppMessage(phone, text, env) {
   const url = `https://graph.facebook.com/v17.0/${env.WHATSAPP_PHONE_ID}/messages`;
@@ -19,6 +20,53 @@ async function sendWhatsAppMessage(phone, text, env) {
   if (!res.ok) {
     console.error("WhatsApp Error:", JSON.stringify(data));
     throw new Error("Failed to send WhatsApp message");
+  }
+}
+
+async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
+  const url = `https://graph.facebook.com/v17.0/${env.WHATSAPP_PHONE_ID}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: "en_US" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              {
+                type: "text",
+                text: name || "Client"
+              }
+            ]
+          },
+          {
+            type: "button",
+            sub_type: "url",
+            index: "0",
+            parameters: [
+              {
+                type: "text",
+                text: token
+              }
+            ]
+          }
+        ]
+      }
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("WhatsApp Template Error:", JSON.stringify(data));
+    throw new Error("Failed to send WhatsApp template message");
   }
 }
 
@@ -85,16 +133,28 @@ export async function handleCreateLead(c) {
     const uploadLink = `${env.FRONTEND_URL}/upload.html?t=${token}`;
     const msg = `Hello ${name}! Your professional has requested documents. Please upload them securely here: ${uploadLink}\n\n*Note: This link expires in 7 days and is locked to your device once clicked.*`;
     
-    // Temporarily disable WhatsApp sending while Meta account is locked
-    // let whatsappWarning = null;
-    // try {
-    //   await sendWhatsAppMessage(phone, msg, env);
-    // } catch (waErr) {
-    //   console.error("WhatsApp Delivery Failed:", waErr);
-    //   whatsappWarning = "Lead created, but WhatsApp message could not be sent.";
-    // }
+    let whatsappWarning = null;
+    try {
+      if (env.WHATSAPP_NEW_LEAD_TEMPLATE) {
+        await sendWhatsAppTemplate(phone, env.WHATSAPP_NEW_LEAD_TEMPLATE, name, token, env);
+      } else {
+        await sendWhatsAppMessage(phone, msg, env);
+      }
+    } catch (waErr) {
+      console.error("WhatsApp Delivery Failed:", waErr);
+      whatsappWarning = "Lead created, but WhatsApp message could not be sent.";
+      await logSystemFailure(db, "whatsapp_delivery", leadId, waErr.message || waErr);
+      try {
+        await db.execute({
+          sql: "UPDATE leads SET whatsapp_delivery_status = 'failed' WHERE id = ?",
+          args: [leadId]
+        });
+      } catch (dbErr) {
+        console.error("Failed to update lead whatsapp delivery status in DB:", dbErr);
+      }
+    }
 
-    return c.json({ success: true, leadId, token, whatsappWarning: null });
+    return c.json({ success: true, leadId, token, whatsappWarning });
   } catch (err) {
     console.error("Failed to create lead:", err);
     return c.json({ error: "Failed to create request." }, 500);
@@ -145,7 +205,8 @@ export async function handleGetLeads(c) {
       needsFollowUp: row.needs_follow_up === 1,
       followUpNote: row.follow_up_note,
       lastUpdated: row.last_updated ? row.last_updated.replace(' ', 'T') + 'Z' : null,
-      token: row.upload_token
+      token: row.upload_token,
+      whatsappDeliveryStatus: row.whatsapp_delivery_status
     };
   });
 

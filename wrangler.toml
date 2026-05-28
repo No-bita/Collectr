@@ -5,6 +5,8 @@ main = "src/index.js"
 [vars]
 # Add public environment variables here
 ENVIRONMENT = "production"
+FRONTEND_URL = "https://lekho-edge.collectr.workers.dev"
+WHATSAPP_NEW_LEAD_TEMPLATE = "onboarding_first_message"
 
 # Turso or Neon Database Config
 # DATABASE_URL = ""
@@ -20,3 +22,18 @@ preview_bucket_name = "lekho-documents-preview"
 
 [assets]
 directory = "./frontend"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1

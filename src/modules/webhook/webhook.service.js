@@ -1,5 +1,6 @@
 import { COL } from "../../../sheet-layout.js";
 import { resolveDriveFolderId, processMediaToDriveWithPayload, tryTwice } from "../../integrations/drive.service.js";
+// import { processMediaToR2WithPayload, tryTwice as tryTwiceR2 } from "../../integrations/r2.service.js";
 import { sendMessage } from "../../integrations/whatsapp.service.js";
 import { runSarvamOcrOnBuffer } from "./webhook.sarvam-ocr.js";
 import { runGeminiOcrOnBuffer } from "./webhook.gemini-ocr.js";
@@ -86,7 +87,7 @@ export async function handleIncomingWebhook(body) {
         return { status: 200 };
       }
 
-      const drivePayload = await tryTwice(() => processMediaToDriveWithPayload(mediaId, from, targetId, message));
+      const drivePayload = await tryTwice(() => processMediaToDriveWithPayload(mediaId, from, targetId, message, user.name));
       const now = new Date().toISOString();
 
       if (!drivePayload?.driveLink) {
@@ -104,6 +105,38 @@ export async function handleIncomingWebhook(body) {
         await sendMessage(from, "We couldn't save your file. Please try sending it again.");
         return { status: 200 };
       }
+
+      /*
+      // --- CLOUDFLARE R2 UPLOAD LOGIC (Commented as requested) ---
+      // To use R2 instead of Google Drive:
+      // 1. Uncomment the import at the top of this file: import { processMediaToR2WithPayload, tryTwice as tryTwiceR2 } from "../../integrations/r2.service.js";
+      // 2. Remove/comment the Google Drive block above and uncomment this block.
+
+      if (!process.env.CF_ACCOUNT_ID) {
+        console.error("CF_ACCOUNT_ID missing or invalid — set it in .env");
+        await sendMessage(from, "File storage is not configured. Please contact support.");
+        return { status: 200 };
+      }
+
+      const drivePayload = await tryTwiceR2(() => processMediaToR2WithPayload(mediaId, from, targetId, message, user.name));
+      const now = new Date().toISOString();
+
+      if (!drivePayload?.driveLink) {
+        state[targetId] = {
+          status: "failed",
+          link: "",
+          updatedAt: now,
+          error: "R2 upload failed after retries",
+        };
+        workingRow[COL.documentsState] = JSON.stringify(state);
+        workingRow[COL.lastUpdated] = now;
+        workingRow[COL.status] = allRequiredReceived(requiredIds, state) ? "Completed" : "In Progress";
+        workingRow[COL.lastStep] = lastStepForSheet(requiredIds, state);
+        await updateUserRow(index, workingRow);
+        await sendMessage(from, "We couldn't save your file. Please try sending it again.");
+        return { status: 200 };
+      }
+      */
 
       let ocr = null;
       try {
