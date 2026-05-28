@@ -45,6 +45,10 @@ async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
               {
                 type: "text",
                 text: name || "Client"
+              },
+              {
+                type: "text",
+                text: env.FIRM_NAME || "Mishra & Associates"
               }
             ]
           },

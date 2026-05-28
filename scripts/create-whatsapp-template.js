@@ -33,9 +33,9 @@ async function createTemplate() {
     components: [
       {
         type: "BODY",
-        text: "Hello {{1}}! Your Chartered Accountant has requested documents. Please upload them securely by clicking the button below.\n\n*Note: This link expires in 7 days and is locked to your device once clicked.*",
+        text: "Hi {{1}},\n\nThank you for trusting {{2}}.\n\nTo get started with your ITR filing, please upload the required documents using the button below.\n\nReply here if you need any help.",
         example: {
-          body_text: [["ClientName"]]
+          body_text: [["ClientName", "Mishra & Associates"]]
         }
       },
       {
