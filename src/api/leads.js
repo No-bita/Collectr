@@ -55,7 +55,7 @@ async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
           {
             type: "button",
             sub_type: "url",
-            index: "0",
+            index: 0,
             parameters: [
               {
                 type: "text",
