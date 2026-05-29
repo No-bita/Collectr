@@ -1,0 +1,425 @@
+/* Google Fonts Setup */
+:root {
+  --font-sans: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-gujarati: 'Noto Sans Gujarati', var(--font-sans);
+  --font-devanagari: 'Noto Sans Devanagari', var(--font-sans);
+
+  /* Color Palette (Deep Space Theme by default) */
+  --bg-primary: #0a0915;
+  --bg-secondary: #131224;
+  --bg-tertiary: #1b1a35;
+  
+  --text-primary: #f1f0f7;
+  --text-secondary: #9f9bbd;
+  --text-muted: #625e80;
+  
+  --accent-primary: #8a2be2;
+  --accent-secondary: #da70d6;
+  --accent-glow: rgba(138, 43, 226, 0.4);
+  
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(138, 43, 226, 0.5);
+
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.1);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.2);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.4);
+  
+  /* Ticket Theme Variables (Royal Gold default) */
+  --t-gold-bg: #1c1810;
+  --t-gold-border: #d4af37;
+  --t-gold-accent: #f0e68c;
+  --t-gold-text: #ffffff;
+  
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Container Structure */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Glassmorphism Classes */
+.glass-panel {
+  background: rgba(19, 18, 36, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+}
+
+.glass-card {
+  background: rgba(27, 26, 53, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border-color: var(--border-focus);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(138, 43, 226, 0.15);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  color: white;
+  box-shadow: 0 4px 15px var(--accent-glow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-secondary);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+/* Inputs & Form Controls */
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(10, 9, 21, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus {
+  border-color: var(--accent-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.25);
+}
+
+/* Themes definitions for Tambola tickets */
+/* 1. ROYAL GOLD */
+.theme-royal-gold {
+  background: linear-gradient(135deg, #18140c, #2a2211) !important;
+  border: 3px double #d4af37 !important;
+  color: #fff !important;
+}
+.theme-royal-gold .ticket-header {
+  border-bottom: 2px solid #d4af37 !important;
+  color: #d4af37 !important;
+}
+.theme-royal-gold .ticket-cell.filled {
+  background: rgba(212, 175, 55, 0.08) !important;
+  border: 1px solid rgba(212, 175, 55, 0.4) !important;
+  color: #fff !important;
+}
+.theme-royal-gold .ticket-cell.filled.marked {
+  background: rgba(212, 175, 55, 0.4) !important;
+  color: #fff !important;
+  text-decoration: line-through;
+  text-decoration-color: #d4af37;
+}
+.theme-royal-gold .ticket-meta {
+  color: #d4af37 !important;
+  border-top: 1px solid rgba(212, 175, 55, 0.3) !important;
+}
+
+/* 2. NEON PARTY */
+.theme-neon-party {
+  background: linear-gradient(135deg, #0d061f, #1e0b3c) !important;
+  border: 2px solid #ff007f !important;
+  box-shadow: 0 0 10px rgba(255, 0, 127, 0.2) !important;
+  color: #fff !important;
+}
+.theme-neon-party .ticket-header {
+  border-bottom: 2px solid #00f0ff !important;
+  color: #ff007f !important;
+  text-shadow: 0 0 5px rgba(255, 0, 127, 0.5) !important;
+}
+.theme-neon-party .ticket-cell.filled {
+  background: rgba(0, 240, 255, 0.04) !important;
+  border: 1px solid rgba(0, 240, 255, 0.3) !important;
+  color: #00f0ff !important;
+}
+.theme-neon-party .ticket-cell.filled.marked {
+  background: rgba(255, 0, 127, 0.4) !important;
+  color: #fff !important;
+  border-color: #ff007f !important;
+  text-decoration: line-through;
+}
+.theme-neon-party .ticket-meta {
+  color: #00f0ff !important;
+  border-top: 1px solid rgba(255, 0, 127, 0.3) !important;
+}
+
+/* 3. FRESH MINT */
+.theme-fresh-mint {
+  background: linear-gradient(135deg, #f4faf6, #e6f5eb) !important;
+  border: 2px solid #2e7d32 !important;
+  color: #1b5e20 !important;
+}
+.theme-fresh-mint .ticket-header {
+  border-bottom: 2px solid #2e7d32 !important;
+  color: #2e7d32 !important;
+}
+.theme-fresh-mint .ticket-cell.filled {
+  background: #ffffff !important;
+  border: 1px solid rgba(46, 125, 50, 0.4) !important;
+  color: #1b5e20 !important;
+}
+.theme-fresh-mint .ticket-cell.filled.marked {
+  background: rgba(46, 125, 50, 0.3) !important;
+  color: #1b5e20 !important;
+  text-decoration: line-through;
+}
+.theme-fresh-mint .ticket-meta {
+  color: #2e7d32 !important;
+  border-top: 1px solid rgba(46, 125, 50, 0.3) !important;
+}
+
+/* 4. CLASSIC RETRO */
+.theme-classic-retro {
+  background: #fcfaf2 !important;
+  border: 3px double #3e2723 !important;
+  color: #3e2723 !important;
+}
+.theme-classic-retro .ticket-header {
+  border-bottom: 2px dashed #3e2723 !important;
+  color: #3e2723 !important;
+  font-family: Courier, monospace !important;
+  font-weight: bold !important;
+}
+.theme-classic-retro .ticket-cell.filled {
+  background: #fdfdfd !important;
+  border: 1px solid #3e2723 !important;
+  color: #3e2723 !important;
+  font-family: Courier, monospace !important;
+}
+.theme-classic-retro .ticket-cell.filled.marked {
+  background: rgba(62, 39, 35, 0.2) !important;
+  text-decoration: line-through;
+}
+.theme-classic-retro .ticket-meta {
+  color: #3e2723 !important;
+  border-top: 1px dashed #3e2723 !important;
+}
+
+/* A4 Sheet Simulator Styling (Browser Preview) */
+.a4-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+}
+
+.a4-page {
+  background: #ffffff;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 15mm;
+  box-sizing: border-box;
+  box-shadow: var(--shadow-lg);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: flex-start;
+  gap: 12mm;
+  position: relative;
+  page-break-after: always;
+}
+
+/* Grid Layout inside A4 sheet depending on tickets per page */
+.a4-grid-1 { grid-template-rows: 1fr; }
+.a4-grid-2 { grid-template-rows: repeat(2, 1fr); }
+.a4-grid-4 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8mm; }
+.a4-grid-6 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); gap: 6mm 8mm; }
+
+/* Styles for single Ticket inside previews */
+.ticket-wrapper {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.ticket-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+}
+
+.ticket-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ticket-no {
+  font-size: 11px;
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+.ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  border-collapse: collapse;
+}
+
+.ticket-cell {
+  aspect-ratio: 1.4 / 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  position: relative;
+}
+
+.ticket-cell.empty {
+  background-color: transparent !important;
+}
+
+.ticket-cell.filled {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.cell-emoji {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.cell-name {
+  font-size: 9px;
+  line-height: 1.1;
+  word-break: break-word;
+  overflow: hidden;
+  max-height: 2.2em;
+  font-weight: 600;
+}
+
+.ticket-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  margin-top: 6px;
+  padding-top: 4px;
+  opacity: 0.8;
+}
+
+/* Printing styles overrides */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+  .a4-page {
+    width: 210mm !important;
+    height: 297mm !important;
+    padding: 10mm 15mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+    page-break-after: always !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Ensure backgrounds render correctly in print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

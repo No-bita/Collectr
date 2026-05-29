@@ -19,7 +19,7 @@ async function sendWhatsAppMessage(phone, text, env) {
   const data = await res.json();
   if (!res.ok) {
     console.error("WhatsApp Error:", JSON.stringify(data));
-    throw new Error("Failed to send WhatsApp message");
+    throw new Error(data.error?.message || "Failed to send WhatsApp message");
   }
 }
 
@@ -37,7 +37,7 @@ async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
       type: "template",
       template: {
         name: templateName,
-        language: { code: "en_US" },
+        language: { code: env.WHATSAPP_TEMPLATE_LANG || "en" },
         components: [
           {
             type: "body",
@@ -70,7 +70,7 @@ async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
   const data = await res.json();
   if (!res.ok) {
     console.error("WhatsApp Template Error:", JSON.stringify(data));
-    throw new Error("Failed to send WhatsApp template message");
+    throw new Error(data.error?.message || "Failed to send WhatsApp template message");
   }
 }
 
