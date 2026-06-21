@@ -1,0 +1,277 @@
+# Collectr — Full Site Content
+
+> This file contains the complete text content of collectrr-iota.vercel.app for AI indexing.
+> Last updated: 2025-06-21
+
+---
+
+## Homepage
+
+### Hero
+
+**Headline**: Collect documents from hundreds of clients without endless follow ups.
+
+**Subheadline**: Send one request, automatically follow up, and receive filing-ready submissions without chasing clients across WhatsApp and email.
+
+**Trust signals**: No client logins · WhatsApp + Email reminders · Reusable checklists
+
+**Built for**: ITR season
+
+---
+
+### The Problem
+
+**Section title**: ITR season shouldn't feel like running a call centre.
+
+**Problem 1 — Documents arrive in fragments**
+Form 16 today, bank statement next week, capital gains never. You stitch the puzzle yourself.
+
+**Problem 2 — Staff spends hours following up**
+Your team writes the same WhatsApp message to 200 clients. That's not accounting work.
+
+**Problem 3 — Deadlines become chaotic**
+31st July arrives and half your clients are still missing PAN copies or rental receipts.
+
+---
+
+### How It Works
+
+**Section title**: Four steps. Zero chasing.
+
+**Step 01 — Create a collection**
+Pick a reusable checklist — ITR Salaried, ITR Business, GST — or build your own in seconds.
+
+**Step 02 — Send one link**
+Your client gets a single link over WhatsApp or email. No login. No app to install.
+
+**Step 03 — Collectr follows up automatically**
+We chase clients on the schedule you choose — until every required document arrives.
+
+**Step 04 — Review and proceed to filing**
+Uploads are read, named, and organised. You see one tidy submission, ready to file.
+
+---
+
+### Product Dashboard
+
+**Section title**: One dashboard. Every client.
+
+Know exactly who has submitted, who is pending, and what still needs your attention — without opening WhatsApp once.
+
+**Stats**: 64 completed · 48 waiting · 9 needs review · 3.2 avg. days to file (example data)
+
+---
+
+### Outcomes
+
+**Section title**: Spend time filing. Not chasing.
+
+- **−82%** — Time spent on follow ups. Staff stops writing the same WhatsApp message to every client.
+- **94%** — Client completion rate. Automatic, scheduled reminders close the loop on every submission.
+- **3.4×** — Clients handled per CA. Same team. Many more filings. Without the season-end panic.
+
+---
+
+### Expansion
+
+**Section title**: Where we're going
+
+Built for tax workflows today. Designed for every document-heavy process tomorrow.
+
+Future use cases: KYC · Loan ops · Onboarding · Audit · Legal intake
+
+---
+
+### Final CTA
+
+**Headline**: Ready to stop reminding clients?
+
+Start your next collection in under 2 minutes.
+
+**Actions**: Start collecting · Book a 10-min demo
+
+---
+
+### Footer
+
+© 2025 Collectr. Made for CAs in India.
+
+Client intake & document collection automation.
+
+---
+
+## Privacy Policy
+
+Last updated: 26 May 2025
+
+### 1. Introduction
+
+Collectr ("we", "our", or "us") operates the Collectr platform — a document collection and client follow-up tool for Chartered Accountants and tax professionals in India. This Privacy Policy explains how we collect, use, store, and protect information when you use our service at collectrr-iota.vercel.app (the "Service").
+
+By using Collectr, you agree to the collection and use of information as described in this policy.
+
+### 2. Information We Collect
+
+**From Chartered Accountants (CAs)**: Name, email address, phone number, firm name, client names and contact information, document checklist configurations, billing information.
+
+**From clients**: Name and contact details, uploaded documents (Form 16, PAN copy, bank statements, etc.), upload timestamps, submission status. Clients interact via unique link — no account or password required.
+
+**Automatically**: IP address, browser and device type, pages visited, time spent, referring URLs. Collected via cookies and similar technologies.
+
+### 3. How We Use Your Information
+
+- Provide, operate, and improve the platform
+- Send automated document request reminders via WhatsApp and email
+- Notify CAs of uploads and completed submissions
+- Process payments and billing
+- Respond to support requests
+- Detect and prevent fraud and security incidents
+- Comply with Indian data protection laws
+- Send product updates (opt-out available)
+
+We do NOT sell personal information to third parties for advertising.
+
+### 4. How We Share Your Information
+
+**Service providers**: Cloud hosting, WhatsApp Business API, email delivery, payment processing, analytics — under strict data agreements.
+
+**Legal requirements**: When required by law, court order, or governmental authority.
+
+**Business transfers**: In case of merger or acquisition, with prior notification.
+
+### 5. Client Documents and Sensitive Data
+
+- Stored encrypted at rest and in transit (TLS 1.2+)
+- Access restricted to the initiating CA and authorised Collectr personnel only
+- Retained for subscription duration, deleted within 90 days of account closure
+- Not used for model training, advertising, or any purpose other than service delivery
+
+### 6. Data Retention
+
+- CA account data: Active period + up to 3 years post-closure
+- Client data and documents: Duration of collection + 90 days post-closure (or on request)
+- Usage logs: Up to 12 months
+
+### 7. Cookies and Tracking
+
+- **Essential cookies**: Required for authentication and session management. Cannot be disabled.
+- **Analytics cookies**: Page views and feature usage. Opt-out via browser settings.
+- **Preference cookies**: Settings and preferences.
+
+### 8. Security
+
+- TLS 1.2+ encryption in transit
+- AES-256 encryption at rest
+- Role-based access controls
+- Regular security reviews
+
+### 9. Your Rights
+
+Access · Correction · Deletion · Data portability · Marketing opt-out · Restriction of processing
+
+Contact privacy@collectrr.in to exercise any right. Response within 30 days.
+
+### 10. Children's Privacy
+
+Service not intended for users under 18. Contact us if you believe a minor's data was collected.
+
+### 11. Policy Changes
+
+Material changes communicated by email or site notice at least 14 days before taking effect.
+
+### 12. Contact
+
+Email: privacy@collectrr.in
+Website: https://collectrr-iota.vercel.app
+
+---
+
+## Blog
+
+### Post 1: The Complete ITR Document Checklist for AY 2025-26
+
+**URL**: https://collectrr-iota.vercel.app/blog/itr-document-checklist-ay-2025-26
+**Published**: 2025-06-15
+**Tags**: ITR, Document Checklist, CA Guide
+
+Every July, thousands of CA firms scramble to collect the same set of documents from hundreds of clients. Here is the complete, checklist you need — broken down by client type.
+
+**For salaried individuals**:
+- Form 16 (Part A and Part B) from employer
+- PAN card copy
+- Aadhaar card copy
+- Bank statements for all accounts (April 2024 – March 2025)
+- Form 26AS and AIS (from income tax portal)
+- Rent receipts (if claiming HRA)
+- Interest certificate from home loan lender (if applicable)
+- Investment proofs: LIC premium receipts, PPF passbook, ELSS statements, NPS contribution
+- Interest certificates from banks/post office (FD, savings account)
+- Capital gains statements from broker (if applicable)
+- Foreign income details (if applicable)
+
+**For business owners / self-employed**:
+All of the above, plus:
+- GST returns (GSTR-1, GSTR-3B) for all months
+- Purchase and sales invoices
+- Bank statements for business accounts
+- Balance sheet and P&L (if maintained)
+- TDS certificates received (Form 16A)
+- Loan account statements
+- Depreciation schedule
+
+**For HUF (Hindu Undivided Family)**:
+- HUF PAN card copy
+- HUF deed or declaration
+- PAN and Aadhaar of Karta and co-parceners
+- Bank statements of HUF account
+- Details of assets, income, and investments in HUF name
+
+**Common mistakes to avoid**:
+1. Asking for documents one at a time — always send the full list upfront.
+2. Not specifying the assessment year — "bank statement" is ambiguous; "bank statement for FY 2024-25 (April 2024 – March 2025)" is not.
+3. Forgetting Form 26AS — it often catches discrepancies that clients are unaware of.
+4. Not following up — most clients will not proactively submit. A structured reminder schedule is the only reliable way to close the loop.
+
+**How Collectr helps**: Instead of sending this checklist over WhatsApp and then manually following up on each item, CAs can set up an ITR Salaried or ITR Business collection in Collectr. The client receives one link, uploads each document against the checklist item, and Collectr sends automatic reminders until everything is received. The CA sees a real-time dashboard without opening WhatsApp once.
+
+---
+
+### Post 2: Why Indian CAs Are Losing 3 Hours a Day to Document Follow-Ups (And How to Stop)
+
+**URL**: https://collectrr-iota.vercel.app/blog/why-cas-lose-hours-to-follow-ups
+**Published**: 2025-06-21
+**Tags**: CA Productivity, ITR Season, Document Management
+
+It's June. You have 200 clients to file for before July 31. You've sent the document checklist. Now begins the most exhausting part of ITR season — not the filing itself, but the chasing.
+
+A typical CA firm's ITR season communication looks like this: Monday morning, a staff member opens WhatsApp and types a variation of "Hi [name], we are waiting for your Form 16 and bank statement" to 40 clients. Some respond. Some don't. By Wednesday, 15 of those 40 need a second message. Five need a call. Two upload the wrong document entirely.
+
+Multiply this across 200 clients and a team of 3–4 staff, and you have the single biggest inefficiency in CA practice management — one that has nothing to do with accounting skill.
+
+**The real cost**
+
+If each client requires an average of 2.5 follow-up touchpoints before submitting all documents, and each touchpoint takes 3–4 minutes to compose and track, a 200-client practice is spending approximately 25–33 staff-hours per week purely on document chasing during peak season. That's nearly a full-time person doing nothing but sending messages.
+
+**Why it hasn't been solved yet**
+
+Most CA software focuses on the back-end: filing, compliance tracking, billing. The client-facing intake layer — the messy process of collecting raw documents from non-technical clients before any accounting work begins — has been left to WhatsApp and email because there was no better option designed for this specific workflow.
+
+Generic tools like Google Forms require clients to understand what to upload and where. Shared drives require accounts. Email threads get buried. None of them send automatic reminders.
+
+**What a structured intake process looks like**
+
+The firms that run the smoothest ITR seasons share a few practices:
+
+1. **Send a complete, specific checklist upfront** — not a WhatsApp message, but a structured list with clear labels so clients know exactly what "bank statement" means (which bank, which period, in what format).
+
+2. **Set a client submission deadline that is 10–14 days before your filing deadline** — this buffer absorbs delays without creating a crisis.
+
+3. **Automate the reminders** — the reminder should go out on day 2, day 5, and day 9 regardless of whether you remember to send it. Manual reminders get skipped when the team is busy.
+
+4. **Track status at a glance** — you should be able to see, in one view, which clients are complete, which are waiting, and which are stuck.
+
+**The bottom line**
+
+Document follow-up is a logistics problem, not an accounting problem. The firms that solve the logistics — through structure, automation, and visibility — free their teams to do the actual work that requires expertise.
+
+---

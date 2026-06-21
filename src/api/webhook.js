@@ -20,7 +20,8 @@ async function sendWhatsAppMessage(phone, text, env) {
   const data = await res.json();
   if (!res.ok) {
     console.error("Webhook WhatsApp Send Error:", JSON.stringify(data));
-    throw new Error(data.error?.message || "Failed to send WhatsApp message from webhook");
+    const details = data.error?.error_data?.details || "";
+    throw new Error(`${data.error?.message || "Failed to send WhatsApp message from webhook"}${details ? " | Details: " + details : ""}`);
   }
 }
 

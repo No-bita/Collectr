@@ -7,10 +7,13 @@ main = "src/index.js"
 ENVIRONMENT = "production"
 FRONTEND_URL = "https://lekho-edge.collectr.workers.dev"
 WHATSAPP_NEW_LEAD_TEMPLATE = "onboarding_first_message"
+WHATSAPP_TEMPLATE_LANG = "en"
+FIRM_NAME = "Mishra & Associates"
 
-# Turso or Neon Database Config
-# DATABASE_URL = ""
-# DATABASE_AUTH_TOKEN = ""
+[[d1_databases]]
+binding = "DB"
+database_name = "lekho-db"
+database_id = "d2bb5eeb-85ea-4f2d-842a-4d04570d0c21"
 
 # Gemini API Key (Will be set via secrets)
 # GEMINI_API_KEY = ""

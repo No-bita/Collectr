@@ -72,5 +72,15 @@ app.get("/dd", handleGetAdminDashboard);
 app.get("/api/admin/failures", handleGetAdminFailures);
 app.delete("/api/admin/failures", handleClearAllFailures);
 app.delete("/api/admin/failures/:id", handleDeleteAdminFailure);
+app.get("/api/admin/debug-template", async (c) => {
+  const token = c.env.WHATSAPP_ACCESS_TOKEN;
+  try {
+    const meRes = await fetch(`https://graph.facebook.com/v19.0/me?fields=id,name,accounts&access_token=${token}`);
+    const meData = await meRes.json();
+    return c.json({ meData });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
 
 export default app;

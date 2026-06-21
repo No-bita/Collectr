@@ -28,7 +28,13 @@ export const DEFAULT_THEMES = {
       { id: '21', emoji: '🫓', name: { en: 'Garlic Bread', hi: 'गार्लिक ब्रेड', gu: 'ગાર્લિક બ્રેડ' } },
       { id: '22', emoji: '🍿', name: { en: 'Popcorn', hi: 'पॉपकॉर्न', gu: 'પોપકોર્ન' } },
       { id: '23', emoji: '🥤', name: { en: 'Cold Drink', hi: 'कोल्ड ड्रिंक', gu: 'કોલ્ડ ડ્રિંક્સ' } },
-      { id: '24', emoji: '🥛', name: { en: 'Lassi', hi: 'लस्सी', gu: 'લસ્સી' } }
+      { id: '24', emoji: '🥛', name: { en: 'Lassi', hi: 'लस्सी', gu: 'લસ્સી' } },
+      { id: '25', emoji: '🥖', name: { en: 'Fafda', hi: 'फाफड़ा', gu: 'ફાફડા' } },
+      { id: '26', emoji: '🫓', name: { en: 'Khakhra', hi: 'खाखरा', gu: 'ખાખરા' } },
+      { id: '27', emoji: '🍧', name: { en: 'Shrikhand', hi: 'श्रीखंड', gu: 'શ્રીખંડ' } },
+      { id: '28', emoji: '🥮', name: { en: 'Handvo', hi: 'हांडवो', gu: 'હાંડવો' } },
+      { id: '29', emoji: '🧆', name: { en: 'Dal Baati', hi: 'दाल बाती', gu: 'દાલ બાટી' } },
+      { id: '30', emoji: '🥨', name: { en: 'Gathiya', hi: 'गाठिया', gu: 'ગાંઠિયા' } }
     ]
   },
   kitty: {
@@ -59,7 +65,13 @@ export const DEFAULT_THEMES = {
       { id: 'k21', emoji: '🛍️', name: { en: 'Shopping', hi: 'खरीदारी', gu: 'શોપિંગ' } },
       { id: 'k22', emoji: '👥', name: { en: 'Kitty Group', hi: 'किटी ग्रुप', gu: 'કીટી ગ્રુપ' } },
       { id: 'k23', emoji: '🎯', name: { en: 'Fun Games', hi: 'मजेदार खेल', gu: 'રમત ગમત' } },
-      { id: 'k24', emoji: '🏆', name: { en: 'Prizes', hi: 'पुरस्कार', gu: 'ઇનામો' } }
+      { id: 'k24', emoji: '🏆', name: { en: 'Prizes', hi: 'पुरस्कार', gu: 'ઇનામો' } },
+      { id: 'k25', emoji: '🪙', name: { en: 'Tambola Token', hi: 'तंबोला टोकन', gu: 'તંબોલા ટોકન' } },
+      { id: 'k26', emoji: '💬', name: { en: 'Kitty Gossip', hi: 'किटी गपशप', gu: 'કીટી ગપશપ' } },
+      { id: 'k27', emoji: '🔢', name: { en: 'Tambola Numbers', hi: 'तंबोला नंबर', gu: 'તંબોલા નંબર' } },
+      { id: 'k28', emoji: '👩‍💼', name: { en: 'Hostess', hi: 'होस्टेस', gu: 'હોસ્ટેસ' } },
+      { id: 'k29', emoji: '📸', name: { en: 'Photo Booth', hi: 'फोटो बूथ', gu: 'ફોટો બૂથ' } },
+      { id: 'k30', emoji: '🎫', name: { en: 'Lucky Draw', hi: 'लकी ड्रा', gu: 'લકી ડ્રો' } }
     ]
   }
 };
@@ -77,106 +89,119 @@ export function shuffleArray(array) {
 }
 
 /**
- * Generates a valid Tambola ticket skeleton (3 rows x 9 columns)
- * Constraints satisfied:
- * - exactly 5 items per row
- * - exactly 15 total items
- * - every column has at least 1 item
+ * Generates a complete ticket by filling a fixed grid of size rows x columns
  */
-export function generateTicketSkeleton() {
-  let attempts = 0;
-  while (attempts < 1000) {
-    attempts++;
-    const skeleton = Array.from({ length: 3 }, () => Array(9).fill(0));
-
-    // For each row, choose 5 random columns
-    for (let r = 0; r < 3; r++) {
-      const columns = [];
-      while (columns.length < 5) {
-        const c = Math.floor(Math.random() * 9);
-        if (!columns.includes(c)) {
-          columns.push(c);
-        }
-      }
-      columns.forEach(c => {
-        skeleton[r][c] = 1;
-      });
-    }
-
-    // Validation: check if every column has at least one 1
-    let colCheckPassed = true;
-    for (let c = 0; c < 9; c++) {
-      if (skeleton[0][c] === 0 && skeleton[1][c] === 0 && skeleton[2][c] === 0) {
-        colCheckPassed = false;
-        break;
-      }
-    }
-
-    if (colCheckPassed) {
-      return skeleton;
-    }
+export function generateTicket(items, ticketIndex, rows = 3, columns = 9, itemsPerRow = 5) {
+  const minNeeded = rows * itemsPerRow;
+  if (items.length < minNeeded) {
+    throw new Error(`Must have at least ${minNeeded} items to generate this ticket.`);
   }
 
-  // Backup fallback skeleton that is mathematically proven to be valid
-  return [
-    [1, 0, 1, 0, 1, 0, 1, 0, 1],
-    [0, 1, 0, 1, 0, 1, 0, 1, 1],
-    [1, 0, 1, 0, 1, 0, 1, 1, 0]
-  ];
-}
-
-/**
- * Generates a complete ticket by placing items into the skeleton
- */
-export function generateTicket(items, ticketIndex) {
-  if (items.length < 15) {
-    throw new Error('Must have at least 15 items to generate a Tambola ticket.');
-  }
-
-  // Get a fresh skeleton
-  const skeleton = generateTicketSkeleton();
+  // Shuffle items and take exactly rows * itemsPerRow unique items
+  const shuffledItems = shuffleArray(items).slice(0, minNeeded);
   
-  // Shuffle items and take 15 unique items
-  const shuffledItems = shuffleArray(items).slice(0, 15);
-  
-  // Construct grid: 3x9 filled with null or item
-  const grid = Array.from({ length: 3 }, () => Array(9).fill(null));
+  // Generate a valid grid mask where each row has exactly itemsPerRow items
+  // and every column has at least one item (no column is blank)
+  const mask = generateGridMask(rows, columns, itemsPerRow);
+
+  // Construct grid: rows x columns containing items or null
+  const grid = [];
   let itemPointer = 0;
   
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 9; c++) {
-      if (skeleton[r][c] === 1) {
-        grid[r][c] = shuffledItems[itemPointer++];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < columns; c++) {
+      if (mask[r][c]) {
+        row.push(shuffledItems[itemPointer++]);
+      } else {
+        row.push(null);
       }
     }
+    grid.push(row);
   }
 
   return {
     id: `ticket-${ticketIndex}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     grid,
-    ticketNumber: ticketIndex + 1
+    ticketNumber: ticketIndex + 1,
+    rows,
+    columns
   };
 }
 
+function generateGridMask(rows, columns, itemsPerRow) {
+  let attempts = 0;
+  while (attempts < 1000) {
+    attempts++;
+    const mask = Array.from({ length: rows }, () => Array(columns).fill(false));
+    
+    for (let r = 0; r < rows; r++) {
+      const cols = [];
+      while (cols.length < itemsPerRow) {
+        const randCol = Math.floor(Math.random() * columns);
+        if (!cols.includes(randCol)) {
+          cols.push(randCol);
+        }
+      }
+      cols.forEach(c => {
+        mask[r][c] = true;
+      });
+    }
+    
+    // Check if every column has at least one item
+    let allColumnsFilled = true;
+    for (let c = 0; c < columns; c++) {
+      let colHasItem = false;
+      for (let r = 0; r < rows; r++) {
+        if (mask[r][c]) {
+          colHasItem = true;
+          break;
+        }
+      }
+      if (!colHasItem) {
+        allColumnsFilled = false;
+        break;
+      }
+    }
+    
+    if (allColumnsFilled) {
+      return mask;
+    }
+  }
+  
+  // Deterministic fallback to guarantee no blank column
+  const mask = Array.from({ length: rows }, () => Array(columns).fill(false));
+  for (let c = 0; c < columns; c++) {
+    const r = c % rows;
+    mask[r][c] = true;
+  }
+  for (let r = 0; r < rows; r++) {
+    let currentCount = mask[r].filter(Boolean).length;
+    for (let c = 0; c < columns && currentCount < itemsPerRow; c++) {
+      if (!mask[r][c]) {
+        mask[r][c] = true;
+        currentCount++;
+      }
+    }
+  }
+  return mask;
+}
+
 /**
- * Validates that a generated ticket meets all constraints
+ * Validates that a generated ticket meets custom grid rules
  */
 export function validateTicket(ticket) {
-  const { grid } = ticket;
+  const { grid, rows, columns } = ticket;
+  const expectedTotal = rows * columns;
   let totalItems = 0;
-  const rowCounts = [0, 0, 0];
-  const colCounts = Array(9).fill(0);
   const itemsSeen = new Set();
   let duplicates = false;
 
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 9; c++) {
-      const item = grid[r][c];
-      if (item !== null) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < columns; c++) {
+      const item = grid[r]?.[c];
+      if (item) {
         totalItems++;
-        rowCounts[r]++;
-        colCounts[c]++;
-        
         if (itemsSeen.has(item.id)) {
           duplicates = true;
         }
@@ -185,14 +210,9 @@ export function validateTicket(ticket) {
     }
   }
 
-  const everyColumnHasAtLeastOneItem = colCounts.every(count => count >= 1);
-  const eachRowCountIsFive = rowCounts.every(count => count === 5);
-  
   return {
-    totalItems: totalItems === 15,
-    eachRowCountIsFive,
-    everyColumnHasAtLeastOneItem,
+    totalItems: totalItems === expectedTotal,
     noDuplicates: !duplicates,
-    isValid: (totalItems === 15) && eachRowCountIsFive && everyColumnHasAtLeastOneItem && !duplicates
+    isValid: (totalItems === expectedTotal) && !duplicates
   };
 }

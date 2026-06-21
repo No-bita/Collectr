@@ -19,7 +19,8 @@ async function sendWhatsAppMessage(phone, text, env) {
   const data = await res.json();
   if (!res.ok) {
     console.error("WhatsApp Error:", JSON.stringify(data));
-    throw new Error(data.error?.message || "Failed to send WhatsApp message");
+    const details = data.error?.error_data?.details || "";
+    throw new Error(`${data.error?.message || "Failed to send WhatsApp message"}${details ? " | Details: " + details : ""}`);
   }
 }
 
@@ -44,10 +45,12 @@ async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
             parameters: [
               {
                 type: "text",
+                parameter_name: "name",
                 text: name || "Client"
               },
               {
                 type: "text",
+                parameter_name: "caname",
                 text: env.FIRM_NAME || "Mishra & Associates"
               }
             ]
@@ -59,7 +62,8 @@ async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
             parameters: [
               {
                 type: "text",
-                text: token
+                parameter_name: "token",
+                text: `upload.html?t=${token}`
               }
             ]
           }
@@ -70,7 +74,8 @@ async function sendWhatsAppTemplate(phone, templateName, name, token, env) {
   const data = await res.json();
   if (!res.ok) {
     console.error("WhatsApp Template Error:", JSON.stringify(data));
-    throw new Error(data.error?.message || "Failed to send WhatsApp template message");
+    const details = data.error?.error_data?.details || "";
+    throw new Error(`${data.error?.message || "Failed to send WhatsApp template message"}${details ? " | Details: " + details : ""}`);
   }
 }
 

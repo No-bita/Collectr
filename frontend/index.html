@@ -1,364 +1,124 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Leads — Document pipeline</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary SEO -->
+    <title>Collectr — Collect client documents without endless follow ups</title>
+    <meta name="description" content="Send one request. Collectr does the chasing. Automated client document collection built for Chartered Accountants during ITR season. No client login required." />
+    <meta name="keywords" content="document collection, ITR, chartered accountant, CA software, client document management, automated follow up, income tax return, India" />
+    <meta name="author" content="Collectr" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://collectrr-iota.vercel.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://collectrr-iota.vercel.app/" />
+    <meta property="og:site_name" content="Collectr" />
+    <meta property="og:title" content="Collectr — Stop chasing clients for documents" />
+    <meta property="og:description" content="Client intake and document collection automation for CAs. Send one link, automatic reminders, filing-ready submissions. Built for ITR season." />
+    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6405acac-a86d-4696-9ef8-6c4d31181551/id-preview-2055e3e3--da3c93ba-705f-4e1f-a640-f5d0573481a8.lovable.app-1779625375117.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@collectrapp" />
+    <meta name="twitter:title" content="Collectr — Stop chasing clients for documents" />
+    <meta name="twitter:description" content="Send one link. Collectr automatically follows up until every document arrives. Built for Indian CAs during ITR season." />
+    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6405acac-a86d-4696-9ef8-6c4d31181551/id-preview-2055e3e3--da3c93ba-705f-4e1f-a640-f5d0573481a8.lovable.app-1779625375117.png" />
+
+    <!-- AI / LLM discoverability -->
+    <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt" />
+    <link rel="alternate" type="text/plain" title="LLMs-full.txt" href="/llms-full.txt" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Collectr",
+      "url": "https://collectrr-iota.vercel.app/",
+      "description": "Automated client document collection for Chartered Accountants in India. Send one request, Collectr handles follow-ups via WhatsApp and email until every document is received.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR",
+        "description": "Early access — contact via website"
+      },
+      "audience": {
+        "@type": "Audience",
+        "audienceType": "Chartered Accountants, Tax Professionals",
+        "geographicArea": {
+          "@type": "Country",
+          "name": "India"
+        }
+      },
+      "featureList": [
+        "Reusable document checklists (ITR Salaried, ITR Business, GST Monthly)",
+        "No client login required",
+        "Automated WhatsApp and email reminders",
+        "Real-time collection dashboard",
+        "Auto-organized file submissions",
+        "Custom reminder schedules"
+      ],
+      "screenshot": "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6405acac-a86d-4696-9ef8-6c4d31181551/id-preview-2055e3e3--da3c93ba-705f-4e1f-a640-f5d0573481a8.lovable.app-1779625375117.png"
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Do clients need to create an account to upload documents?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Clients receive a unique link and can upload documents directly without creating an account or installing any app."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What channels does Collectr use to send reminders?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Collectr sends automated reminders via WhatsApp and email on a schedule set by the Chartered Accountant."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What document checklists does Collectr support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Collectr includes built-in templates for ITR Salaried, ITR Business, GST Monthly, and Audit Pack. CAs can also create custom checklists."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much time can a CA save using Collectr?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Collectr reduces time spent on client follow-ups by 82% and enables a single CA to handle 3.4x more clients compared to manual follow-up workflows."
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
-      rel="stylesheet"
-    />
-        <link rel="stylesheet" href="/css/dashboard.css" />
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script type="module" crossorigin src="/assets/index-B3_dtaL3.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DWK6D-LX.css">
   </head>
   <body>
-    <div class="shell">
-      <header class="dashboard-top">
-        <div class="dashboard-top-left">
-          <div>
-            <h1>Collectr</h1>
-          </div>
-        </div>
-        <div class="dashboard-top-right">
-          <div class="top-search-row">
-            <label for="q" class="visually-hidden">Search by client name or phone</label>
-            <div class="search-wrap dashboard-search-wrap">
-              <span class="search-icon" aria-hidden="true">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke-width="1.5"
-                  stroke="currentColor"
-                  width="18"
-                  height="18"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                  />
-                </svg>
-              </span>
-              <input
-                type="search"
-                id="q"
-                class="search-input"
-                placeholder="Search clients"
-                autocomplete="off"
-                title="Search by client name or phone"
-              />
-            </div>
-            <div class="filter-wrap" style="margin-right: var(--space-2);">
-              <button
-                type="button"
-                class="icon-btn"
-                id="sortMenuBtn"
-                aria-expanded="false"
-                aria-haspopup="true"
-                aria-label="Sort options"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 6h18" />
-                  <path d="M7 12h10" />
-                  <path d="M10 18h4" />
-                </svg>
-              </button>
-              <div class="filter-dropdown" id="sortMenu" role="menu" hidden aria-labelledby="sortMenuBtn" style="right: 0; left: auto;">
-                <button type="button" class="filter-option" role="menuitemradio" data-sort="created" aria-checked="true">
-                  Date added
-                </button>
-                <button type="button" class="filter-option" role="menuitemradio" data-sort="name" aria-checked="false">
-                  Name (A-Z)
-                </button>
-                <button type="button" class="filter-option" role="menuitemradio" data-sort="progress" aria-checked="false">
-                  Progress
-                </button>
-                <button type="button" class="filter-option" role="menuitemradio" data-sort="status" aria-checked="false">
-                  Status
-                </button>
-              </div>
-            </div>
-            <div class="profile-pill">
-              <div class="profile-avatar" aria-hidden="true">A</div>
-              <div class="profile-meta">
-                <span class="profile-name">Aaryan Shah</span>
-                <span class="profile-role">Admin</span>
-              </div>
-            </div>
-          </div>
-          <div class="top-actions-row">
-            <button type="button" class="btn btn-ghost" id="refreshBtn">Refresh</button>
-            <button type="button" class="btn btn-primary" id="openAdd">Add Client</button>
-          </div>
-        </div>
-      </header>
-
-      <div class="success-banner" id="success" hidden></div>
-      <div class="error-banner" id="error" hidden></div>
-
-      <section class="summary-bar" aria-label="Summary">
-        <div class="stats stats-top" id="stats">
-          <div class="stat stat-top">
-            <div class="stat-icon stat-icon-blue" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12Zm0 2c-4.1 0-7.5 2.24-7.5 5a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1c0-2.76-3.4-5-7.5-5Z"></path></svg>
-            </div>
-            <div class="stat-top-body">
-              <div class="label">Your Clients</div>
-              <div class="value" id="statTotal">—</div>
-              <div class="stat-note">Active leads</div>
-            </div>
-          </div>
-          <div class="stat stat-top">
-            <div class="stat-icon stat-icon-green" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="m9.7 16.7-3.4-3.4-1.4 1.4 4.8 4.8L19.1 10l-1.4-1.4Z"></path></svg>
-            </div>
-            <div class="stat-top-body">
-              <div class="label">Completed</div>
-              <div class="value" id="statDone">—</div>
-              <div class="stat-note">Finished workflows</div>
-            </div>
-          </div>
-          <div class="stat stat-top">
-            <div class="stat-icon stat-icon-orange" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 6a1 1 0 0 1 1 1v4.6l3 1.8a1 1 0 1 1-1 1.72l-3.5-2.1A1 1 0 0 1 11 12V7a1 1 0 0 1 1-1Zm0-4a10 10 0 1 1 0 20 10 10 0 0 1 0-20Z"></path></svg>
-            </div>
-            <div class="stat-top-body">
-              <div class="label">Follow-up Due</div>
-              <div class="value" id="statFollowUp">—</div>
-              <div class="stat-note">Pending reminders</div>
-            </div>
-          </div>
-          <div class="stat stat-top">
-            <div class="stat-icon stat-icon-violet" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M7 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9l-6-6H7Zm5 1.5L17.5 10H13a1 1 0 0 1-1-1V4.5Z"></path></svg>
-            </div>
-            <div class="stat-top-body">
-              <div class="label">Documents</div>
-              <div class="value" id="statDocs">—</div>
-              <div class="stat-note">Total required</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div class="toolbar toolbar-hidden">
-        <div class="filter-wrap">
-          <button
-            type="button"
-            class="filter-btn"
-            id="filterMenuBtn"
-            aria-expanded="false"
-            aria-haspopup="true"
-            aria-controls="filterMenu"
-          >
-            <svg
-              class="filter-btn-icon"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z"
-              />
-            </svg>
-            <span>Filter</span>
-          </button>
-          <div class="filter-dropdown" id="filterMenu" role="menu" hidden aria-labelledby="filterMenuBtn">
-            <button type="button" class="filter-option" role="menuitemradio" data-filter="all" aria-checked="true">
-              All
-            </button>
-            <button type="button" class="filter-option" role="menuitemradio" data-filter="In Progress" aria-checked="false">
-              In progress
-            </button>
-            <button type="button" class="filter-option" role="menuitemradio" data-filter="Completed" aria-checked="false">
-              Completed
-            </button>
-            <button type="button" class="filter-option" role="menuitemradio" data-filter="followup" aria-checked="false">
-              Follow-up due
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="leads-grid" id="leadsGrid"></div>
-      
-      <div class="empty-state" id="empty" hidden>
-        <strong id="emptyTitle">No rows match</strong>
-        <p id="emptyDesc" class="empty-state-desc">
-          Try another name or phone, or open Filter to change status.
-        </p>
-      </div>
-    </div>
-
-    <div class="modal-backdrop" id="modalBackdrop" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 id="modalTitle">Add new client</h2>
-          <button type="button" class="modal-close" id="closeModal" aria-label="Close">×</button>
-        </div>
-        <div class="modal-stack" id="modalStack">
-          <form class="modal-body" id="addForm">
-            <div class="field">
-              <label for="newName">Name</label>
-              <input
-                id="newName"
-                name="name"
-                type="text"
-                autocomplete="name"
-                placeholder="Aaryan"
-                maxlength="60"
-              />
-            </div>
-            <div class="field">
-              <label for="newPhone">Phone</label>
-              <input id="newPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="9876543210" maxlength="10"/>
-            </div>
-            <div class="field">
-              <span class="field-label-block">Required docs</span>
-              <p class="field-hint" id="requiredDocsHint">
-                Select at least one document.
-              </p>
-              <div id="requiredDocsFields" class="doc-check-grid" role="group" aria-label="Required docs"></div>
-            </div>
-            <p class="modal-error" id="modalError" hidden></p>
-          </form>
-          <div class="modal-footer">
-            <button type="button" class="btn" id="cancelAdd">Cancel</button>
-            <button type="submit" class="btn btn-primary" form="addForm" id="submitAdd">Create</button>
-          </div>
-          <div class="modal-busy-overlay" id="modalAddLoading" hidden role="status" aria-live="polite">
-            <div class="modal-spinner" aria-hidden="true"></div>
-            <p>Adding client…</p>
-          </div>
-          <div
-            class="modal-busy-overlay modal-busy-overlay--celebrate"
-            id="modalAddCelebrate"
-            hidden
-            aria-hidden="true"
-          >
-            <div class="celebrate-stage">
-              <div class="celebrate-burst" aria-hidden="true">
-                <span class="celebrate-ring"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-                <span class="celebrate-piece"></span>
-              </div>
-              <p class="celebrate-caption">Nice — they're in.</p>
-            </div>
-          </div>
-          <div
-            class="modal-busy-overlay modal-busy-overlay--success"
-            id="modalAddSuccess"
-            hidden
-            role="status"
-            aria-live="polite"
-          >
-            <p class="modal-success-lead" id="modalAddSuccessLead">Client added.</p>
-            <p class="modal-success-hint">You may close this window now.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div
-      class="modal-backdrop"
-      id="followUpBackdrop"
-      hidden
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="followUpModalTitle"
-    >
-      <div class="modal">
-        <div class="modal-header">
-          <h2 id="followUpModalTitle">Log follow-up</h2>
-          <button type="button" class="modal-close" id="closeFollowUpModal" aria-label="Close">×</button>
-        </div>
-        <form class="modal-body" id="followUpForm">
-          <p class="field-hint field-hint-topless" id="followUpClientLine"></p>
-          <div class="field">
-            <span class="field-label-block">Message to send (WhatsApp)</span>
-            <p class="field-hint field-hint-preview" id="followUpReminderPreview"></p>
-          </div>
-          <div class="field">
-            <label for="followUpNote">Notes (optional)</label>
-            <textarea
-              id="followUpNote"
-              name="note"
-              rows="3"
-              maxlength="500"
-              placeholder="e.g. Called — will send WhatsApp link tomorrow."
-            ></textarea>
-          </div>
-          <div class="field">
-            <label class="doc-check">
-              <input type="checkbox" id="followUpSendWa" name="sendWhatsApp" checked />
-              Send WhatsApp reminder
-            </label>
-          </div>
-          <p class="modal-error" id="followUpError" hidden></p>
-        </form>
-        <div class="modal-footer">
-          <button type="button" class="btn" id="cancelFollowUp">Cancel</button>
-          <button type="submit" class="btn btn-primary" form="followUpForm" id="submitFollowUp">Save</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div class="modal-backdrop" id="deleteModalBackdrop" hidden role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 id="deleteModalTitle">Delete client</h2>
-          <button type="button" class="modal-close" id="closeDeleteModalBtn" aria-label="Close">×</button>
-        </div>
-        <div class="modal-body">
-          <p>Are you sure you want to delete this client? This will remove all their data and cannot be undone.</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn" id="cancelDeleteBtn">Cancel</button>
-          <button type="button" class="btn btn-primary" style="background: #dc2626; border-color: #dc2626;" id="confirmDeleteBtn">Delete</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Reject Confirmation Modal -->
-    <div class="modal-backdrop" id="rejectModalBackdrop" hidden role="dialog" aria-modal="true" aria-labelledby="rejectModalTitle">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 id="rejectModalTitle">Reject Document</h2>
-          <button type="button" class="modal-close" id="closeRejectModalBtn" aria-label="Close">×</button>
-        </div>
-        <div class="modal-body">
-          <p>Are you sure you want to reject this document? It will be marked as pending again.</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn" id="cancelRejectBtn">Cancel</button>
-          <button type="button" class="btn btn-primary" style="background: #dc2626; border-color: #dc2626;" id="confirmRejectBtn">Reject</button>
-        </div>
-      </div>
-    </div>
-
-        <link rel="stylesheet" href="/css/utilities.css" />
-
-
-        <script src="/js/app.js"></script>
-
+    <div id="root"><!--$--><div class="min-h-screen bg-background"><header class="sticky top-0 z-50 border-b border-line/70 bg-background/80 backdrop-blur-md"><div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-6"><a href="/" class="flex items-center gap-2"><div class="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox h-4 w-4" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></div><span class="text-[17px] font-semibold tracking-tight text-ink">Collectr</span></a><nav class="hidden items-center gap-8 text-sm text-ink-muted md:flex"><a href="#how" class="hover:text-ink transition-colors">How it works</a></nav><div class="flex items-center gap-2"><a href="/early-access" class="hidden text-sm font-medium text-ink-muted hover:text-ink md:inline-flex">Sign in</a><a href="/early-access" class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90">Start collecting <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right h-3.5 w-3.5" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a></div></div></header><main><section class="relative overflow-hidden border-b border-line bg-background"><div class="absolute inset-0 grid-bg [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_70%)] opacity-60"></div><div class="relative mx-auto max-w-7xl px-6 pt-20 pb-24 lg:pt-28 lg:pb-32"><div class="grid gap-16 lg:grid-cols-[1.05fr_1fr] lg:items-center"><div style="opacity:0"><div class="inline-flex items-center gap-2 rounded-full border border-line bg-surface-raised px-3 py-1 text-xs font-medium text-ink-muted" style="opacity:0;transform:translateY(30px)"><span class="h-1.5 w-1.5 rounded-full bg-success"></span>Built for ITR season</div><h1 class="mt-6 text-4xl font-medium leading-[1.05] tracking-tight text-ink sm:text-5xl lg:text-[64px]" style="opacity:0;transform:translateY(30px)">Collect documents from<!-- --> <span class="font-display italic text-primary">hundreds of clients</span> without endless follow ups.</h1><p class="mt-6 max-w-xl text-lg leading-relaxed text-ink-muted" style="opacity:0;transform:translateY(30px)">Send one request, automatically follow up, and receive filing-ready submissions without chasing clients across WhatsApp and email.</p><div class="mt-8 flex flex-wrap items-center gap-3" style="opacity:0;transform:translateY(30px)"><a href="/early-access" class="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90">Start collecting <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right h-4 w-4" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a><a href="#how" class="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-surface-raised px-5 text-sm font-medium text-ink transition hover:bg-surface">See how it works</a></div><div class="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-ink-muted" style="opacity:0;transform:translateY(30px)"><span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-3.5 w-3.5 text-success" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> No client logins</span><span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-3.5 w-3.5 text-success" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> WhatsApp + Email reminders</span><span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-3.5 w-3.5 text-success" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> Reusable checklists</span></div></div><div class="relative" style="opacity:0"><div class="relative rounded-2xl border border-line bg-surface-raised p-5 shadow-[var(--shadow-pop)]" style="opacity:0;transform:translateY(30px)"><div class="flex items-center justify-between border-b border-line pb-3"><div class="flex items-center gap-2 text-xs font-medium text-ink-muted"><span class="h-2 w-2 rounded-full bg-success"></span>Collection: ITR FY 2024-25</div><div class="font-mono text-[10px] text-ink-muted">live</div></div><div class="mt-4 space-y-2.5"><div class="flex items-center gap-3 rounded-lg border border-line/70 bg-background px-3 py-2.5" style="opacity:0;transform:translateY(30px)"><div class="grid h-7 w-7 place-items-center rounded-md bg-primary/10 text-primary"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-3.5 w-3.5" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></div><div class="flex-1"><div class="text-sm font-medium text-ink">Send request</div><div class="text-[11px] text-ink-muted">1 link, any checklist</div></div><div class="font-mono text-[10px] text-ink-muted">→</div></div><div class="flex items-center gap-3 rounded-lg border border-line/70 bg-background px-3 py-2.5" style="opacity:0;transform:translateY(30px)"><div class="grid h-7 w-7 place-items-center rounded-md bg-primary/10 text-primary"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text h-3.5 w-3.5" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg></div><div class="flex-1"><div class="text-sm font-medium text-ink">Client uploads</div><div class="text-[11px] text-ink-muted">No login required</div></div><div class="font-mono text-[10px] text-ink-muted">→</div></div><div class="flex items-center gap-3 rounded-lg border border-line/70 bg-background px-3 py-2.5" style="opacity:0;transform:translateY(30px)"><div class="grid h-7 w-7 place-items-center rounded-md bg-primary/10 text-primary"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell h-3.5 w-3.5" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></div><div class="flex-1"><div class="text-sm font-medium text-ink">Automatic reminders</div><div class="text-[11px] text-ink-muted">WhatsApp + email</div></div><div class="font-mono text-[10px] text-ink-muted">→</div></div><div class="flex items-center gap-3 rounded-lg border border-line/70 bg-background px-3 py-2.5" style="opacity:0;transform:translateY(30px)"><div class="grid h-7 w-7 place-items-center rounded-md bg-primary/10 text-primary"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-3.5 w-3.5" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div><div class="flex-1"><div class="text-sm font-medium text-ink">Documents collected</div><div class="text-[11px] text-ink-muted">Verified &amp; organized</div></div><div class="font-mono text-[10px] text-ink-muted">→</div></div><div class="flex items-center gap-3 rounded-lg border border-line/70 bg-background px-3 py-2.5" style="opacity:0;transform:translateY(30px)"><div class="grid h-7 w-7 place-items-center rounded-md bg-primary/10 text-primary"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers h-3.5 w-3.5" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg></div><div class="flex-1"><div class="text-sm font-medium text-ink">Ready for filing</div><div class="text-[11px] text-ink-muted">Handed to your team</div></div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check h-4 w-4 text-success" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div></div></div><div class="absolute -right-4 -top-6 hidden w-56 rotate-[3deg] rounded-xl border border-line bg-surface-raised p-3 shadow-[var(--shadow-pop)] lg:block" style="opacity:0;transform:translateY(30px)"><div class="flex items-center justify-between"><div class="text-xs font-medium text-ink">Sharma &amp; Co.</div><span class="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">Complete</span></div><div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-success" style="width:0px"></div></div><div class="mt-1.5 text-[10px] text-ink-muted">8 of 8 documents</div></div><div class="absolute -left-6 bottom-12 hidden w-56 -rotate-[4deg] rounded-xl border border-line bg-surface-raised p-3 shadow-[var(--shadow-pop)] lg:block" style="opacity:0;transform:translateY(30px)"><div class="flex items-center justify-between"><div class="text-xs font-medium text-ink">Priya Mehta</div><span class="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">Waiting</span></div><div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-warning" style="width:0px"></div></div><div class="mt-1.5 text-[10px] text-ink-muted">Reminder sent 2h ago</div></div></div></div></div></section><section class="border-b border-line bg-surface"><div class="mx-auto max-w-7xl px-6 py-24"><div class="max-w-3xl" style="opacity:0;transform:translateY(30px)"><div class="text-xs font-medium uppercase tracking-wider text-ink-muted">The problem</div><h2 class="mt-3 text-4xl font-medium tracking-tight text-ink sm:text-5xl">ITR season shouldn&#x27;t feel like running a<!-- --> <span class="font-display italic">call centre</span>.</h2></div><div class="mt-14 grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3" style="opacity:0"><div class="bg-surface-raised p-7" style="opacity:0;transform:translateY(30px)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text h-5 w-5 text-primary" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg><div class="mt-5 text-lg font-medium text-ink">Documents arrive in fragments</div><p class="mt-2 text-sm leading-relaxed text-ink-muted">Form 16 today, bank statement next week, capital gains never. You stitch the puzzle yourself.</p></div><div class="bg-surface-raised p-7" style="opacity:0;transform:translateY(30px)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock h-5 w-5 text-primary" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><div class="mt-5 text-lg font-medium text-ink">Staff spends hours following up</div><p class="mt-2 text-sm leading-relaxed text-ink-muted">Your team writes the same WhatsApp message to 200 clients. That&#x27;s not accounting work.</p></div><div class="bg-surface-raised p-7" style="opacity:0;transform:translateY(30px)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert h-5 w-5 text-primary" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><div class="mt-5 text-lg font-medium text-ink">Deadlines become chaotic</div><p class="mt-2 text-sm leading-relaxed text-ink-muted">31st July arrives and half your clients are still missing PAN copies or rental receipts.</p></div></div></div></section><section id="how" class="border-b border-line bg-background"><div class="mx-auto max-w-7xl px-6 py-24"><div class="flex flex-wrap items-end justify-between gap-6" style="opacity:0;transform:translateY(30px)"><div class="max-w-2xl"><div class="text-xs font-medium uppercase tracking-wider text-ink-muted">How it works</div><h2 class="mt-3 text-4xl font-medium tracking-tight text-ink sm:text-5xl">Four steps. <span class="font-display italic">Zero chasing.</span></h2></div><p class="max-w-sm text-sm text-ink-muted">Replace dozens of WhatsApp threads and email chains with a single repeatable workflow.</p></div><div class="mt-16 space-y-6"><div class="grid gap-8 rounded-2xl border border-line bg-surface-raised p-6 md:grid-cols-[1fr_1.1fr] md:items-center md:p-10" style="opacity:0;transform:translateY(30px)"><div class=""><div class="font-mono text-xs text-primary">01</div><div class="mt-3 text-2xl font-medium tracking-tight text-ink sm:text-3xl">Create a collection</div><p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-muted">Pick a reusable checklist — ITR Salaried, ITR Business, GST — or build your own in seconds.</p></div><div class=""><div class="rounded-xl border border-line bg-background p-4"><div class="grid gap-4 md:grid-cols-[180px_1fr]"><div class="space-y-1.5"><div class="px-2 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Templates</div><div class="flex items-center justify-between rounded-md px-2.5 py-2 text-sm bg-primary/10 text-primary"><span class="truncate">ITR — Salaried</span><span class="font-mono text-[10px]">6</span></div><div class="flex items-center justify-between rounded-md px-2.5 py-2 text-sm text-ink-muted hover:bg-surface"><span class="truncate">ITR — Business</span><span class="font-mono text-[10px]">11</span></div><div class="flex items-center justify-between rounded-md px-2.5 py-2 text-sm text-ink-muted hover:bg-surface"><span class="truncate">GST Monthly</span><span class="font-mono text-[10px]">4</span></div><div class="flex items-center justify-between rounded-md px-2.5 py-2 text-sm text-ink-muted hover:bg-surface"><span class="truncate">Audit Pack</span><span class="font-mono text-[10px]">18</span></div></div><div class="rounded-lg border border-line bg-surface p-3"><div class="text-[10px] font-medium uppercase tracking-wider text-ink-muted">ITR — Salaried · checklist</div><ul class="mt-2 space-y-1.5"><li class="flex items-center gap-2 text-sm text-ink"><span class="grid h-4 w-4 place-items-center rounded border border-line bg-surface-raised"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-2.5 w-2.5 text-primary" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>Form 16</li><li class="flex items-center gap-2 text-sm text-ink"><span class="grid h-4 w-4 place-items-center rounded border border-line bg-surface-raised"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-2.5 w-2.5 text-primary" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>PAN copy</li><li class="flex items-center gap-2 text-sm text-ink"><span class="grid h-4 w-4 place-items-center rounded border border-line bg-surface-raised"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-2.5 w-2.5 text-primary" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>Bank statement</li><li class="flex items-center gap-2 text-sm text-ink"><span class="grid h-4 w-4 place-items-center rounded border border-line bg-surface-raised"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-2.5 w-2.5 text-primary" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>Rent receipts</li><li class="flex items-center gap-2 text-sm text-ink"><span class="grid h-4 w-4 place-items-center rounded border border-line bg-surface-raised"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-2.5 w-2.5 text-primary" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>Interest certificate</li><li class="flex items-center gap-2 text-sm text-ink"><span class="grid h-4 w-4 place-items-center rounded border border-line bg-surface-raised"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-2.5 w-2.5 text-primary" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>Investment proofs</li></ul></div></div></div></div></div><div class="grid gap-8 rounded-2xl border border-line bg-surface-raised p-6 md:grid-cols-[1fr_1.1fr] md:items-center md:p-10" style="opacity:0;transform:translateY(30px)"><div class="md:order-2"><div class="font-mono text-xs text-primary">02</div><div class="mt-3 text-2xl font-medium tracking-tight text-ink sm:text-3xl">Send one link</div><p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-muted">Your client gets a single link over WhatsApp or email. No login. No app to install.</p></div><div class="md:order-1"><div class="rounded-xl border border-line bg-background p-5"><div class="rounded-lg border border-line bg-surface p-4"><div class="text-[10px] font-medium uppercase tracking-wider text-ink-muted">Shareable link</div><div class="mt-2 flex items-center gap-2 rounded-md border border-line bg-surface-raised p-2 font-mono text-xs text-ink"><span class="text-ink-muted">collectr.in/r/</span>sharma-itr-25<button class="ml-auto rounded bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground">Copy</button></div></div><div class="mt-3 grid grid-cols-2 gap-3"><div class="rounded-lg border border-line bg-surface-raised p-3"><div class="flex items-center gap-2 text-xs font-medium text-ink"><span class="grid h-5 w-5 place-items-center rounded bg-success/10 text-success">W</span>WhatsApp</div><p class="mt-1.5 text-[11px] leading-snug text-ink-muted">Hi Rajesh, please upload your ITR documents here: collectr.in/r/...</p></div><div class="rounded-lg border border-line bg-surface-raised p-3"><div class="flex items-center gap-2 text-xs font-medium text-ink"><span class="grid h-5 w-5 place-items-center rounded bg-primary/10 text-primary">@</span>Email</div><p class="mt-1.5 text-[11px] leading-snug text-ink-muted">Subject: Documents needed — ITR FY 24-25</p></div></div></div></div></div><div class="grid gap-8 rounded-2xl border border-line bg-surface-raised p-6 md:grid-cols-[1fr_1.1fr] md:items-center md:p-10" style="opacity:0;transform:translateY(30px)"><div class=""><div class="font-mono text-xs text-primary">03</div><div class="mt-3 text-2xl font-medium tracking-tight text-ink sm:text-3xl">Collectr follows up automatically</div><p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-muted">We chase clients on the schedule you choose — until every required document arrives.</p></div><div class=""><div class="rounded-xl border border-line bg-background p-5"><div class="text-[10px] font-medium uppercase tracking-wider text-ink-muted">Reminder timeline · Priya Mehta</div><ol class="mt-4 space-y-3"><li class="flex items-start gap-3"><div class="flex flex-col items-center"><span class="grid h-2.5 w-2.5 place-items-center rounded-full bg-ink-muted/40"></span><span class="mt-1 h-6 w-px bg-line"></span></div><div class="-mt-0.5"><div class="font-mono text-[10px] text-ink-muted">Day 0</div><div class="text-sm text-ink">Request sent</div></div></li><li class="flex items-start gap-3"><div class="flex flex-col items-center"><span class="grid h-2.5 w-2.5 place-items-center rounded-full bg-ink-muted/40"></span><span class="mt-1 h-6 w-px bg-line"></span></div><div class="-mt-0.5"><div class="font-mono text-[10px] text-ink-muted">Day 2</div><div class="text-sm text-ink">Reminder · WhatsApp</div></div></li><li class="flex items-start gap-3"><div class="flex flex-col items-center"><span class="grid h-2.5 w-2.5 place-items-center rounded-full bg-success"></span><span class="mt-1 h-6 w-px bg-line"></span></div><div class="-mt-0.5"><div class="font-mono text-[10px] text-ink-muted">Day 4</div><div class="text-sm text-ink">Partial upload received</div></div></li><li class="flex items-start gap-3"><div class="flex flex-col items-center"><span class="grid h-2.5 w-2.5 place-items-center rounded-full bg-warning"></span><span class="mt-1 h-6 w-px bg-line"></span></div><div class="-mt-0.5"><div class="font-mono text-[10px] text-ink-muted">Day 5</div><div class="text-sm text-ink">Reminder · missing 3 docs</div></div></li><li class="flex items-start gap-3"><div class="flex flex-col items-center"><span class="grid h-2.5 w-2.5 place-items-center rounded-full bg-success"></span></div><div class="-mt-0.5"><div class="font-mono text-[10px] text-ink-muted">Day 7</div><div class="text-sm text-ink">All documents received</div></div></li></ol></div></div></div><div class="grid gap-8 rounded-2xl border border-line bg-surface-raised p-6 md:grid-cols-[1fr_1.1fr] md:items-center md:p-10" style="opacity:0;transform:translateY(30px)"><div class="md:order-2"><div class="font-mono text-xs text-primary">04</div><div class="mt-3 text-2xl font-medium tracking-tight text-ink sm:text-3xl">Review and proceed to filing</div><p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-muted">Uploads are read, named, and organized. You see one tidy submission, ready to file.</p></div><div class="md:order-1"><div class="rounded-xl border border-line bg-background p-5"><div class="flex items-center justify-between"><div class="text-[10px] font-medium uppercase tracking-wider text-ink-muted">Submission · Sharma &amp; Co.</div><div class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles h-3 w-3" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"></path><path d="M20 2v4"></path><path d="M22 4h-4"></path><circle cx="4" cy="20" r="2"></circle></svg> Auto-organized</div></div><ul class="mt-3 divide-y divide-line rounded-lg border border-line bg-surface"><li class="flex items-center gap-3 px-3 py-2.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text h-4 w-4 text-ink-muted" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg><span class="flex-1 truncate text-sm text-ink">Form 16 — TCS Ltd.pdf</span><span class="rounded-full px-2 py-0.5 text-[10px] font-medium bg-success/10 text-success">Form 16</span></li><li class="flex items-center gap-3 px-3 py-2.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text h-4 w-4 text-ink-muted" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg><span class="flex-1 truncate text-sm text-ink">HDFC_stmt_AY25.pdf</span><span class="rounded-full px-2 py-0.5 text-[10px] font-medium bg-success/10 text-success">Bank statement</span></li><li class="flex items-center gap-3 px-3 py-2.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text h-4 w-4 text-ink-muted" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg><span class="flex-1 truncate text-sm text-ink">LIC_premium.jpg</span><span class="rounded-full px-2 py-0.5 text-[10px] font-medium bg-success/10 text-success">Investment proof</span></li><li class="flex items-center gap-3 px-3 py-2.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text h-4 w-4 text-ink-muted" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg><span class="flex-1 truncate text-sm text-ink">selfie_2.jpg</span><span class="rounded-full px-2 py-0.5 text-[10px] font-medium bg-warning/15 text-warning">Unrecognized</span></li></ul></div></div></div></div></div></section><section class="border-b border-line bg-surface"><div class="mx-auto max-w-7xl px-6 py-20"><div class="grid items-center gap-8 rounded-2xl border border-line bg-surface-raised p-10 md:grid-cols-[1fr_auto]" style="opacity:0;transform:translateY(30px)"><div><div class="text-xs font-medium uppercase tracking-wider text-ink-muted">Where we&#x27;re going</div><p class="mt-3 text-2xl font-medium tracking-tight text-ink sm:text-3xl">Built for tax workflows today.<!-- --> <span class="font-display italic text-ink-muted">Designed for every document-heavy process tomorrow.</span></p></div><div class="flex flex-wrap gap-2"><span class="rounded-full border border-dashed border-line bg-background px-3 py-1.5 text-xs text-ink-muted">KYC</span><span class="rounded-full border border-dashed border-line bg-background px-3 py-1.5 text-xs text-ink-muted">Loan ops</span><span class="rounded-full border border-dashed border-line bg-background px-3 py-1.5 text-xs text-ink-muted">Onboarding</span><span class="rounded-full border border-dashed border-line bg-background px-3 py-1.5 text-xs text-ink-muted">Audit</span><span class="rounded-full border border-dashed border-line bg-background px-3 py-1.5 text-xs text-ink-muted">Legal intake</span></div></div></div></section><section id="cta" class="relative overflow-hidden bg-ink"><div class="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_20%_20%,oklch(0.42_0.18_264)_0,transparent_50%),radial-gradient(circle_at_80%_80%,oklch(0.65_0.16_155)_0,transparent_50%)]"></div><div class="relative mx-auto max-w-7xl px-6 py-24 text-center" style="opacity:0"><h2 class="mx-auto max-w-3xl text-4xl font-medium tracking-tight text-background sm:text-6xl" style="opacity:0;transform:translateY(30px)">Ready to stop <span class="font-display italic">reminding clients?</span></h2><p class="mx-auto mt-5 max-w-xl text-lg text-background/70" style="opacity:0;transform:translateY(30px)">Start your next collection in under 2 minutes.</p><div class="mt-9 flex flex-wrap items-center justify-center gap-3" style="opacity:0;transform:translateY(30px)"><a href="/early-access" class="inline-flex h-12 items-center gap-2 rounded-lg bg-background px-6 text-sm font-medium text-ink shadow-sm transition hover:opacity-90">Start collecting <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right h-4 w-4" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a><a href="#how" class="inline-flex h-12 items-center gap-2 rounded-lg border border-background/20 px-6 text-sm font-medium text-background hover:bg-background/5">Book a 10-min demo</a></div></div></section></main><footer class="border-t border-line bg-background"><div class="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center"><div class="flex items-center gap-2"><div class="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox h-4 w-4" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></div><span class="text-sm font-medium text-ink">Collectr</span><span class="ml-2 text-xs text-ink-muted">Client intake &amp; document collection automation</span></div><div class="flex items-center gap-6"><a href="/privacy" class="text-xs text-ink-muted hover:text-ink transition-colors">Privacy Policy</a><div class="text-xs text-ink-muted">© <!-- -->2026<!-- --> Collectr. Made for CAs in India.</div></div></div></footer></div><!--/$--></div>
   </body>
 </html>

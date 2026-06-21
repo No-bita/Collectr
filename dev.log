@@ -1,0 +1,27 @@
+
+ ⛅️ wrangler 4.94.0 (update available 4.103.0)
+──────────────────────────────────────────────
+Using secrets defined in .dev.vars
+Your Worker has access to the following bindings:
+Binding                                                          Resource                  Mode
+env.DB (lekho-db)                                                D1 Database               local
+env.DOCUMENT_BUCKET (lekho-documents-preview)                    R2 Bucket                 local
+env.ENVIRONMENT ("production")                                   Environment Variable      local
+env.FRONTEND_URL ("(hidden)")                                    Environment Variable      local
+env.WHATSAPP_NEW_LEAD_TEMPLATE ("onboarding_first_message")      Environment Variable      local
+env.WHATSAPP_TEMPLATE_LANG ("en")                                Environment Variable      local
+env.FIRM_NAME ("Mishra & Associates")                            Environment Variable      local
+env.GEMINI_API_KEY ("(hidden)")                                  Environment Variable      local
+env.DATABASE_URL ("(hidden)")                                    Environment Variable      local
+env.DATABASE_AUTH_TOKEN ("(hidden)")                             Environment Variable      local
+env.R2_AK_id ("(hidden)")                                        Environment Variable      local
+env.R2_SAK ("(hidden)")                                          Environment Variable      local
+env.CF_ACCOUNT_ID ("(hidden)")                                   Environment Variable      local
+env.WHATSAPP_VERIFY_TOKEN ("(hidden)")                           Environment Variable      local
+env.WHATSAPP_PHONE_ID ("(hidden)")                               Environment Variable      local
+env.WHATSAPP_ACCESS_TOKEN ("(hidden)")                           Environment Variable      local
+env.GOOGLE_DRIVE_FOLDER_ID ("(hidden)")                          Environment Variable      local
+
+⎔ Starting local server...
+[wrangler:info] Ready on http://localhost:8787
+[wrangler:info] GET /api/leads 200 OK (28ms)
