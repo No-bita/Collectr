@@ -132,7 +132,7 @@ function getNextActionDisplay(c) {
   // Pending status: find first missing document label
   const missingDoc = reqs.find(r => r.status !== 'received' && (!r.uploads || r.uploads.length === 0));
   const docName = missingDoc ? (missingDoc.label || missingDoc.type) : 'Documents';
-  
+
   if (prog.fulfilled > 0) {
     return {
       main: `⏰ Waiting for ${docName}`,
@@ -154,7 +154,7 @@ function populateLoanTypeFilter() {
 
   const currentVal = filterEl.value || "all";
   const typesSet = new Set();
-  
+
   (allCases || []).forEach(c => {
     if (c.loanProduct) typesSet.add(c.loanProduct.trim());
   });
@@ -181,7 +181,7 @@ function populateStatusFilter() {
 
   const currentVal = filterEl.value || statusFilter || "all";
   const statusSet = new Set();
-  
+
   (allCases || []).forEach(c => {
     if (c.status) statusSet.add(c.status);
   });
@@ -270,7 +270,7 @@ function render() {
   const selectedStatus = statusFilter || "all";
   const selectedLoanType = el("loanTypeFilter") ? el("loanTypeFilter").value : "all";
   const selectedAmount = el("amountFilter") ? el("amountFilter").value : "all";
-  
+
   const filtered = allCases.filter(c => {
     if (selectedStatus !== "all" && c.status !== selectedStatus) return false;
     if (selectedLoanType !== "all" && (c.loanProduct || "").trim() !== selectedLoanType) return false;
@@ -449,7 +449,7 @@ function buildCaseDrawerHtml(c) {
     { id: 'closed', label: 'Closed' }
   ];
 
-  let statusOptions = statuses.map(s => 
+  let statusOptions = statuses.map(s =>
     `<option value="${s.id}" ${c.status === s.id ? 'selected' : ''}>${s.label}</option>`
   ).join("");
 
@@ -506,7 +506,7 @@ async function generateReport(caseId, btn) {
     const res = await authFetch(`/api/cases/${caseId}/generate-report`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to generate report");
-    
+
     await load();
     openReportModal(caseId);
   } catch (err) {
@@ -583,7 +583,7 @@ function openReportModal(caseId) {
 async function fetchAndRenderTimeline(caseId) {
   const container = el(`drawer-timeline-${caseId}`);
   if (!container) return;
-  
+
   try {
     const res = await authFetch(`/api/cases/${caseId}/timeline`);
     const data = await res.json().catch(() => ({}));
@@ -617,7 +617,7 @@ async function fetchAndRenderTimeline(caseId) {
         </div>
       `;
     }).join("");
-  } catch(err) {
+  } catch (err) {
     container.innerHTML = '<p style="color: #ef4444; font-size: 0.75rem;">Could not load timeline history.</p>';
   }
 }
@@ -708,10 +708,143 @@ async function loadLoanProducts() {
   }
 }
 
+let wizardState = {
+  screen: 'details', // 'details' | 'documents' | 'success'
+  customer: { contactPerson: '', phone: '' },
+  loan: { product: '', amountRequired: null },
+  documents: { selectedIds: [] },
+  generatedCase: null
+};
+
+function setWizardScreen(screenName) {
+  wizardState.screen = screenName;
+  const modal = el("wizardModal");
+  if (modal) modal.setAttribute("data-active-screen", screenName);
+
+  document.querySelectorAll(".wizard-screen").forEach(s => {
+    s.hidden = s.getAttribute("data-screen") !== screenName;
+  });
+}
+
+function getRecommendedDocsForProduct(prodLabel) {
+  if (!documentCatalog || documentCatalog.length === 0) {
+    return [
+      { id: 'pan', label: 'PAN Card' },
+      { id: 'aadhaar', label: 'Aadhaar Card' },
+      { id: 'bank_statement', label: 'Bank Statement' },
+      { id: 'gst_returns', label: 'GST Returns' }
+    ];
+  }
+
+  const p = (prodLabel || "").toLowerCase();
+  if (p.includes("machinery") || p.includes("equipment")) {
+    return documentCatalog.filter(d => ['pan', 'aadhaar', 'bank_statement', 'gst_returns', 'quotation'].includes(d.id));
+  }
+  if (p.includes("property") || p.includes("lap")) {
+    return documentCatalog.filter(d => ['pan', 'aadhaar', 'bank_statement', 'property_docs', 'itr'].includes(d.id));
+  }
+  return documentCatalog.filter(d => ['pan', 'aadhaar', 'bank_statement', 'gst_returns'].includes(d.id));
+}
+
+function updateLiveDocPreview() {
+  const selectedProduct = el("loanProductSelect") ? el("loanProductSelect").value : "";
+  const container = el("liveDocPreviewContainer");
+  const chipsGrid = el("liveDocChipsGrid");
+  const badge = el("liveDocCountBadge");
+  if (!container || !chipsGrid) return;
+
+  if (!selectedProduct || selectedProduct === "__custom__") {
+    container.hidden = true;
+    return;
+  }
+
+  const recommendedList = getRecommendedDocsForProduct(selectedProduct);
+  if (badge) badge.textContent = `${recommendedList.length} docs`;
+  chipsGrid.innerHTML = "";
+
+  recommendedList.forEach(doc => {
+    const chip = document.createElement("div");
+    chip.className = "live-doc-chip";
+    chip.innerHTML = `<span class="chip-check">✓</span> <span>${escapeHtml(doc.label)}</span>`;
+    chipsGrid.appendChild(chip);
+  });
+
+  container.hidden = false;
+}
+
+function getDocIconDetails(docId) {
+  switch (docId) {
+    case 'pan':
+      return { icon: '🪪', bgClass: 'icon-bg-green' };
+    case 'aadhaar':
+      return { icon: '📑', bgClass: 'icon-bg-pink' };
+    case 'bank_statement':
+      return { icon: '🏦', bgClass: 'icon-bg-green' };
+    case 'gst_returns':
+      return { icon: '📄', bgClass: 'icon-bg-purple' };
+    case 'itr':
+      return { icon: '📄', bgClass: 'icon-bg-blue' };
+    case 'quotation':
+      return { icon: '⚙️', bgClass: 'icon-bg-orange' };
+    case 'property_docs':
+      return { icon: '🏠', bgClass: 'icon-bg-purple' };
+    case 'pending_invoices':
+      return { icon: '📋', bgClass: 'icon-bg-yellow' };
+    default:
+      return { icon: '📄', bgClass: 'icon-bg-blue' };
+  }
+}
+
+function renderScreen2DocChecklists() {
+  const recContainer = el("recommendedDocsFields");
+  const addContainer = el("additionalDocsFields");
+  if (!recContainer || !addContainer) return;
+
+  recContainer.innerHTML = "";
+  addContainer.innerHTML = "";
+
+  const selectedProduct = wizardState.loan.product;
+  const recommendedList = getRecommendedDocsForProduct(selectedProduct);
+  const recIds = new Set(recommendedList.map(r => r.id));
+
+  let recCount = 0;
+  let addCount = 0;
+
+  documentCatalog.forEach(doc => {
+    const isRec = recIds.has(doc.id);
+    const iconMeta = getDocIconDetails(doc.id);
+
+    const card = document.createElement("label");
+    card.className = "doc-card-item";
+    card.innerHTML = `
+      <div class="doc-card-left">
+        <input type="checkbox" value="${doc.id}" data-doc ${isRec ? 'checked' : ''} />
+        <div class="doc-icon-box ${iconMeta.bgClass}">${iconMeta.icon}</div>
+        <span class="doc-card-label">${escapeHtml(doc.label)}</span>
+      </div>
+      ${isRec ? '<span class="doc-badge-recommended">Recommended</span>' : ''}
+    `;
+
+    if (isRec) {
+      recCount++;
+      recContainer.appendChild(card);
+    } else {
+      addCount++;
+      addContainer.appendChild(card);
+    }
+  });
+
+  const recBadge = el("recommendedCountBadge");
+  if (recBadge) recBadge.textContent = recCount;
+
+  const addBadge = el("additionalCountBadge");
+  if (addBadge) addBadge.textContent = addCount;
+}
+
 function renderLoanProductSelect() {
   const select = el("loanProductSelect");
   select.innerHTML = '<option value="" disabled selected>Select Loan Type...</option>';
-  
+
   loanProductsList.forEach(prod => {
     const opt = document.createElement("option");
     opt.value = prod.label;
@@ -721,7 +854,7 @@ function renderLoanProductSelect() {
 
   const customOpt = document.createElement("option");
   customOpt.value = "__custom__";
-  customOpt.textContent = "+ Add New Custom Loan Type...";
+  customOpt.textContent = "Other";
   select.appendChild(customOpt);
 }
 
@@ -733,6 +866,7 @@ el("loanProductSelect").addEventListener("change", (e) => {
   } else {
     customGroup.hidden = true;
   }
+  updateLiveDocPreview();
 });
 
 async function loadDocumentCatalog() {
@@ -742,7 +876,7 @@ async function loadDocumentCatalog() {
     if (!res.ok) return;
     documentCatalog = data.documentCatalog || [];
     renderRequiredDocsCheckboxes();
-  } catch(e) {
+  } catch (e) {
     console.error("Failed catalog load", e);
   }
 }
@@ -761,13 +895,13 @@ function renderRequiredDocsCheckboxes() {
 async function load() {
   const dashErr = el("dashboardError");
   if (dashErr) dashErr.hidden = true;
-  
+
   try {
     await Promise.all([loadLoanProducts(), loadDocumentCatalog()]);
     const res = await authFetch("/api/cases");
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Unable to retrieve loan cases from server. Please refresh.");
-    
+
     allCases = data.cases || [];
     updateSummary(data.summary || {});
     populateLoanTypeFilter();
@@ -780,7 +914,7 @@ async function load() {
         UI.replaceSelect(s);
       }
     });
-  } catch(e) {
+  } catch (e) {
     if (dashErr) {
       dashErr.textContent = "Dashboard Load Error: " + e.message;
       dashErr.hidden = false;
@@ -792,8 +926,8 @@ async function load() {
   }
 }
 
-function showActionableError(msg) {
-  const errBox = el("modalError");
+function showActionableError(msg, targetId = "modalErrorStep1") {
+  const errBox = el(targetId) || el("modalErrorStep1") || el("modalErrorStep2") || el("modalError");
   if (errBox) {
     errBox.textContent = msg;
     errBox.hidden = false;
@@ -838,120 +972,222 @@ if (loanProdSel) {
   UI.replaceSelect(loanProdSel);
 }
 
-el("openAdd").addEventListener("click", () => {
-  el("addForm").reset();
-  el("customProductGroup").hidden = true;
-  el("modalError").hidden = true;
-  el("modalBackdrop").hidden = false;
-});
+// Open Wizard Modal
+const openAddBtn = el("openAdd");
+if (openAddBtn) {
+  openAddBtn.addEventListener("click", () => {
+    const detailsForm = el("detailsForm");
+    if (detailsForm) detailsForm.reset();
+    if (el("phone")) el("phone").classList.remove("input-error");
+    if (el("contactPerson")) el("contactPerson").classList.remove("input-error");
+    if (el("amountRequired")) el("amountRequired").classList.remove("input-error");
+    if (el("customProductGroup")) el("customProductGroup").hidden = true;
+    if (el("liveDocPreviewContainer")) el("liveDocPreviewContainer").hidden = true;
+    if (el("modalErrorStep1")) el("modalErrorStep1").hidden = true;
+    if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
+    setWizardScreen('details');
+    if (el("modalBackdrop")) el("modalBackdrop").hidden = false;
+  });
+}
 
-el("closeModal").addEventListener("click", () => el("modalBackdrop").hidden = true);
-el("cancelAdd").addEventListener("click", () => el("modalBackdrop").hidden = true);
+const closeModalBtn = el("closeModal");
+if (closeModalBtn) closeModalBtn.addEventListener("click", () => { if (el("modalBackdrop")) el("modalBackdrop").hidden = true; });
 
-el("addForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const errBox = el("modalError");
-  const submitBtn = el("submitAdd");
-  errBox.hidden = true;
+const cpInput = el("contactPerson");
+if (cpInput) {
+  cpInput.addEventListener("input", (e) => {
+    e.target.value = e.target.value.replace(/[^a-zA-Z\s.\-]/g, "");
+  });
+}
 
-  const rawPhone = el("phone").value.trim();
-  if (!/^\d{10}$/.test(rawPhone)) {
-    showActionableError("Please enter a valid 10-digit mobile number without country code or spaces (e.g. 9876543210).");
-    el("phone").focus();
-    return;
-  }
+// Screen 1 Continue Handler
+const btnDetailsContinue = el("btnDetailsContinue");
+if (btnDetailsContinue) {
+  btnDetailsContinue.addEventListener("click", async () => {
+    if (el("modalErrorStep1")) el("modalErrorStep1").hidden = true;
+    if (el("phone")) el("phone").classList.remove("input-error");
+    if (el("contactPerson")) el("contactPerson").classList.remove("input-error");
+    if (el("amountRequired")) el("amountRequired").classList.remove("input-error");
 
-  const contactPerson = el("contactPerson").value.trim();
-  if (!contactPerson) {
-    showActionableError("Please enter the contact person's full name.");
-    el("contactPerson").focus();
-    return;
-  }
+    const contactPersonInput = el("contactPerson");
+    const phoneInput = el("phone");
+    const amountInput = el("amountRequired");
 
-  let selectedProduct = el("loanProductSelect").value;
-  if (!selectedProduct) {
-    showActionableError("Please select a loan type from the dropdown list.");
-    el("loanProductSelect").focus();
-    return;
-  }
-
-  if (selectedProduct === "__custom__") {
-    const customLabel = el("customProductInput").value.trim();
-    if (!customLabel) {
-      showActionableError("Please enter a name for your custom loan type.");
-      el("customProductInput").focus();
+    const contactPerson = contactPersonInput ? contactPersonInput.value.trim() : "";
+    if (!contactPerson) {
+      if (contactPersonInput) contactPersonInput.classList.add("input-error");
+      showActionableError("Please enter the contact person's full name.", "modalErrorStep1");
+      if (contactPersonInput) contactPersonInput.focus();
       return;
     }
-    
-    try {
-      const prodRes = await authFetch("/api/loan-products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: customLabel })
-      });
-      const prodData = await prodRes.json();
-      if (!prodRes.ok) throw new Error(prodData.error || "Could not save custom loan product.");
-      selectedProduct = customLabel;
-    } catch (prodErr) {
-      showActionableError(`Failed to save new product: ${prodErr.message}`);
+    if (!/^[a-zA-Z\s.\-]+$/.test(contactPerson)) {
+      if (contactPersonInput) contactPersonInput.classList.add("input-error");
+      showActionableError("Please enter a valid name using letters and spaces only.", "modalErrorStep1");
+      if (contactPersonInput) contactPersonInput.focus();
       return;
     }
-  }
 
-  let amountRequired = null;
-  const rawAmount = el("amountRequired").value.trim();
-  if (rawAmount) {
-    amountRequired = parseFloat(rawAmount);
-    if (isNaN(amountRequired) || amountRequired <= 0) {
-      showActionableError("Please enter a valid positive number for Amount Required in Lacs (e.g. 25).");
+    const rawPhone = phoneInput ? phoneInput.value.trim() : "";
+    if (!/^\d{10}$/.test(rawPhone)) {
+      if (phoneInput) phoneInput.classList.add("input-error");
+      showActionableError("Please enter a valid 10-digit mobile number.", "modalErrorStep1");
+      if (phoneInput) phoneInput.focus();
+      return;
+    }
+
+    let selectedProduct = el("loanProductSelect").value;
+    if (!selectedProduct) {
+      showActionableError("Please select a loan type from the dropdown list.", "modalErrorStep1");
+      el("loanProductSelect").focus();
+      return;
+    }
+
+    if (selectedProduct === "__custom__") {
+      const customLabel = el("customProductInput").value.trim();
+      if (!customLabel) {
+        showActionableError("Please enter a name for your custom loan type.", "modalErrorStep1");
+        el("customProductInput").focus();
+        return;
+      }
+      
+      try {
+        const prodRes = await authFetch("/api/loan-products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label: customLabel })
+        });
+        const prodData = await prodRes.json();
+        if (!prodRes.ok) throw new Error(prodData.error || "Could not save custom loan product.");
+        selectedProduct = customLabel;
+      } catch (prodErr) {
+        showActionableError(`Failed to save new product: ${prodErr.message}`, "modalErrorStep1");
+        return;
+      }
+    }
+
+    let amountRequired = null;
+    const rawAmount = el("amountRequired").value.trim();
+    if (!rawAmount) {
+      showActionableError("Please enter the Amount Required in Lacs / ₹ Lakhs.", "modalErrorStep1");
       el("amountRequired").focus();
       return;
     }
-  }
-
-  const selectedDocs = Array.from(document.querySelectorAll("input[data-doc]:checked")).map(cb => cb.value);
-
-  if (selectedDocs.length === 0) {
-    showActionableError("Please select at least one document requirement for this loan case.");
-    return;
-  }
-
-  submitBtn.disabled = true;
-
-  try {
-    const postBody = {
-      contactPerson,
-      phone: rawPhone,
-      loanProduct: selectedProduct,
-      amountRequired,
-      requiredDocIds: selectedDocs
-    };
-
-    const res = await authFetch("/api/cases", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(postBody)
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error || "Could not create loan case. Please double-check your inputs.");
+    amountRequired = parseFloat(rawAmount);
+    if (isNaN(amountRequired) || amountRequired <= 0) {
+      showActionableError("Please enter a valid positive number for Amount Required in Lacs (e.g. 25).", "modalErrorStep1");
+      el("amountRequired").focus();
+      return;
     }
 
-    if (data.whatsappWarning) {
-      UI.toast(data.whatsappWarning, "warning");
-    } else {
-      UI.toast("Loan case created successfully!", "success");
+    // Save to State Machine
+    wizardState.customer = { contactPerson, phone: rawPhone };
+    wizardState.loan = { product: selectedProduct, amountRequired };
+
+    renderScreen2DocChecklists();
+    setWizardScreen('documents');
+  });
+}
+
+// Screen 2 Back Handler
+const btnDocsBack = el("btnDocsBack");
+if (btnDocsBack) btnDocsBack.addEventListener("click", () => setWizardScreen('details'));
+
+// Screen 2 Create Case Handler
+const btnDocsCreate = el("btnDocsCreate");
+if (btnDocsCreate) {
+  btnDocsCreate.addEventListener("click", async () => {
+    if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
+    const submitBtn = el("btnDocsCreate");
+
+    const selectedDocs = Array.from(document.querySelectorAll("input[data-doc]:checked")).map(cb => cb.value);
+    if (selectedDocs.length === 0) {
+      showActionableError("Please select at least one document requirement for this loan case.", "modalErrorStep2");
+      return;
     }
 
-    el("modalBackdrop").hidden = true;
-    await load();
-  } catch(errEx) {
-    showActionableError(errEx.message);
-  } finally {
-    submitBtn.disabled = false;
-  }
-});
+    wizardState.documents.selectedIds = selectedDocs;
+    submitBtn.disabled = true;
+
+    try {
+      const postBody = {
+        contactPerson: wizardState.customer.contactPerson,
+        phone: wizardState.customer.phone,
+        loanProduct: wizardState.loan.product,
+        amountRequired: wizardState.loan.amountRequired,
+        requiredDocIds: wizardState.documents.selectedIds
+      };
+
+      const res = await authFetch("/api/cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(postBody)
+      });
+      
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to create loan case.");
+
+      wizardState.generatedCase = data.loanCase;
+
+      // Populate Screen 3 Success UI
+      const nameEl = el("successCustomerName");
+      if (nameEl) nameEl.textContent = wizardState.customer.contactPerson;
+
+      const token = data.loanCase.token || '';
+      const shareUrl = `${window.location.origin}/upload?token=${token}`;
+
+      const waBtn = el("btnShareWhatsApp");
+      if (waBtn) {
+        const waText = encodeURIComponent(`Hello ${wizardState.customer.contactPerson}, please upload your loan documents for ${wizardState.loan.product} here: ${shareUrl}`);
+        waBtn.href = `https://wa.me/91${wizardState.customer.phone}?text=${waText}`;
+      }
+
+      const copyBtn = el("btnCopyLink");
+      if (copyBtn) {
+        copyBtn.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(shareUrl);
+            if (typeof UI !== 'undefined' && UI.toast) {
+              UI.toast("Upload link copied to clipboard!", "success");
+            } else {
+              alert("Upload link copied!");
+            }
+          } catch(e) {
+            console.error(e);
+          }
+        };
+      }
+
+      await load();
+      setWizardScreen('success');
+    } catch (err) {
+      showActionableError(err.message, "modalErrorStep2");
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}
+
+// Screen 3 Success Navigation Handlers
+const btnSuccessGoToCase = el("btnSuccessGoToCase");
+if (btnSuccessGoToCase) {
+  btnSuccessGoToCase.addEventListener("click", () => {
+    if (el("modalBackdrop")) el("modalBackdrop").hidden = true;
+    if (wizardState.generatedCase && wizardState.generatedCase.id) {
+      window.location.href = `/case.html?id=${wizardState.generatedCase.id}`;
+    }
+  });
+}
+
+const btnSuccessCreateAnother = el("btnSuccessCreateAnother");
+if (btnSuccessCreateAnother) {
+  btnSuccessCreateAnother.addEventListener("click", () => {
+    if (el("detailsForm")) el("detailsForm").reset();
+    if (el("customProductGroup")) el("customProductGroup").hidden = true;
+    if (el("liveDocPreviewContainer")) el("liveDocPreviewContainer").hidden = true;
+    if (el("modalErrorStep1")) el("modalErrorStep1").hidden = true;
+    if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
+  });
+}
 
 function setupSidebarToggle() {
   const sidebar = el("appSidebar");

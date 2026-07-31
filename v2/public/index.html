@@ -1,89 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Loan Cases — Collectrr OS</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/dashboard.css" />
-  </head>
-  <body>
-    <div class="app-layout">
-      <!-- Collapsible Sidebar -->
-      <aside class="sidebar" id="appSidebar">
-        <div>
-          <div class="sidebar-header">
-            <div class="sidebar-brand">
-              <div class="brand-icon">C</div>
-              <div class="brand-text">
-                <h2>Collectrr</h2>
-              </div>
-            </div>
-            <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
-          </div>
 
-          <nav class="sidebar-menu">
-            <a href="/index.html" class="menu-item active">
-              <span class="menu-label">📊 Dashboard</span>
-            </a>
-            <a href="/admin/analytics" class="menu-item" id="navAnalytics">
-              <span class="menu-label">📈 Analytics</span>
-            </a>
-            <a href="/dd" class="menu-item" id="navObservability">
-              <span class="menu-label">🛠️ Observability</span>
-            </a>
-          </nav>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loan Cases — Collectrr OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+</head>
+
+<body>
+  <div class="app-layout">
+    <!-- Collapsible Sidebar -->
+    <aside class="sidebar" id="appSidebar">
+      <div>
+        <div class="sidebar-header">
+          <div class="sidebar-brand">
+            <div class="brand-icon">C</div>
+            <div class="brand-text">
+              <h2>Collectrr</h2>
+            </div>
+          </div>
+          <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
         </div>
 
-        <div class="sidebar-user">
-          <div class="user-avatar" id="userAvatar">--</div>
-          <div class="user-info">
-            <div id="userName">User</div>
-            <div id="userRole">Agent</div>
+        <nav class="sidebar-menu">
+          <a href="/index.html" class="menu-item active">
+            <span class="menu-label">📊 Dashboard</span>
+          </a>
+          <a href="/admin/analytics" class="menu-item" id="navAnalytics">
+            <span class="menu-label">📈 Analytics</span>
+          </a>
+          <a href="/dd" class="menu-item" id="navObservability">
+            <span class="menu-label">🛠️ Observability</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">--</div>
+        <div class="user-info">
+          <div id="userName">User</div>
+          <div id="userRole">Agent</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Shell Area -->
+    <main class="main-content">
+      <header class="dashboard-top">
+        <div class="header-left">
+          <h1>Loan Cases</h1>
+        </div>
+        <div class="top-actions-row">
+          <button type="button" class="btn btn-primary btn-lg" id="openAdd">
+            <span class="btn-icon">+</span> New Loan Case
+          </button>
+        </div>
+      </header>
+
+      <div id="dashboardError"
+        style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem;"
+        hidden></div>
+
+      <!-- Top Metrics Cards -->
+      <section class="stats-top">
+        <div class="stat-card-modern stat-pending">
+          <div class="stat-icon-circle icon-amber">📄</div>
+          <div class="stat-card-body">
+            <div class="stat-top-line">
+              <span class="stat-count" id="statPending">—</span>
+              <span class="stat-pill pill-amber">Docs Pending</span>
+            </div>
           </div>
         </div>
-      </aside>
 
-      <!-- Main Shell Area -->
-      <main class="main-content">
-        <header class="dashboard-top">
-          <div class="header-left">
-            <h1>Loan Cases</h1>
-          </div>
-          <div class="top-actions-row">
-            <button type="button" class="btn btn-primary btn-lg" id="openAdd">
-              <span class="btn-icon">+</span> New Loan Case
-            </button>
-          </div>
-        </header>
-
-        <div id="dashboardError" style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem;" hidden></div>
-
-        <!-- Top Metrics Cards -->
-        <section class="stats-top">
-          <div class="stat-card-modern stat-pending">
-            <div class="stat-icon-circle icon-amber">📄</div>
-            <div class="stat-card-body">
-              <div class="stat-top-line">
-                <span class="stat-count" id="statPending">—</span>
-                <span class="stat-pill pill-amber">Docs Pending</span>
-              </div>
+        <div class="stat-card-modern stat-review">
+          <div class="stat-icon-circle icon-emerald">✓</div>
+          <div class="stat-card-body">
+            <div class="stat-top-line">
+              <span class="stat-count" id="statReview">—</span>
+              <span class="stat-pill pill-emerald">Ready for Review</span>
             </div>
           </div>
+        </div>
 
-          <div class="stat-card-modern stat-review">
-            <div class="stat-icon-circle icon-emerald">✓</div>
-            <div class="stat-card-body">
-              <div class="stat-top-line">
-                <span class="stat-count" id="statReview">—</span>
-                <span class="stat-pill pill-emerald">Ready for Review</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 3: Submitted (Commented out until submission flow is built)
+        <!-- Card 3: Submitted (Commented out until submission flow is built)
           <div class="stat-card-modern stat-submitted">
             <div class="stat-icon-circle icon-purple">✈</div>
             <div class="stat-card-body">
@@ -95,112 +100,194 @@
             </div>
           </div>
           -->
-        </section>
+      </section>
 
-        <!-- Main Cases Table Card -->
-        <div class="table-card">
-          <div class="toolbar">
-            <div class="toolbar-left">
-              <div class="search-box">
-                <span class="search-icon">🔍</span>
-                <input type="search" id="search" class="search-input" placeholder="Search..." />
-              </div>
-            </div>
-            <div class="toolbar-right">
-              <select id="loanTypeFilter" class="filter-select-pill">
-                <option value="all">All Loan Types</option>
-              </select>
-
-              <select id="amountFilter" class="filter-select-pill">
-                <option value="all">Amount</option>
-                <option value="0-25">₹0 - ₹25 Lacs</option>
-                <option value="25-50">₹25 - ₹50 Lacs</option>
-                <option value="50+">₹50+ Lacs</option>
-              </select>
-
-              <select id="statusFilter" class="filter-select-pill">
-                <option value="all">All Statuses</option>
-                <option value="documents_pending">Pending</option>
-                <option value="ready_for_review">Ready for Review</option>
-                <option value="submitted">Submitted</option>
-                <option value="closed">Closed</option>
-              </select>
+      <!-- Main Cases Table Card -->
+      <div class="table-card">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="search" id="search" class="search-input" placeholder="Search..." />
             </div>
           </div>
+          <div class="toolbar-right">
+            <select id="loanTypeFilter" class="filter-select-pill">
+              <option value="all">All Loan Types</option>
+            </select>
 
-          <div style="overflow-x: auto;">
-            <table class="cases-table-modern">
-              <thead>
-                <tr>
-                  <th style="width: 4%; text-align: center;">#</th>
-                  <th style="width: 22%">Customer</th>
-                  <th style="width: 18%">Loan Type</th>
-                  <th style="width: 14%">Amount</th>
-                  <th style="width: 18%">Doc Progress</th>
-                  <th style="width: 18%">Next Action</th>
-                  <th style="width: 10%">Status</th>
-                  <th style="width: 4%; text-align: center;"></th>
-                </tr>
-              </thead>
-              <tbody id="tbody">
-                <tr><td colspan="8" style="text-align: center; padding: 2.5rem; color: #64748b;">Loading cases...</td></tr>
-              </tbody>
-            </table>
-          </div>
+            <select id="amountFilter" class="filter-select-pill">
+              <option value="all">Amount</option>
+              <option value="0-25">₹0 - ₹25 Lacs</option>
+              <option value="25-50">₹25 - ₹50 Lacs</option>
+              <option value="50+">₹50+ Lacs</option>
+            </select>
 
-          <!-- Pagination Footer -->
-          <div class="table-pagination-footer">
-            <div class="pagination-info" id="footerCasesCount">Showing cases</div>
-            <div class="pagination-buttons" id="paginationPages">
-              <button type="button" class="page-nav-btn">&lt;</button>
-              <button type="button" class="page-nav-btn active">1</button>
-              <button type="button" class="page-nav-btn">&gt;</button>
-            </div>
-          </div>
-        </div>
-      </main>
-
-    <!-- New Case Modal -->
-    <div class="modal-backdrop" id="modalBackdrop" hidden>
-      <div class="modal">
-        <div class="modal-header">
-          <h2>New Loan Case</h2>
-          <button type="button" class="btn" id="closeModal">✕</button>
-        </div>
-        <form id="addForm">
-          <div class="field">
-            <label for="contactPerson">Contact Person Name</label>
-            <input id="contactPerson" name="contactPerson" type="text" placeholder="e.g. Ramesh Kumar" required />
-          </div>
-          <div class="field">
-            <label for="phone">Mobile Number (10 digits without country code)</label>
-            <input id="phone" name="phone" type="tel" placeholder="9876543210" maxlength="10" pattern="[0-9]{10}" required />
-            <small style="color: var(--muted-soft); font-size: 0.75rem;">Enter 10-digit mobile number for WhatsApp invitations.</small>
-          </div>
-          <div class="field">
-            <label for="loanProductSelect">Loan Type</label>
-            <select id="loanProductSelect" name="loanProduct" required>
-              <option value="" disabled selected>Select Loan Type...</option>
+            <select id="statusFilter" class="filter-select-pill">
+              <option value="all">All Statuses</option>
+              <option value="documents_pending">Pending</option>
+              <option value="ready_for_review">Ready for Review</option>
+              <option value="submitted">Submitted</option>
+              <option value="closed">Closed</option>
             </select>
           </div>
-          <div class="field" id="customProductGroup" hidden>
-            <label for="customProductInput">New Custom Loan Type Name</label>
-            <input id="customProductInput" type="text" placeholder="e.g. Unsecured Business Loan" />
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="cases-table-modern">
+            <thead>
+              <tr>
+                <th style="width: 4%; text-align: center;">#</th>
+                <th style="width: 22%">Customer</th>
+                <th style="width: 18%">Loan Type</th>
+                <th style="width: 14%">Amount</th>
+                <th style="width: 18%">Doc Progress</th>
+                <th style="width: 18%">Next Action</th>
+                <th style="width: 10%">Status</th>
+                <th style="width: 4%; text-align: center;"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 2.5rem; color: #64748b;">Loading cases...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Footer -->
+        <div class="table-pagination-footer">
+          <div class="pagination-info" id="footerCasesCount">Showing cases</div>
+          <div class="pagination-buttons" id="paginationPages">
+            <button type="button" class="page-nav-btn">&lt;</button>
+            <button type="button" class="page-nav-btn active">1</button>
+            <button type="button" class="page-nav-btn">&gt;</button>
           </div>
-          <div class="field">
-            <label for="amountRequired">Amount Required (in Lacs / ₹ Lakhs)</label>
-            <input id="amountRequired" name="amountRequired" type="number" step="any" min="0" placeholder="e.g. 25 (for ₹25 Lakhs)" />
+        </div>
+      </div>
+    </main>
+
+    <!-- 3-Screen Creation Wizard Modal -->
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <div class="wizard-modal" id="wizardModal" data-active-screen="details">
+        <button type="button" class="wizard-close-btn" id="closeModal" title="Close Modal">✕</button>
+
+        <!-- SCREEN 1: Customer & Loan Details (640px) -->
+        <div class="wizard-screen" data-screen="details">
+          <div class="wizard-header">
+            <div class="wizard-icon-badge icon-circle-blue">👤</div>
+            <div>
+              <h2>New Loan Case</h2>
+            </div>
           </div>
-          <div class="field">
-            <label>Required Documents</label>
-            <div id="requiredDocsFields" class="doc-check-grid"></div>
+
+          <form id="detailsForm" onsubmit="event.preventDefault();">
+            <div class="wizard-body">
+              <div class="form-row-2col">
+                <div class="field">
+                  <label for="contactPerson">Contact Person Name</label>
+                  <input id="contactPerson" name="contactPerson" type="text" placeholder="Ramesh Kumar" pattern="[a-zA-Z\s.\-]+" required />
+                </div>
+
+                <div class="field">
+                  <label for="phone">Mobile Number</label>
+                  <input id="phone" name="phone" type="tel" placeholder="9876543210" maxlength="10" pattern="[0-9]{10}" required />
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="loanProductSelect">Loan Type</label>
+                <select id="loanProductSelect" name="loanProduct" required>
+                  <option value="" disabled selected>Select Loan Type...</option>
+                </select>
+              </div>
+
+              <div class="field" id="customProductGroup" hidden>
+                <label for="customProductInput">New Custom Loan Type Name</label>
+                <input id="customProductInput" type="text" placeholder="Unsecured Business Loan" />
+              </div>
+
+              <div class="field">
+                <label for="amountRequired">Amount Required (₹ Lakhs)</label>
+                <input id="amountRequired" name="amountRequired" type="number" step="any" min="0" placeholder="25" required />
+              </div>
+
+              <div id="modalErrorStep1" class="wizard-error-box" hidden></div>
+            </div>
+
+            <div class="wizard-footer">
+              <button type="button" class="btn" id="cancelAdd">Cancel</button>
+              <button type="button" class="btn btn-primary" id="btnDetailsContinue">Continue →</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- SCREEN 2: Documents Checklist (720px) -->
+        <div class="wizard-screen" data-screen="documents" hidden>
+          <div class="wizard-header">
+            <div class="wizard-icon-badge icon-circle-purple">📄</div>
+            <div>
+              <h2>Documents</h2>
+              <p class="wizard-subtitle">We've recommended documents based on the selected loan type.</p>
+            </div>
           </div>
-          <div id="modalError" style="color: #b91c1c; background: #fee2e2; border: 1px solid #f87171; padding: 0.625rem; border-radius: 6px; font-size: 0.8125rem; margin-top: 0.75rem;" hidden></div>
-          <div class="modal-footer">
-            <button type="button" class="btn" id="cancelAdd">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="submitAdd">Create Loan Case</button>
+
+          <div class="wizard-body">
+            <div class="doc-section">
+              <div class="doc-section-title-row">
+                <span class="doc-section-title">Recommended</span>
+                <span id="recommendedCountBadge" class="doc-count-pill green-pill">0</span>
+              </div>
+              <p class="doc-section-subtext">These are required for this loan type.</p>
+              <div id="recommendedDocsFields" class="doc-cards-grid"></div>
+            </div>
+
+            <div class="doc-section" style="margin-top: 1.5rem;">
+              <div class="doc-section-title-row">
+                <span class="doc-section-title">Additional (Optional)</span>
+                <span id="additionalCountBadge" class="doc-count-pill gray-pill">0</span>
+              </div>
+              <p class="doc-section-subtext">Select if applicable.</p>
+              <div id="additionalDocsFields" class="doc-cards-grid"></div>
+            </div>
+
+            <div id="modalErrorStep2" class="wizard-error-box" hidden></div>
           </div>
-        </form>
+
+          <div class="wizard-footer">
+            <button type="button" class="btn" id="btnDocsBack">← Back</button>
+            <button type="button" class="btn btn-primary" id="btnDocsCreate">Create Loan Case →</button>
+          </div>
+        </div>
+
+        <!-- SCREEN 3: Success Screen (560px) -->
+        <div class="wizard-screen" data-screen="success" hidden>
+          <div class="success-hero">
+            <div class="success-check-circle">✓</div>
+            <h2>Case Created</h2>
+            <p class="success-subtitle">Upload link ready for <strong id="successCustomerName">Customer</strong></p>
+          </div>
+
+          <div class="upload-link-card">
+            <div class="upload-link-header">
+              <span class="link-icon">🔗</span> Share Upload Link
+            </div>
+            <div class="share-actions-grid">
+              <a href="#" id="btnShareWhatsApp" target="_blank" rel="noopener" class="btn btn-whatsapp-share">
+                <span>💬 WhatsApp</span>
+              </a>
+              <button type="button" id="btnCopyLink" class="btn btn-copy-share">
+                <span>📋 Copy Link</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="wizard-footer success-footer">
+            <button type="button" class="btn btn-primary btn-block" id="btnSuccessGoToCase">Go to Case Details →</button>
+            <button type="button" class="btn-link-subtle" id="btnSuccessCreateAnother">Create another case</button>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -211,10 +298,11 @@
     </div>
     -->
 
-      </main>
-    </div>
+    </main>
+  </div>
 
-    <script src="/js/ui-components.js"></script>
-    <script src="/js/app.js"></script>
-  </body>
+  <script src="/js/ui-components.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+
 </html>
