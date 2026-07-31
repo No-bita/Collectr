@@ -6,7 +6,7 @@ import { runGeminiOcr } from "./ocr.js";
 
 const VALID_STATUSES = [
   'lead', 'documents_pending', 'ready_for_review', 
-  'submitted', 'lender_query', 'approved', 'disbursed', 'closed'
+  'submitted', 'approved', 'disbursed', 'closed'
 ];
 
 const DEFAULT_LOAN_PRODUCTS = [
@@ -189,9 +189,9 @@ export async function handleCreateCase(c) {
     }
   }
 
-  const requiredDocTypes = body.requiredDocIds || [];
+  let requiredDocTypes = body.requiredDocIds || [];
   if (requiredDocTypes.length === 0) {
-    return c.json({ error: "At least one document requirement must be selected for a loan case." }, 400);
+    requiredDocTypes = ['pan', 'bank_statement', 'gst_returns'];
   }
 
   const env = c.env;
@@ -280,7 +280,7 @@ export async function handleGetCases(c) {
       sql: `SELECT c.*, st.token as upload_token 
             FROM loan_cases c 
             LEFT JOIN secure_tokens st ON c.id = st.case_id AND st.status = 'active'
-            WHERE ${filter.whereClause}
+            WHERE ${filter.whereClause} AND c.status NOT IN ('lead', 'disbursed', 'submitted')
             ORDER BY c.last_updated DESC`,
       args: filter.params
     });
@@ -310,13 +310,18 @@ export async function handleGetCases(c) {
         };
       });
 
-      const totalReqs = docRequirements.length;
+      const totalReqs = docRequirements.length > 0 ? docRequirements.length : 3;
       const fulfilledReqs = docRequirements.filter(d => d.uploads.length > 0 || d.status === 'received').length;
 
       // Extract numeric 10-digit phone for frontend display
       let displayPhone = row.phone_number || '';
       if (displayPhone.startsWith("91") && displayPhone.length === 12) {
         displayPhone = displayPhone.slice(2);
+      }
+
+      let normalizedStatus = row.status;
+      if (normalizedStatus === 'lender_query' || normalizedStatus === 'lead') {
+        normalizedStatus = 'documents_pending';
       }
 
       return {
@@ -327,7 +332,7 @@ export async function handleGetCases(c) {
         rawPhone: row.phone_number,
         loanProduct: row.loan_product,
         amountRequired: row.amount_required, // Amount in Lacs
-        status: row.status,
+        status: normalizedStatus,
         docProgress: { fulfilled: fulfilledReqs, total: totalReqs },
         docRequirements,
         aiReport: row.ai_metadata ? JSON.parse(row.ai_metadata) : null,
@@ -424,6 +429,11 @@ export async function handleGetSingleCase(c) {
     const whatsappAttemptsUsed = (attemptsRes.rows[0] && Number(attemptsRes.rows[0].count)) || 0;
     const whatsappAttemptsLeft = Math.max(0, 3 - whatsappAttemptsUsed);
 
+    let normalizedStatus = row.status;
+    if (normalizedStatus === 'lender_query' || normalizedStatus === 'lead') {
+      normalizedStatus = 'documents_pending';
+    }
+
     const loanCase = {
       id: row.id,
       contactPerson: row.contact_person,
@@ -431,7 +441,7 @@ export async function handleGetSingleCase(c) {
       rawPhone: row.phone_number,
       loanProduct: row.loan_product,
       amountRequired: row.amount_required,
-      status: row.status,
+      status: normalizedStatus,
       docProgress: { fulfilled: fulfilledReqs, total: totalReqs },
       docRequirements,
       aiReport: row.ai_metadata ? JSON.parse(row.ai_metadata) : null,

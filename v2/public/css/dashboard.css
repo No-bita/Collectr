@@ -681,3 +681,450 @@ tr.detail-row td {
   color: var(--muted-soft);
 }
 
+/* Header Meta & Live Status Dot */
+.header-left h1 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+}
+
+.status-live-dot {
+  font-size: 0.75rem;
+}
+
+.meta-separator {
+  color: #cbd5e1;
+}
+
+.icon-btn-ghost {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #64748b;
+  padding: 0.2rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+.icon-btn-ghost:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Modern Stats Top Section Cards */
+.stats-top {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .stats-top { grid-template-columns: 1fr; }
+}
+
+.stat-card-modern {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+.stat-icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.icon-amber { background: #fffbebfb; border: 1px solid #fef3c7; color: #d97706; }
+.icon-emerald { background: #f0fdf4; border: 1px solid #dcfce7; color: #16a34a; }
+.icon-purple { background: #faf5ff; border: 1px solid #f3e8ff; color: #9333ea; }
+
+.stat-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.stat-top-line {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stat-count {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.stat-pill {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 0.2rem 0.625rem;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.pill-amber { background: #fef3c7; color: #d97706; }
+.pill-emerald { background: #dcfce7; color: #15803d; }
+.pill-purple { background: #f3e8ff; color: #7e22ce; }
+
+.stat-sub {
+  font-size: 0.78125rem;
+  color: #64748b;
+}
+
+/* Modern Search & Control Bar */
+.toolbar {
+  padding: 1rem 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  position: relative;
+  width: 340px;
+  max-width: 100%;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.875rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.875rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.55rem 1rem 0.55rem 2.35rem;
+  font-size: 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  outline: none;
+  color: #0f172a;
+  transition: all 0.15s ease;
+}
+
+.search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filter-select-pill {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-select-pill:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.filter-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-badge-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.active-badge-num {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modern Cases Table */
+.cases-table-modern {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.cases-table-modern th {
+  background: #f8fafc;
+  padding: 0.875rem 1.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.cases-table-modern td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.cases-table-modern tbody tr {
+  transition: background 0.12s ease;
+}
+
+.cases-table-modern tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* Customer Avatar Column */
+.customer-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.avatar-wrapper {
+  position: relative;
+}
+
+.avatar-circle-sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.online-dot {
+  width: 10px;
+  height: 10px;
+  background: #22c55e;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+}
+
+.customer-info-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.customer-info-sub {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+/* Loan Type Column */
+.loan-type-main {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.loan-type-sub {
+  font-size: 0.75rem;
+  font-family: monospace;
+  color: #94a3b8;
+  margin-top: 0.15rem;
+}
+
+/* Amount Column */
+.amount-val {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Doc Progress Column */
+.doc-prog-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.doc-prog-track {
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.doc-prog-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.doc-prog-text {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  min-width: 36px;
+  text-align: right;
+}
+
+.doc-prog-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+/* Next Action Column */
+.next-action-main {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.next-action-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+/* Action Menu Button */
+.action-more-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.action-more-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Table Footer & Pagination */
+.table-pagination-footer {
+  padding: 0.875rem 1.25rem;
+  background: #ffffff;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pagination-info {
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.page-nav-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.page-nav-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.page-nav-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.per-page-select {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+
+.pagination-size-text {
+  font-size: 0.8125rem;
+  color: #64748b;
+  font-weight: 500;
+}
+

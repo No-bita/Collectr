@@ -3,10 +3,8 @@
 INSERT OR IGNORE INTO loan_cases (id, contact_person, phone_number, loan_product, amount_required, status, created_at, last_updated) VALUES
 ('case_101', 'Ramesh Sharma', '919876543210', 'Working Capital', 25.0, 'ready_for_review', datetime('now', '-3 days'), datetime('now', '-10 minutes')),
 ('case_102', 'Anita Verma', '919812345678', 'Machinery Loan', 50.0, 'documents_pending', datetime('now', '-2 days'), datetime('now', '-1 hour')),
-('case_103', 'Vikram Patel', '919988776655', 'Loan Against Property (LAP)', 120.0, 'submitted', datetime('now', '-5 days'), datetime('now', '-30 minutes')),
-('case_104', 'Suresh Gupta', '919765432109', 'Cash Credit', 15.0, 'lender_query', datetime('now', '-6 days'), datetime('now', '-2 hours')),
-('case_105', 'Priya Nair', '919654321098', 'Term Loan', 80.0, 'disbursed', datetime('now', '-10 days'), datetime('now', '-1 day')),
-('case_106', 'Rajesh Mehta', '919543210987', 'Invoice Financing', 10.0, 'lead', datetime('now', '-1 hour'), datetime('now', '-5 minutes'));
+('case_103', 'Vikram Patel', '919988776655', 'Loan Against Property (LAP)', 120.0, 'documents_pending', datetime('now', '-5 days'), datetime('now', '-30 minutes')),
+('case_104', 'Suresh Gupta', '919765432109', 'Cash Credit', 15.0, 'documents_pending', datetime('now', '-6 days'), datetime('now', '-2 hours'));
 
 -- Required Documents for Case 101 (Ramesh Sharma)
 INSERT OR IGNORE INTO required_documents (id, case_id, document_type, label, status) VALUES

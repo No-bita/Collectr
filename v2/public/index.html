@@ -19,7 +19,6 @@
               <div class="brand-icon">C</div>
               <div class="brand-text">
                 <h2>Collectrr</h2>
-                <p>MSME Loan Case OS</p>
               </div>
             </div>
             <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
@@ -27,10 +26,13 @@
 
           <nav class="sidebar-menu">
             <a href="/index.html" class="menu-item active">
-              <span class="menu-label">Dashboard</span>
+              <span class="menu-label">📊 Dashboard</span>
             </a>
             <a href="/admin/analytics" class="menu-item" id="navAnalytics">
-              <span class="menu-label">Analytics</span>
+              <span class="menu-label">📈 Analytics</span>
+            </a>
+            <a href="/dd" class="menu-item" id="navObservability">
+              <span class="menu-label">🛠️ Observability</span>
             </a>
           </nav>
         </div>
@@ -47,66 +49,116 @@
       <!-- Main Shell Area -->
       <main class="main-content">
         <header class="dashboard-top">
-          <div>
+          <div class="header-left">
             <h1>Loan Cases</h1>
-            <p class="dashboard-sub">Collectrr MSME Loan Case Operating System</p>
           </div>
           <div class="top-actions-row">
-            <a href="/index.html" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; background: var(--bg-hover, #e2e8f0); color: var(--text-main, #0f172a);">📊 Cases</a>
-            <a href="/admin/analytics" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600;">📈 Analytics</a>
-            <button type="button" class="btn btn-primary" id="openAdd">New Loan Case</button>
+            <button type="button" class="btn btn-primary btn-lg" id="openAdd">
+              <span class="btn-icon">+</span> New Loan Case
+            </button>
           </div>
         </header>
 
         <div id="dashboardError" style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem;" hidden></div>
 
-      <section class="stats-top">
-        <div class="stat-top">
-          <div class="label">Docs Pending</div>
-          <div class="value" id="statPending">—</div>
-        </div>
-        <div class="stat-top">
-          <div class="label">Ready for Review</div>
-          <div class="value" id="statReview">—</div>
-        </div>
-        <div class="stat-top">
-          <div class="label">Submitted</div>
-          <div class="value" id="statSubmitted">—</div>
-        </div>
-      </section>
+        <!-- Top Metrics Cards -->
+        <section class="stats-top">
+          <div class="stat-card-modern stat-pending">
+            <div class="stat-icon-circle icon-amber">📄</div>
+            <div class="stat-card-body">
+              <div class="stat-top-line">
+                <span class="stat-count" id="statPending">—</span>
+                <span class="stat-pill pill-amber">Docs Pending</span>
+              </div>
+            </div>
+          </div>
 
-      <div class="table-card">
-        <div class="toolbar">
-          <input type="search" id="search" class="search-input" placeholder="Search by contact or phone..." />
-          <select id="statusFilter" class="filter-select">
-            <option value="all">All Statuses</option>
-            <option value="documents_pending">Documents Pending</option>
-            <option value="ready_for_review">Ready for Review</option>
-            <option value="submitted">Submitted</option>
-            <!-- <option value="lender_query">Lender Query</option> -->
-            <!-- <option value="approved">Approved</option> -->
-            <!-- <option value="disbursed">Disbursed</option> -->
-            <option value="closed">Closed</option>
-          </select>
-        </div>
+          <div class="stat-card-modern stat-review">
+            <div class="stat-icon-circle icon-emerald">✓</div>
+            <div class="stat-card-body">
+              <div class="stat-top-line">
+                <span class="stat-count" id="statReview">—</span>
+                <span class="stat-pill pill-emerald">Ready for Review</span>
+              </div>
+            </div>
+          </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 5%">#</th>
-              <th style="width: 25%">Contact Person</th>
-              <th style="width: 22%">Loan Type</th>
-              <th style="width: 15%">Amount (Lacs)</th>
-              <th style="width: 15%">Doc Progress</th>
-              <th style="width: 18%">Status</th>
-            </tr>
-          </thead>
-          <tbody id="tbody">
-            <tr><td colspan="6" style="text-align: center; padding: 2rem;">Loading cases...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+          <!-- Card 3: Submitted (Commented out until submission flow is built)
+          <div class="stat-card-modern stat-submitted">
+            <div class="stat-icon-circle icon-purple">✈</div>
+            <div class="stat-card-body">
+              <div class="stat-top-line">
+                <span class="stat-count" id="statSubmitted">—</span>
+                <span class="stat-pill pill-purple">Submitted</span>
+              </div>
+              <div class="stat-sub">Sent to lender</div>
+            </div>
+          </div>
+          -->
+        </section>
+
+        <!-- Main Cases Table Card -->
+        <div class="table-card">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="search" id="search" class="search-input" placeholder="Search..." />
+              </div>
+            </div>
+            <div class="toolbar-right">
+              <select id="loanTypeFilter" class="filter-select-pill">
+                <option value="all">All Loan Types</option>
+              </select>
+
+              <select id="amountFilter" class="filter-select-pill">
+                <option value="all">Amount</option>
+                <option value="0-25">₹0 - ₹25 Lacs</option>
+                <option value="25-50">₹25 - ₹50 Lacs</option>
+                <option value="50+">₹50+ Lacs</option>
+              </select>
+
+              <select id="statusFilter" class="filter-select-pill">
+                <option value="all">All Statuses</option>
+                <option value="documents_pending">Pending</option>
+                <option value="ready_for_review">Ready for Review</option>
+                <option value="submitted">Submitted</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="cases-table-modern">
+              <thead>
+                <tr>
+                  <th style="width: 4%; text-align: center;">#</th>
+                  <th style="width: 22%">Customer</th>
+                  <th style="width: 18%">Loan Type</th>
+                  <th style="width: 14%">Amount</th>
+                  <th style="width: 18%">Doc Progress</th>
+                  <th style="width: 18%">Next Action</th>
+                  <th style="width: 10%">Status</th>
+                  <th style="width: 4%; text-align: center;"></th>
+                </tr>
+              </thead>
+              <tbody id="tbody">
+                <tr><td colspan="8" style="text-align: center; padding: 2.5rem; color: #64748b;">Loading cases...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Footer -->
+          <div class="table-pagination-footer">
+            <div class="pagination-info" id="footerCasesCount">Showing cases</div>
+            <div class="pagination-buttons" id="paginationPages">
+              <button type="button" class="page-nav-btn">&lt;</button>
+              <button type="button" class="page-nav-btn active">1</button>
+              <button type="button" class="page-nav-btn">&gt;</button>
+            </div>
+          </div>
+        </div>
+      </main>
 
     <!-- New Case Modal -->
     <div class="modal-backdrop" id="modalBackdrop" hidden>
