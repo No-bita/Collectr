@@ -1,0 +1,38 @@
+name = "collectrr-v2"
+compatibility_date = "2026-05-24"
+main = "src/index.js"
+
+[vars]
+ENVIRONMENT = "production"
+FRONTEND_URL = "https://your-worker.workers.dev"
+WHATSAPP_PROD_PHONE_ID = "YOUR_PROD_PHONE_ID"
+WHATSAPP_PHONE_ID = "YOUR_TEST_PHONE_ID"
+WHATSAPP_VERIFY_TOKEN = "YOUR_VERIFY_TOKEN"
+WHATSAPP_NEW_LEAD_TEMPLATE = "new_convo_1"
+WHATSAPP_TEMPLATE_LANG = "en"
+FIRM_NAME = "Mishra & Associates"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lekho-db"
+database_id = "YOUR_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "DOCUMENT_BUCKET"
+bucket_name = "lekho-documents"
+preview_bucket_name = "lekho-documents-preview"
+
+[assets]
+directory = "./public"
+
+[observability]
+enabled = false
+
+[observability.logs]
+enabled = true
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true

@@ -1,0 +1,102 @@
+{
+  "version": "1.0.0",
+  "basePath": "/assets/icons/",
+  "icons": [
+    {
+      "id": "icon_dashboard",
+      "description": "Sidebar navigation icon for Dashboard view",
+      "folder": "v2/public/assets/icons/icon_dashboard/",
+      "assetFile": "v2/public/assets/icons/icon_dashboard/icon.svg"
+    },
+    {
+      "id": "icon_analytics",
+      "description": "Sidebar navigation icon for Analytics view",
+      "folder": "v2/public/assets/icons/icon_analytics/",
+      "assetFile": "v2/public/assets/icons/icon_analytics/icon.svg"
+    },
+    {
+      "id": "icon_docs_pending",
+      "description": "Dashboard summary card icon for 'Docs Pending' status",
+      "folder": "v2/public/assets/icons/icon_docs_pending/",
+      "assetFile": "v2/public/assets/icons/icon_docs_pending/icon.svg"
+    },
+    {
+      "id": "icon_ready_review",
+      "description": "Dashboard summary card icon for 'Ready for Review' status",
+      "folder": "v2/public/assets/icons/icon_ready_review/",
+      "assetFile": "v2/public/assets/icons/icon_ready_review/icon.svg"
+    },
+    {
+      "id": "icon_submitted",
+      "description": "Dashboard summary card icon for 'Submitted' status",
+      "folder": "v2/public/assets/icons/icon_submitted/",
+      "assetFile": "v2/public/assets/icons/icon_submitted/icon.svg"
+    },
+    {
+      "id": "icon_upload",
+      "description": "Public client portal upload button and drag and drop icon",
+      "folder": "v2/public/assets/icons/icon_upload/",
+      "assetFile": "v2/public/assets/icons/icon_upload/icon.svg"
+    },
+    {
+      "id": "icon_doc_generic",
+      "description": "Generic document requirement checklist icon",
+      "folder": "v2/public/assets/icons/icon_doc_generic/",
+      "assetFile": "v2/public/assets/icons/icon_doc_generic/icon.svg"
+    },
+    {
+      "id": "icon_doc_pan",
+      "description": "PAN Card document requirement badge icon",
+      "folder": "v2/public/assets/icons/icon_doc_pan/",
+      "assetFile": "v2/public/assets/icons/icon_doc_pan/icon.svg"
+    },
+    {
+      "id": "icon_doc_aadhaar",
+      "description": "Aadhaar Card document requirement badge icon",
+      "folder": "v2/public/assets/icons/icon_doc_aadhaar/",
+      "assetFile": "v2/public/assets/icons/icon_doc_aadhaar/icon.svg"
+    },
+    {
+      "id": "icon_doc_bank",
+      "description": "Bank Statement document requirement badge icon",
+      "folder": "v2/public/assets/icons/icon_doc_bank/",
+      "assetFile": "v2/public/assets/icons/icon_doc_bank/icon.svg"
+    },
+    {
+      "id": "icon_doc_gst",
+      "description": "GST Returns document requirement badge icon",
+      "folder": "v2/public/assets/icons/icon_doc_gst/",
+      "assetFile": "v2/public/assets/icons/icon_doc_gst/icon.svg"
+    },
+    {
+      "id": "icon_whatsapp",
+      "description": "WhatsApp action button brand icon",
+      "folder": "v2/public/assets/icons/icon_whatsapp/",
+      "assetFile": "v2/public/assets/icons/icon_whatsapp/icon.svg"
+    },
+    {
+      "id": "icon_copy",
+      "description": "Copy link to clipboard action button icon",
+      "folder": "v2/public/assets/icons/icon_copy/",
+      "assetFile": "v2/public/assets/icons/icon_copy/icon.svg"
+    },
+    {
+      "id": "icon_edit",
+      "description": "Edit case details action button icon",
+      "folder": "v2/public/assets/icons/icon_edit/",
+      "assetFile": "v2/public/assets/icons/icon_edit/icon.svg"
+    },
+    {
+      "id": "icon_view",
+      "description": "View submitted file document action icon",
+      "folder": "v2/public/assets/icons/icon_view/",
+      "assetFile": "v2/public/assets/icons/icon_view/icon.svg"
+    },
+    {
+      "id": "icon_user",
+      "description": "User profile avatar and agent role icon",
+      "folder": "v2/public/assets/icons/icon_user/",
+      "assetFile": "v2/public/assets/icons/icon_user/icon.svg"
+    }
+  ]
+}

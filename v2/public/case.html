@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Loan Case Detail — Collectrr OS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/dashboard.css" />
+    <style>
+      body { background-color: #f4f6f9; display: flex; min-height: 100vh; margin: 0; }
+      
+      /* Sidebar Layout */
+      .app-layout { display: flex; width: 100%; min-height: 100vh; }
+      .sidebar {
+        width: 240px; background: #ffffff; border-right: 1px solid #e2e8f0;
+        padding: 1.5rem 1rem; display: flex; flex-direction: column; justify-content: space-between;
+        flex-shrink: 0;
+      }
+      .sidebar-brand { display: flex; align-items: center; gap: 0.625rem; padding-bottom: 1.5rem; border-bottom: 1px solid #f1f5f9; }
+      .brand-icon { width: 32px; height: 32px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 1.1rem; }
+      .brand-text h2 { font-size: 1.125rem; font-weight: 700; color: #0f172a; margin: 0; }
+      .brand-text p { font-size: 0.6875rem; color: #64748b; margin: 0; }
+
+      .sidebar-menu { display: flex; flex-direction: column; gap: 0.375rem; margin-top: 1.5rem; }
+      .menu-item {
+        display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.875rem;
+        font-size: 0.875rem; font-weight: 500; color: #475569; text-decoration: none;
+        border-radius: 8px; transition: all 0.15s ease;
+      }
+      .menu-item:hover { background: #f8fafc; color: #0f172a; }
+      .menu-item.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
+
+      .sidebar-user { display: flex; align-items: center; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid #f1f5f9; }
+      .user-avatar { width: 36px; height: 36px; background: #334155; border-radius: 999px; color: #fff; font-weight: 700; font-size: 0.875rem; display: flex; align-items: center; justify-content: center; }
+      .user-info div:first-child { font-size: 0.8125rem; font-weight: 600; color: #0f172a; }
+      .user-info div:last-child { font-size: 0.6875rem; color: #64748b; }
+
+      /* Main Screen Area */
+      .main-content { flex: 1; padding: 2rem 2.5rem; overflow-y: auto; }
+      
+      .top-nav-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+      .back-link { display: inline-flex; align-items: center; gap: 0.5rem; color: #475569; font-size: 0.875rem; font-weight: 600; text-decoration: none; }
+      .back-link:hover { color: #2563eb; }
+
+      /* Client Banner Card */
+      .client-banner-card {
+        background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.03); margin-bottom: 1.5rem;
+      }
+      .banner-header { display: flex; align-items: center; gap: 1.25rem; margin-bottom: 1.5rem; }
+      .avatar-circle {
+        width: 56px; height: 56px; background: #dbeafe; color: #1d4ed8;
+        font-weight: 700; font-size: 1.25rem; border-radius: 999px;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      }
+      .client-meta h2 { font-size: 1.5rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 0.75rem; margin: 0; }
+      .client-sub { font-size: 0.875rem; color: #64748b; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+      
+      .status-badge-prominent {
+        font-size: 0.875rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        padding: 0.5rem 1.125rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        flex-shrink: 0;
+      }
+      
+      .banner-stats-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;
+        padding-top: 1.25rem; border-top: 1px solid #f1f5f9;
+      }
+      @media (max-width: 1024px) { .banner-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+      
+      .stat-col { display: flex; flex-direction: column; gap: 0.25rem; border-right: 1px solid #f1f5f9; padding-right: 1rem; }
+      .stat-col:last-child { border-right: none; }
+      .stat-col-label { font-size: 0.75rem; font-weight: 500; color: #64748b; }
+      .stat-col-val { font-size: 1.125rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 0.5rem; }
+
+      /* Progress Bar Segment */
+      .seg-progress-bar { display: flex; gap: 4px; width: 120px; height: 6px; }
+      .seg-bar { flex: 1; background: #e2e8f0; border-radius: 999px; }
+      .seg-bar.filled { background: #10b981; }
+
+      /* Main 2-Column Grid */
+      .case-content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+      @media (max-width: 960px) { .case-content-grid { grid-template-columns: 1fr; } }
+
+      .card-panel { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+      .card-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+      .card-panel-title { font-size: 1.125rem; font-weight: 700; color: #0f172a; }
+
+      /* Required Documents Table Layout */
+      .docs-panel-header {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;
+      }
+      .docs-panel-header .panel-title-group { display: flex; align-items: center; gap: 0.75rem; }
+      .docs-panel-header .panel-title-group .panel-icon {
+        width: 36px; height: 36px; background: #eff6ff; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+      }
+      .docs-panel-header .panel-title-group h3 { margin: 0; font-size: 1.125rem; font-weight: 700; color: #0f172a; }
+      .docs-received-badge {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        background: #ecfdf5; color: #059669; font-weight: 600; font-size: 0.75rem;
+        padding: 0.2rem 0.6rem; border-radius: 999px;
+      }
+      .docs-received-badge.partial { background: #fef3c7; color: #b45309; }
+      .docs-panel-subtitle { font-size: 0.8125rem; color: #64748b; margin-top: 0.25rem; }
+
+      .view-all-files-btn {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        background: #ffffff; border: 1px solid #2563eb; color: #2563eb;
+        font-weight: 600; font-size: 0.8125rem; padding: 0.5rem 1rem;
+        border-radius: 8px; cursor: pointer; transition: all 0.15s ease;
+      }
+      .view-all-files-btn:hover { background: #eff6ff; }
+
+      .docs-table-header {
+        display: grid; grid-template-columns: 1fr 200px 160px;
+        padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600;
+        color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;
+        border-bottom: 1px solid #f1f5f9;
+      }
+
+      .doc-row {
+        display: grid; grid-template-columns: 1fr 200px 160px;
+        padding: 1rem; align-items: center;
+        border: 1px solid #e2e8f0; border-radius: 10px;
+        margin-top: 0.5rem; background: #ffffff;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      .doc-row:hover { border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+
+      .doc-row-info { display: flex; align-items: center; gap: 0.875rem; }
+      .doc-type-icon {
+        width: 40px; height: 40px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.15rem; flex-shrink: 0;
+      }
+      .doc-type-icon.pan { background: #dbeafe; color: #2563eb; }
+      .doc-type-icon.aadhaar { background: #e0e7ff; color: #4f46e5; }
+      .doc-type-icon.bank { background: #fef3c7; color: #b45309; }
+      .doc-type-icon.gst { background: #dcfce7; color: #15803d; }
+      .doc-type-icon.default { background: #f1f5f9; color: #475569; }
+
+      .doc-row-name { font-size: 0.9375rem; font-weight: 600; color: #0f172a; }
+      .doc-row-sub { font-size: 0.75rem; color: #64748b; margin-top: 0.15rem; }
+
+      .doc-row-status { display: flex; flex-direction: column; gap: 0.15rem; }
+      .status-received { display: inline-flex; align-items: center; gap: 0.3rem; color: #059669; font-weight: 600; font-size: 0.8125rem; }
+      .status-pending { display: inline-flex; align-items: center; gap: 0.3rem; color: #b45309; font-weight: 600; font-size: 0.8125rem; }
+      .doc-row-timestamp { font-size: 0.6875rem; color: #94a3b8; }
+
+      .doc-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+      .view-file-btn {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        background: #ffffff; border: 1px solid #e2e8f0; color: #2563eb;
+        font-weight: 600; font-size: 0.8125rem; padding: 0.4rem 0.875rem;
+        border-radius: 8px; cursor: pointer; text-decoration: none;
+        transition: all 0.15s ease;
+      }
+      .view-file-btn:hover { background: #eff6ff; border-color: #2563eb; }
+
+
+      .add-doc-row {
+        display: flex; align-items: center; gap: 0.75rem;
+        padding: 1rem; margin-top: 0.5rem;
+        border: 1px dashed #cbd5e1; border-radius: 10px;
+        cursor: pointer; transition: all 0.15s ease;
+      }
+      .add-doc-row:hover { border-color: #2563eb; background: #f8fafc; }
+      .add-doc-icon {
+        width: 40px; height: 40px; background: #eff6ff; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.25rem; color: #2563eb;
+      }
+      .add-doc-text div:first-child { font-size: 0.875rem; font-weight: 600; color: #2563eb; }
+      .add-doc-text div:last-child { font-size: 0.75rem; color: #94a3b8; }
+
+      /* Timeline Stream */
+      .timeline-feed { display: flex; flex-direction: column; gap: 1rem; max-height: 380px; overflow-y: auto; padding-right: 0.5rem; }
+      .timeline-feed-item { display: flex; gap: 0.75rem; align-items: flex-start; }
+      .timeline-icon-dot {
+        width: 32px; height: 32px; border-radius: 999px; background: #e0f2fe; color: #0284c7;
+        display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.875rem; flex-shrink: 0;
+      }
+      .timeline-content { flex: 1; }
+      .timeline-text { font-size: 0.875rem; font-weight: 600; color: #1e293b; }
+      .timeline-meta { font-size: 0.75rem; color: #64748b; margin-top: 0.15rem; }
+
+      /* Bottom Quick Actions Grid */
+      .case-actions-card {
+        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem;
+      }
+      .actions-title { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 1rem; }
+      .actions-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+      @media (max-width: 900px) { .actions-grid { grid-template-columns: repeat(2, 1fr); } }
+
+      .action-pill-btn {
+        background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem;
+        display: flex; align-items: center; gap: 0.875rem; cursor: pointer; transition: all 0.15s ease; text-align: left;
+      }
+      .action-pill-btn:hover { border-color: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04); }
+      .action-icon {
+        width: 36px; height: 36px; border-radius: 8px; background: #eff6ff; color: #2563eb;
+        display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;
+      }
+      .action-info div:first-child { font-size: 0.875rem; font-weight: 600; color: #0f172a; }
+      .action-info div:last-child { font-size: 0.75rem; color: #64748b; margin-top: 0.1rem; }
+    </style>
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- Collapsible Sidebar -->
+      <aside class="sidebar" id="appSidebar">
+        <div>
+          <div class="sidebar-header">
+            <div class="sidebar-brand">
+              <div class="brand-icon">C</div>
+              <div class="brand-text">
+                <h2>Collectrr</h2>
+                <p>MSME Loan Case OS</p>
+              </div>
+            </div>
+            <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
+          </div>
+
+          <nav class="sidebar-menu">
+            <a href="/index.html" class="menu-item">
+              <span class="menu-label">Dashboard</span>
+            </a>
+            <a href="/admin/analytics" class="menu-item" id="navAnalytics">
+              <span class="menu-label">Analytics</span>
+            </a>
+          </nav>
+        </div>
+
+        <div class="sidebar-user">
+          <div class="user-avatar" id="userAvatar">--</div>
+          <div class="user-info">
+            <div id="userName">User</div>
+            <div id="userRole">Agent</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content Screen -->
+      <main class="main-content">
+        <div class="top-nav-bar">
+          <a href="/index.html" class="back-link">← Back to Loan Cases</a>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn" id="retryWhatsAppBtn" style="background: #fef2f2; border-color: #fca5a5; color: #991b1b; font-size: 0.8125rem; font-weight: 600;" hidden>Retry WhatsApp</button>
+            <button type="button" class="btn btn-primary" id="editCaseBtn">Edit Case</button>
+          </div>
+        </div>
+
+        <div id="caseError" style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem;" hidden></div>
+
+        <!-- Client Header Banner Card -->
+        <section class="client-banner-card" id="bannerCard">
+          <div class="banner-header">
+            <div class="avatar-circle" id="clientInitials">--</div>
+            <div class="client-meta" style="flex: 1;">
+              <h2>
+                <span id="clientName">Loading Case...</span>
+              </h2>
+              <div class="client-sub">
+                <span id="clientPhone">--</span>
+              </div>
+            </div>
+            <span class="badge status-badge-prominent" id="clientStatusBadge">--</span>
+          </div>
+
+          <div class="banner-stats-grid">
+            <div class="stat-col">
+              <div class="stat-col-label">Loan Type</div>
+              <div class="stat-col-val" id="statProduct">—</div>
+            </div>
+            <div class="stat-col">
+              <div class="stat-col-label">Amount Required</div>
+              <div class="stat-col-val" id="statAmount">—</div>
+            </div>
+            <div class="stat-col">
+              <div class="stat-col-label">Doc Progress</div>
+              <div class="stat-col-val">
+                <div class="seg-progress-bar" id="segProgressBar">
+                  <div class="seg-bar"></div>
+                  <div class="seg-bar"></div>
+                  <div class="seg-bar"></div>
+                  <div class="seg-bar"></div>
+                </div>
+                <span id="statDocCount">0 / 0</span>
+              </div>
+            </div>
+            <div class="stat-col">
+              <div class="stat-col-label">Upload Link</div>
+              <div class="stat-col-val">
+                <a href="javascript:void(0)" id="copyLinkBtn" style="color: #2563eb; text-decoration: underline; font-size: 0.9375rem; font-weight: 600; cursor: pointer;">Copy Link</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Main Content 2-Column Grid -->
+        <div class="case-content-grid">
+          <!-- Left Column: Required Documents -->
+          <div class="card-panel">
+            <div class="docs-panel-header">
+              <div>
+                <div class="panel-title-group">
+                  <h3>Required Documents</h3>
+                </div>
+              </div>
+            </div>
+
+            <div class="docs-table-header">
+              <div>Document</div>
+              <div>Status</div>
+              <div style="text-align: right;">Actions</div>
+            </div>
+
+            <div id="reqDocsContainer">
+              <p style="color: #64748b; font-size: 0.875rem; padding: 1rem;">Loading...</p>
+            </div>
+
+            <div class="add-doc-row" id="addDocRow">
+              <div class="add-doc-icon">+</div>
+              <div class="add-doc-text">
+                <div>Add Additional Document</div>
+                <div>Add any other document if required</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Timeline & Notes -->
+          <div class="card-panel">
+            <div class="card-panel-header">
+              <div class="card-panel-title">Timeline & Notes</div>
+            </div>
+            <div class="timeline-feed" id="timelineFeed">
+              <p style="color: #64748b; font-size: 0.875rem;">Loading timeline...</p>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+              <input type="text" id="noteInput" placeholder="Type internal note..." style="flex: 1; font-size: 0.875rem; padding: 0.5rem 0.875rem; border: 1px solid #cbd5e1; border-radius: 8px; outline: none;" />
+              <button type="button" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem; border-radius: 8px;" id="addNoteBtn">Add Note</button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- Agent Upload Modal -->
+    <div class="modal-backdrop" id="agentUploadModalBackdrop" hidden>
+      <div class="modal card">
+        <div class="modal-header">
+          <h2 style="font-size: 1.125rem; font-weight: 700; color: #0f172a; margin: 0;">Upload Document (Agent)</h2>
+          <button type="button" class="btn-close" id="closeAgentUpload" style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; color: #64748b;">✕</button>
+        </div>
+        <form id="agentUploadForm" style="margin-top: 1rem;">
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">Document Requirement</label>
+            <select id="agentUploadDocSelect" required style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem;">
+            </select>
+          </div>
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">Select File</label>
+            <input type="file" id="agentUploadFileInput" required style="width: 100%; font-size: 0.875rem;" />
+          </div>
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">File Label / Title (Optional)</label>
+            <input type="text" id="agentUploadLabelInput" placeholder="e.g. GST Return Q3 2024" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem;" />
+          </div>
+          <div id="agentUploadError" style="color: #b91c1c; background: #fee2e2; border: 1px solid #f87171; padding: 0.625rem; border-radius: 6px; font-size: 0.8125rem; margin-bottom: 1rem;" hidden></div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button type="button" class="btn" id="cancelAgentUpload">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="submitAgentUpload">Upload Document</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Case Modal -->
+    <div class="modal-backdrop" id="editCaseModalBackdrop" hidden>
+      <div class="modal card">
+        <div class="modal-header">
+          <h2 style="font-size: 1.125rem; font-weight: 700; color: #0f172a; margin: 0;">Edit Loan Case</h2>
+          <button type="button" class="btn-close" id="closeEditCase" style="background: transparent; border: none; font-size: 1.25rem; cursor: pointer; color: #64748b;">✕</button>
+        </div>
+        <form id="editCaseForm" style="margin-top: 1rem;">
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">Contact Person Name *</label>
+            <input id="editContactPerson" required type="text" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem;" />
+          </div>
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">Mobile Number (10 digits) *</label>
+            <input id="editPhone" required type="tel" maxlength="10" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem;" />
+          </div>
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">Loan Type *</label>
+            <select id="editLoanProductSelect" required style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem;">
+            </select>
+          </div>
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">Amount Required (in Lacs / ₹ Lakhs)</label>
+            <input id="editAmountRequired" type="number" step="any" min="0" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem;" />
+          </div>
+          <div class="field" style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">Required Documents</label>
+            <div id="editRequiredDocsFields" class="doc-check-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;"></div>
+          </div>
+          <div id="editCaseError" style="color: #b91c1c; background: #fee2e2; border: 1px solid #f87171; padding: 0.625rem; border-radius: 6px; font-size: 0.8125rem; margin-bottom: 1rem;" hidden></div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button type="button" class="btn" id="cancelEditCase">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="submitEditCase">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/js/ui-components.js"></script>
+    <script src="/js/case-detail.js"></script>
+  </body>
+</html>

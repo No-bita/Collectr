@@ -1,0 +1,18 @@
+{
+  "name": "collectrr-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "hono": "^4.12.22",
+    "@aws-sdk/client-s3": "^3.1053.0",
+    "@aws-sdk/s3-request-presigner": "^3.1053.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.94.0"
+  }
+}

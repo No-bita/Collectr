@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Loan Cases — Collectrr OS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/dashboard.css" />
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- Collapsible Sidebar -->
+      <aside class="sidebar" id="appSidebar">
+        <div>
+          <div class="sidebar-header">
+            <div class="sidebar-brand">
+              <div class="brand-icon">C</div>
+              <div class="brand-text">
+                <h2>Collectrr</h2>
+                <p>MSME Loan Case OS</p>
+              </div>
+            </div>
+            <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
+          </div>
+
+          <nav class="sidebar-menu">
+            <a href="/index.html" class="menu-item active">
+              <span class="menu-label">Dashboard</span>
+            </a>
+            <a href="/admin/analytics" class="menu-item" id="navAnalytics">
+              <span class="menu-label">Analytics</span>
+            </a>
+          </nav>
+        </div>
+
+        <div class="sidebar-user">
+          <div class="user-avatar" id="userAvatar">--</div>
+          <div class="user-info">
+            <div id="userName">User</div>
+            <div id="userRole">Agent</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Shell Area -->
+      <main class="main-content">
+        <header class="dashboard-top">
+          <div>
+            <h1>Loan Cases</h1>
+            <p class="dashboard-sub">Collectrr MSME Loan Case Operating System</p>
+          </div>
+          <div class="top-actions-row">
+            <a href="/index.html" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; background: var(--bg-hover, #e2e8f0); color: var(--text-main, #0f172a);">📊 Cases</a>
+            <a href="/admin/analytics" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600;">📈 Analytics</a>
+            <button type="button" class="btn btn-primary" id="openAdd">New Loan Case</button>
+          </div>
+        </header>
+
+        <div id="dashboardError" style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem;" hidden></div>
+
+      <section class="stats-top">
+        <div class="stat-top">
+          <div class="label">Docs Pending</div>
+          <div class="value" id="statPending">—</div>
+        </div>
+        <div class="stat-top">
+          <div class="label">Ready for Review</div>
+          <div class="value" id="statReview">—</div>
+        </div>
+        <div class="stat-top">
+          <div class="label">Submitted</div>
+          <div class="value" id="statSubmitted">—</div>
+        </div>
+      </section>
+
+      <div class="table-card">
+        <div class="toolbar">
+          <input type="search" id="search" class="search-input" placeholder="Search by contact or phone..." />
+          <select id="statusFilter" class="filter-select">
+            <option value="all">All Statuses</option>
+            <option value="documents_pending">Documents Pending</option>
+            <option value="ready_for_review">Ready for Review</option>
+            <option value="submitted">Submitted</option>
+            <!-- <option value="lender_query">Lender Query</option> -->
+            <!-- <option value="approved">Approved</option> -->
+            <!-- <option value="disbursed">Disbursed</option> -->
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%">#</th>
+              <th style="width: 25%">Contact Person</th>
+              <th style="width: 22%">Loan Type</th>
+              <th style="width: 15%">Amount (Lacs)</th>
+              <th style="width: 15%">Doc Progress</th>
+              <th style="width: 18%">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="6" style="text-align: center; padding: 2rem;">Loading cases...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- New Case Modal -->
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <div class="modal">
+        <div class="modal-header">
+          <h2>New Loan Case</h2>
+          <button type="button" class="btn" id="closeModal">✕</button>
+        </div>
+        <form id="addForm">
+          <div class="field">
+            <label for="contactPerson">Contact Person Name</label>
+            <input id="contactPerson" name="contactPerson" type="text" placeholder="e.g. Ramesh Kumar" required />
+          </div>
+          <div class="field">
+            <label for="phone">Mobile Number (10 digits without country code)</label>
+            <input id="phone" name="phone" type="tel" placeholder="9876543210" maxlength="10" pattern="[0-9]{10}" required />
+            <small style="color: var(--muted-soft); font-size: 0.75rem;">Enter 10-digit mobile number for WhatsApp invitations.</small>
+          </div>
+          <div class="field">
+            <label for="loanProductSelect">Loan Type</label>
+            <select id="loanProductSelect" name="loanProduct" required>
+              <option value="" disabled selected>Select Loan Type...</option>
+            </select>
+          </div>
+          <div class="field" id="customProductGroup" hidden>
+            <label for="customProductInput">New Custom Loan Type Name</label>
+            <input id="customProductInput" type="text" placeholder="e.g. Unsecured Business Loan" />
+          </div>
+          <div class="field">
+            <label for="amountRequired">Amount Required (in Lacs / ₹ Lakhs)</label>
+            <input id="amountRequired" name="amountRequired" type="number" step="any" min="0" placeholder="e.g. 25 (for ₹25 Lakhs)" />
+          </div>
+          <div class="field">
+            <label>Required Documents</label>
+            <div id="requiredDocsFields" class="doc-check-grid"></div>
+          </div>
+          <div id="modalError" style="color: #b91c1c; background: #fee2e2; border: 1px solid #f87171; padding: 0.625rem; border-radius: 6px; font-size: 0.8125rem; margin-top: 0.75rem;" hidden></div>
+          <div class="modal-footer">
+            <button type="button" class="btn" id="cancelAdd">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="submitAdd">Create Loan Case</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- AI Loan Case Report Modal (Disabled for now) -->
+    <!--
+    <div class="modal-backdrop" id="reportModalBackdrop" hidden>
+      ...
+    </div>
+    -->
+
+      </main>
+    </div>
+
+    <script src="/js/ui-components.js"></script>
+    <script src="/js/app.js"></script>
+  </body>
+</html>

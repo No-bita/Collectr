@@ -1,0 +1,825 @@
+let currentCase = null;
+const el = (id) => document.getElementById(id);
+
+async function authFetch(url, options = {}) {
+  const token = localStorage.getItem('collectrr_auth');
+  if (!token) {
+    window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+    throw new Error("Authentication required");
+  }
+
+  const headers = {
+    ...options.headers,
+    'Authorization': token
+  };
+
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    localStorage.removeItem('collectrr_auth');
+    window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+    throw new Error("Session expired. Please log in again.");
+  }
+  return res;
+}
+
+function formatLacs(amount) {
+  if (amount === null || amount === undefined || amount === "") return "—";
+  const num = parseFloat(amount);
+  if (isNaN(num)) return "—";
+  return `₹${num} Lacs`;
+}
+
+function formatStatus(status) {
+  const map = {
+    lead: "Lead",
+    documents_pending: "Docs Pending",
+    ready_for_review: "Ready for Review",
+    submitted: "Submitted",
+    lender_query: "Lender Query",
+    approved: "Approved",
+    disbursed: "Disbursed",
+    closed: "Closed"
+  };
+  return map[status] || status;
+}
+
+function getInitials(name) {
+  if (!name) return "--";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function setupSidebarToggle() {
+  const sidebar = el("appSidebar");
+  const toggleBtn = el("sidebarToggle");
+  if (!sidebar || !toggleBtn) return;
+
+  const isCollapsed = localStorage.getItem("sidebar_collapsed") === "true";
+  if (isCollapsed) {
+    sidebar.classList.add("collapsed");
+    toggleBtn.textContent = "▶";
+  }
+
+  toggleBtn.onclick = () => {
+    const collapsed = sidebar.classList.toggle("collapsed");
+    toggleBtn.textContent = collapsed ? "▶" : "◀";
+    localStorage.setItem("sidebar_collapsed", collapsed);
+  };
+}
+
+async function init() {
+  setupSidebarToggle();
+  const params = new URLSearchParams(window.location.search);
+  const caseId = params.get("id");
+
+  if (!caseId) {
+    window.location.href = "/index.html";
+    return;
+  }
+
+  await loadCaseDetails(caseId);
+  loadTimeline(caseId);
+}
+
+async function loadCaseDetails(caseId) {
+  try {
+    const res = await authFetch(`/api/cases/${caseId}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}: Failed to load case`);
+
+    currentCase = data.loanCase;
+    if (!currentCase) throw new Error("No loan case data returned for ID: " + caseId);
+
+    renderBanner(currentCase);
+    renderDocuments(currentCase.docRequirements || []);
+  } catch (err) {
+    console.error("loadCaseDetails Error:", err);
+    const nameEl = el("clientName");
+    if (nameEl) nameEl.textContent = "Error Loading Case";
+    const errBox = el("caseError");
+    if (errBox) {
+      errBox.textContent = "Case Load Error: " + err.message;
+      errBox.hidden = false;
+    }
+  }
+}
+
+function renderBanner(c) {
+  const initialsEl = el("clientInitials");
+  if (initialsEl) initialsEl.textContent = getInitials(c.contactPerson);
+  
+  const nameEl = el("clientName");
+  if (nameEl) {
+    nameEl.innerHTML = `${(c.contactPerson || "Client Case")}${c.isDemo ? ' <span class="tag" style="font-size: 0.75rem; background: #e2e8f0; color: #475569; margin-left: 0.5rem; font-weight: 600;">Demo</span>' : ''}`;
+  }
+  
+  const statusBadge = el("clientStatusBadge");
+  if (statusBadge) {
+    statusBadge.className = `badge status-badge-prominent badge-${c.status}`;
+    statusBadge.textContent = formatStatus(c.status);
+  }
+
+  const phoneEl = el("clientPhone");
+  if (phoneEl) phoneEl.textContent = c.phone || "—";
+
+  const productEl = el("statProduct");
+  if (productEl) productEl.textContent = c.loanProduct || "—";
+
+  const amountEl = el("statAmount");
+  if (amountEl) amountEl.textContent = formatLacs(c.amountRequired);
+
+  const prog = c.docProgress || { fulfilled: 0, total: 0 };
+  const docCountEl = el("statDocCount");
+  if (docCountEl) docCountEl.textContent = `${prog.fulfilled} / ${prog.total}`;
+
+  // Docs panel header badge
+  const badge = el("docsReceivedBadge");
+  if (badge) {
+    badge.textContent = `${prog.fulfilled} / ${prog.total} Received`;
+    if (prog.fulfilled < prog.total) {
+      badge.classList.add("partial");
+    } else {
+      badge.classList.remove("partial");
+    }
+  }
+
+  // Dynamic Segment progress bar (1 to 4 pills max)
+  const segContainer = el("segProgressBar");
+  if (segContainer) {
+    segContainer.innerHTML = "";
+    const rawTotal = prog.total || 0;
+    const numPills = Math.min(4, Math.max(0, rawTotal));
+
+    if (numPills > 0) {
+      const filledPills = rawTotal <= 4 
+        ? Math.min(numPills, prog.fulfilled) 
+        : Math.round((prog.fulfilled / rawTotal) * numPills);
+
+      for (let i = 0; i < numPills; i++) {
+        const bar = document.createElement("div");
+        bar.className = `seg-bar ${i < filledPills ? 'filled' : ''}`;
+        segContainer.appendChild(bar);
+      }
+    }
+  }
+
+  // Status Select sync
+  const statusSel = el("caseStatusSelect");
+  if (statusSel) statusSel.value = c.status;
+
+  // Copy buttons
+  const copyBtn = el("copyLinkBtn");
+  if (copyBtn) {
+    copyBtn.onclick = handleCopyUploadLink;
+  }
+
+  // Retry / Send WhatsApp button & 3-attempt hard cap
+  const retryBtn = el("retryWhatsAppBtn");
+  if (retryBtn) {
+    const isSent = c.whatsappDeliveryStatus === "sent";
+    const used = c.whatsappAttemptsUsed || 0;
+    const left = c.whatsappAttemptsLeft !== undefined ? c.whatsappAttemptsLeft : Math.max(0, 3 - used);
+
+    if (!isSent && left > 0) {
+      retryBtn.hidden = false;
+      retryBtn.disabled = false;
+      retryBtn.textContent = used > 0 ? `Retry WhatsApp (${used}/3 Used)` : `Send WhatsApp`;
+      retryBtn.title = `Send/Retry WhatsApp message to ${c.phone} (${left} attempt(s) remaining)`;
+      retryBtn.style.opacity = "1";
+      retryBtn.style.cursor = "pointer";
+    } else if (!isSent && left <= 0) {
+      retryBtn.hidden = false;
+      retryBtn.disabled = true;
+      retryBtn.textContent = `WhatsApp Limit Reached (3/3 Used)`;
+      retryBtn.title = `Maximum retry attempts (3) reached for this case`;
+      retryBtn.style.opacity = "0.6";
+      retryBtn.style.cursor = "not-allowed";
+    } else {
+      retryBtn.hidden = true;
+    }
+
+    retryBtn.onclick = async () => {
+      if (retryBtn.disabled) return;
+      const confirmRetry = await UI.confirm({
+        title: used > 0 ? "Retry WhatsApp Message" : "Send WhatsApp Message",
+        message: `Attempt to send WhatsApp message to ${c.contactPerson} (${c.phone})? (Attempt ${used + 1} of 3)`,
+        confirmText: "Send WhatsApp",
+        isDanger: false
+      });
+      if (!confirmRetry) return;
+
+      retryBtn.disabled = true;
+      retryBtn.textContent = "Sending...";
+      const targetId = c.id || (currentCase && currentCase.id);
+      try {
+        const res = await authFetch(`/api/cases/${targetId}/retry-whatsapp`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          UI.toast(data.message || "WhatsApp message sent successfully!", "success");
+        } else {
+          UI.toast(data.error || "Failed to send WhatsApp message.", "error");
+        }
+      } catch (e) {
+        UI.toast(`Error retrying WhatsApp: ${e.message}`, "error");
+      } finally {
+        loadCaseDetails(targetId);
+        loadTimeline(targetId);
+      }
+    };
+  }
+}
+
+function getDocIconClass(type) {
+  const t = (type || "").toLowerCase();
+  if (t.includes("pan")) return "pan";
+  if (t.includes("aadhaar") || t.includes("aadhar")) return "aadhaar";
+  if (t.includes("bank")) return "bank";
+  if (t.includes("gst")) return "gst";
+  return "default";
+}
+
+function getDocEmoji(type) {
+  const t = (type || "").toLowerCase();
+  if (t.includes("pan")) return "📄";
+  if (t.includes("aadhaar") || t.includes("aadhar")) return "🪪";
+  if (t.includes("bank")) return "🏦";
+  if (t.includes("gst")) return "📊";
+  return "📁";
+}
+
+function formatUploadTime(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const oneDay = 86400000;
+
+  if (diffMs < oneDay && d.getDate() === now.getDate()) {
+    return "Today, " + d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth()) {
+    return "Yesterday, " + d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  }
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function renderDocuments(reqs) {
+  const container = el("reqDocsContainer");
+  if (!reqs || reqs.length === 0) {
+    container.innerHTML = '<p style="color: #64748b; font-size: 0.875rem; padding: 1rem;">No document requirements specified.</p>';
+    return;
+  }
+
+  container.innerHTML = "";
+  reqs.forEach((req, idx) => {
+    const uploads = req.uploads || [];
+    const hasUploads = uploads.length > 0;
+    const isReceived = req.status === 'received' || hasUploads;
+    const iconClass = getDocIconClass(req.type);
+    const emoji = getDocEmoji(req.type);
+
+    const fileCountText = hasUploads ? `${uploads.length} file${uploads.length > 1 ? "s" : ""}` : "0 files";
+    const ocrCount = uploads.filter(u => u.ocrStatus === "processed").length;
+    const ocrText = ocrCount > 0 ? ` • OCR completed` : "";
+    const latestUploadTime = hasUploads ? formatUploadTime(uploads[uploads.length - 1].uploadedAt || uploads[uploads.length - 1].uploaded_at) : "";
+
+    // Primary view file link (first uploaded file)
+    const primaryLink = hasUploads && uploads[0].link ? uploads[0].link : null;
+
+    const rowWrapper = document.createElement("div");
+
+    // Main row
+    const row = document.createElement("div");
+    row.className = "doc-row";
+    row.innerHTML = `
+      <div class="doc-row-info">
+        <div>
+          <div class="doc-row-name">${escapeHtml(req.label || req.type)}</div>
+          <div class="doc-row-sub">${fileCountText}${ocrText}</div>
+        </div>
+      </div>
+      <div class="doc-row-status">
+        ${isReceived
+          ? `<span class="status-received">Received</span>`
+          : `<span class="status-pending">Pending Upload</span>`
+        }
+        ${latestUploadTime ? `<span class="doc-row-timestamp">${latestUploadTime}</span>` : ""}
+      </div>
+      <div class="doc-row-actions">
+        ${primaryLink
+          ? `<a href="${primaryLink}" target="_blank" class="view-file-btn">View File</a>`
+          : `<span style="font-size: 0.75rem; color: #94a3b8;">—</span>`
+        }
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+async function loadTimeline(caseId) {
+  const container = el("timelineFeed");
+  try {
+    const res = await authFetch(`/api/cases/${caseId}/timeline`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed");
+
+    const timeline = data.timeline || [];
+    if (timeline.length === 0) {
+      container.innerHTML = '<p style="color: #64748b; font-size: 0.875rem;">No timeline activity recorded yet.</p>';
+      return;
+    }
+
+    container.innerHTML = "";
+    timeline.forEach(t => {
+      const item = document.createElement("div");
+      item.className = "timeline-feed-item";
+
+      let isoStr = t.created_at || "";
+      if (isoStr && !isoStr.endsWith("Z") && !isoStr.includes("+")) {
+        isoStr = isoStr.replace(" ", "T") + "Z";
+      }
+      const formattedTime = isoStr ? new Date(isoStr).toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+      }) : "";
+
+      item.innerHTML = `
+        <div class="timeline-content">
+          <div class="timeline-text">${escapeHtml(t.content)}</div>
+          <div class="timeline-meta">${formattedTime}</div>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  } catch (err) {
+    container.innerHTML = '<p style="color: #ef4444; font-size: 0.875rem;">Failed to load timeline history.</p>';
+  }
+}
+
+async function rejectFile(uploadId) {
+  const ok = await UI.confirm({
+    title: "Reject Submitted File",
+    message: "Are you sure you want to reject this submitted file?",
+    confirmText: "Reject File",
+    isDanger: true
+  });
+  if (!ok) return;
+
+  try {
+    const res = await authFetch("/api/reject-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not reject file");
+    UI.toast("File rejected successfully.", "info");
+    await init();
+  } catch (err) {
+    UI.toast("Rejection Error: " + err.message, "error");
+  }
+}
+
+// Add Note Handler
+const addNoteBtn = el("addNoteBtn");
+if (addNoteBtn) {
+  addNoteBtn.onclick = async () => {
+    const input = el("noteInput");
+    if (!input || !currentCase) return;
+    const note = input.value.trim();
+    if (!note) return;
+
+    try {
+      const res = await authFetch(`/api/cases/${currentCase.id}/timeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save note");
+
+      input.value = "";
+      UI.toast("Note added to timeline.", "success");
+      loadTimeline(currentCase.id);
+    } catch (err) {
+      UI.toast("Note Error: " + err.message, "error");
+    }
+  };
+}
+
+// Status Select Change Handler
+const statusSelectEl = el("caseStatusSelect");
+if (statusSelectEl) {
+  statusSelectEl.onchange = async (e) => {
+    if (!currentCase) return;
+    const newStatus = e.target.value;
+
+    try {
+      const res = await authFetch(`/api/cases/${currentCase.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not update status");
+
+      UI.toast(`Status updated to ${formatStatus(newStatus)}`, "success");
+      await init();
+    } catch (err) {
+      UI.toast("Status Update Error: " + err.message, "error");
+    }
+  };
+}
+
+// Bottom Case Actions & Modal Handlers
+const actReminderBtn = el("actSendReminder");
+if (actReminderBtn) {
+  actReminderBtn.onclick = async () => {
+    if (!currentCase) return;
+    try {
+      const res = await authFetch(`/api/cases/${currentCase.id}/follow-up`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sendWhatsApp: true })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send reminder");
+
+      if (data.whatsappSent) {
+        UI.toast(`WhatsApp reminder sent successfully to ${currentCase.contactPerson} (${currentCase.phone})!`, "success");
+      } else {
+        UI.toast(`Follow-up logged in timeline.`, "info");
+      }
+      loadTimeline(currentCase.id);
+    } catch (err) {
+      UI.toast("Reminder Error: " + err.message, "error");
+    }
+  };
+}
+
+const actStatusBtn = el("actUpdateStatus");
+if (actStatusBtn) {
+  actStatusBtn.onclick = () => {
+    const sel = el("caseStatusSelect");
+    if (sel) sel.focus();
+    else openEditCaseModal();
+  };
+}
+
+// --- AGENT UPLOAD MODAL LOGIC ---
+function openAgentUploadModal() {
+  if (!currentCase) return;
+  const backdrop = el("agentUploadModalBackdrop");
+  const select = el("agentUploadDocSelect");
+  const errBox = el("agentUploadError");
+
+  if (errBox) errBox.hidden = true;
+  if (select) {
+    select.innerHTML = "";
+    const reqs = currentCase.docRequirements || [];
+    if (reqs.length === 0) {
+      UI.toast("No document requirements exist for this case yet.", "warning");
+      return;
+    }
+
+    reqs.forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = `${r.label || r.type} (${r.status === 'received' ? 'Received' : 'Pending'})`;
+      select.appendChild(opt);
+    });
+    UI.replaceSelect(select);
+  }
+
+  const fileInput = el("agentUploadFileInput");
+  if (fileInput) fileInput.value = "";
+  const labelInput = el("agentUploadLabelInput");
+  if (labelInput) labelInput.value = "";
+  if (backdrop) backdrop.hidden = false;
+}
+
+function closeAgentUploadModal() {
+  const backdrop = el("agentUploadModalBackdrop");
+  if (backdrop) backdrop.hidden = true;
+}
+
+const actUploadDocBtn = el("actUploadDoc");
+if (actUploadDocBtn) actUploadDocBtn.onclick = openAgentUploadModal;
+
+const addDocRowBtn = el("addDocRow");
+if (addDocRowBtn) addDocRowBtn.onclick = openAgentUploadModal;
+
+const closeAgentUploadBtn = el("closeAgentUpload");
+if (closeAgentUploadBtn) closeAgentUploadBtn.onclick = closeAgentUploadModal;
+
+const cancelAgentUploadBtn = el("cancelAgentUpload");
+if (cancelAgentUploadBtn) cancelAgentUploadBtn.onclick = closeAgentUploadModal;
+
+const agentUploadFormEl = el("agentUploadForm");
+if (agentUploadFormEl) {
+  agentUploadFormEl.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!currentCase) return;
+    const submitBtn = el("submitAgentUpload");
+    const errBox = el("agentUploadError");
+    if (errBox) errBox.hidden = true;
+
+  const requiredDocId = el("agentUploadDocSelect").value;
+  const fileInput = el("agentUploadFileInput");
+  const fileLabel = el("agentUploadLabelInput").value.trim();
+
+  if (!fileInput.files || fileInput.files.length === 0) {
+    errBox.textContent = "Please select a file to upload.";
+    errBox.hidden = false;
+    return;
+  }
+
+  const file = fileInput.files[0];
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Uploading...";
+
+  try {
+    // 1. Get presigned R2 upload URL
+    const urlRes = await authFetch(`/api/cases/${currentCase.id}/agent-upload-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requiredDocId,
+        contentType: file.type || "application/octet-stream",
+        fileLabel: fileLabel || file.name
+      })
+    });
+    const urlData = await urlRes.json();
+    if (!urlRes.ok) throw new Error(urlData.error || "Failed to generate upload URL");
+
+    // 2. Upload directly to R2 via PUT
+    const putRes = await fetch(urlData.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file
+    });
+    if (!putRes.ok) throw new Error("Failed to upload file to storage.");
+
+    // 3. Confirm completion & trigger OCR
+    const completeRes = await authFetch(`/api/cases/${currentCase.id}/agent-upload-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId: urlData.uploadId })
+    });
+    const completeData = await completeRes.json();
+    if (!completeRes.ok) throw new Error(completeData.error || "Failed to confirm upload completion");
+
+    closeAgentUploadModal();
+    await init();
+    UI.toast("Document uploaded successfully!", "success");
+  } catch (err) {
+    errBox.textContent = "Upload Error: " + err.message;
+    errBox.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Upload Document";
+  }
+  };
+}
+
+// Copy Upload Link Action
+async function handleCopyUploadLink() {
+  if (!currentCase || !currentCase.token) {
+    UI.toast("No active upload link token found for this case.", "warning");
+    return;
+  }
+  const uploadUrl = `${window.location.origin}/upload.html?t=${currentCase.token}`;
+  try {
+    await navigator.clipboard.writeText(uploadUrl);
+    UI.toast("Upload link copied to clipboard!", "success");
+    
+    const bannerCopyBtn = el("copyLinkBtn");
+    if (bannerCopyBtn) {
+      const origText = bannerCopyBtn.textContent;
+      bannerCopyBtn.textContent = "✓ Copied!";
+      setTimeout(() => { bannerCopyBtn.textContent = origText; }, 2500);
+    }
+  } catch (err) {
+    await UI.prompt({
+      title: "Client Upload Link",
+      message: "Copy client upload link below:",
+      defaultValue: uploadUrl
+    });
+  }
+}
+
+const bannerCopyBtn = el("copyLinkBtn");
+if (bannerCopyBtn) bannerCopyBtn.onclick = handleCopyUploadLink;
+
+const actCopyLinkBtn = el("actCopyLink");
+if (actCopyLinkBtn) actCopyLinkBtn.onclick = handleCopyUploadLink;
+
+// --- EDIT CASE MODAL LOGIC ---
+async function openEditCaseModal() {
+  if (!currentCase) return;
+  const backdrop = el("editCaseModalBackdrop");
+  const errBox = el("editCaseError");
+  errBox.hidden = true;
+
+  el("editContactPerson").value = currentCase.contactPerson || "";
+  let phoneStr = String(currentCase.phone || "");
+  if (phoneStr.startsWith("91") && phoneStr.length === 12) phoneStr = phoneStr.slice(2);
+  el("editPhone").value = phoneStr;
+  el("editAmountRequired").value = currentCase.amountRequired || "";
+
+  // Fetch loan products & catalog
+  try {
+    const [pRes, cRes] = await Promise.all([
+      authFetch("/api/loan-products"),
+      authFetch("/api/document-catalog")
+    ]);
+    const pData = await pRes.json();
+    const cData = await cRes.json();
+
+    const productSel = el("editLoanProductSelect");
+    productSel.innerHTML = "";
+    (pData.loanProducts || []).forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.label;
+      opt.textContent = p.label;
+      if (p.label === currentCase.loanProduct) opt.selected = true;
+      productSel.appendChild(opt);
+    });
+    UI.replaceSelect(productSel);
+
+    const catalogGrid = el("editRequiredDocsFields");
+    catalogGrid.innerHTML = "";
+    const existingTypes = new Set((currentCase.docRequirements || []).map(r => r.type));
+
+    (cData.documentCatalog || []).forEach(item => {
+      const isChecked = existingTypes.has(item.id);
+      const div = document.createElement("div");
+      div.innerHTML = `
+        <label style="font-size: 0.8125rem; color: #1e293b; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+          <input type="checkbox" name="editDocRequirement" value="${item.id}" ${isChecked ? 'checked' : ''} />
+          ${escapeHtml(item.label)}
+        </label>
+      `;
+      catalogGrid.appendChild(div);
+    });
+  } catch (err) {
+    console.error("Failed to load options for edit modal", err);
+  }
+
+  backdrop.hidden = false;
+}
+
+function closeEditCaseModal() {
+  el("editCaseModalBackdrop").hidden = true;
+}
+
+const editCaseBtnEl = el("editCaseBtn");
+if (editCaseBtnEl) editCaseBtnEl.onclick = openEditCaseModal;
+
+const closeEditCaseBtn = el("closeEditCase");
+if (closeEditCaseBtn) closeEditCaseBtn.onclick = closeEditCaseModal;
+
+const cancelEditCaseBtn = el("cancelEditCase");
+if (cancelEditCaseBtn) cancelEditCaseBtn.onclick = closeEditCaseModal;
+
+const editCaseFormEl = el("editCaseForm");
+if (editCaseFormEl) {
+  editCaseFormEl.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!currentCase) return;
+    const submitBtn = el("submitEditCase");
+    const errBox = el("editCaseError");
+    if (errBox) errBox.hidden = true;
+
+  const contactPerson = el("editContactPerson").value.trim();
+  const phone = el("editPhone").value.trim();
+  const loanProduct = el("editLoanProductSelect").value;
+  const amountRequired = el("editAmountRequired").value;
+
+  const checkboxes = document.querySelectorAll('input[name="editDocRequirement"]:checked');
+  const requiredDocIds = Array.from(checkboxes).map(cb => cb.value);
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Saving...";
+
+  try {
+    const res = await authFetch(`/api/cases/${currentCase.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactPerson,
+        phone,
+        loanProduct,
+        amountRequired,
+        requiredDocIds
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to update case");
+
+    closeEditCaseModal();
+    await init();
+    UI.toast("Loan case updated successfully!", "success");
+  } catch (err) {
+    errBox.textContent = "Error: " + err.message;
+    errBox.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Save Changes";
+  }
+  };
+}
+
+function escapeHtml(str) {
+  return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function getUserFromToken() {
+  const tokenHeader = localStorage.getItem('collectrr_auth');
+  if (!tokenHeader) return null;
+  try {
+    const rawToken = tokenHeader.replace(/^Bearer\s+/i, '').trim();
+    const parts = rawToken.split('.');
+    if (parts.length !== 3) return null;
+    const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(payloadJson);
+  } catch (e) {
+    return null;
+  }
+}
+
+function updateUserProfileUI() {
+  const user = getUserFromToken();
+  if (!user) return;
+
+  const username = user.username || 'User';
+  const role = user.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Agent';
+
+  const nameParts = username.trim().split(/\s+/);
+  let initials = "";
+  if (nameParts.length >= 2) {
+    initials = (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+  } else if (nameParts[0].length >= 2) {
+    initials = nameParts[0].slice(0, 2).toUpperCase();
+  } else {
+    initials = nameParts[0].toUpperCase();
+  }
+
+  const avatarEl = document.getElementById("userAvatar") || document.querySelector('.sidebar-user .user-avatar');
+  const nameEl = document.getElementById("userName") || document.querySelectorAll('.sidebar-user .user-info div')[0];
+  const roleEl = document.getElementById("userRole") || document.querySelectorAll('.sidebar-user .user-info div')[1];
+
+  if (avatarEl) avatarEl.textContent = initials;
+  if (nameEl) nameEl.textContent = username;
+  if (roleEl) roleEl.textContent = role;
+
+  const navAnalytics = document.getElementById("navAnalytics");
+  if (navAnalytics) {
+    navAnalytics.style.display = (user.role === 'admin') ? '' : 'none';
+  }
+
+  const userContainer = document.querySelector('.sidebar-user');
+  if (userContainer) {
+    userContainer.style.cursor = 'pointer';
+    userContainer.title = 'Click to log out';
+    userContainer.onclick = async () => {
+      const ok = await UI.confirm({
+        title: "Confirm Logout",
+        message: `Log out from ${username}?`,
+        confirmText: "Log Out",
+        isDanger: true
+      });
+      if (ok) {
+        localStorage.removeItem('collectrr_auth');
+        window.location.href = '/login.html';
+      }
+    };
+  }
+}
+
+function startApp() {
+  updateUserProfileUI();
+  init().catch(err => {
+    console.error("Initialization error:", err);
+    const errBox = el("caseError");
+    if (errBox) {
+      errBox.textContent = "Initialization error: " + err.message;
+      errBox.hidden = false;
+    }
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startApp);
+} else {
+  startApp();
+}
+

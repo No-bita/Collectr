@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Collectrr — Document Upload Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --border-focus: #2563eb;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --success: #16a34a;
+      --success-light: #f0fdf4;
+      --success-border: #bbf7d0;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Brand Navigation Bar */
+    .top-header {
+      width: 100%;
+      max-width: 1080px;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 0.95rem;
+    }
+    .brand-logo span {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+    .lang-selector {
+      display: flex; align-items: center; gap: 0.35rem;
+      background: #ffffff; border: 1px solid var(--border);
+      padding: 0.35rem 0.75rem; border-radius: 8px;
+      font-size: 0.8125rem; font-weight: 500; color: #475569;
+      cursor: pointer;
+    }
+
+    /* Central Main Layout Card */
+    .main-wrapper {
+      width: 100%;
+      max-width: 720px;
+      padding: 0 1rem 3rem 1rem;
+    }
+    .portal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem 2.5rem 2rem 2.5rem;
+      box-shadow: var(--shadow-card);
+    }
+
+    /* Welcome Header */
+    .portal-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .header-icon-circle {
+      width: 56px; height: 56px;
+      background: #eff6ff; color: var(--accent);
+      border-radius: 14px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; margin-bottom: 1.25rem;
+    }
+    .portal-header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.015em;
+      margin-bottom: 0.5rem;
+    }
+    .portal-header p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      max-width: 440px;
+      margin: 0 auto;
+    }
+
+    /* Progress Meta Bar */
+    .progress-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+    .progress-track {
+      height: 4px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .progress-fill-bar {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    /* Document List Stack */
+    .doc-stack {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .doc-row-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.125rem 1.25rem;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      transition: background-color 0.15s ease;
+      cursor: pointer;
+    }
+    .doc-row-item:last-child { border-bottom: none; }
+    .doc-row-item:hover { background-color: #f8fafc; }
+
+    .doc-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .doc-type-badge {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem; flex-shrink: 0;
+    }
+    .doc-type-badge.pan { background: #eff6ff; color: #2563eb; }
+    .doc-type-badge.aadhaar { background: #f0fdf4; color: #16a34a; }
+    .doc-type-badge.bank { background: #faf5ff; color: #9333ea; }
+    .doc-type-badge.gst { background: #fffbeb; color: #d97706; }
+    .doc-type-badge.default { background: #f1f5f9; color: #475569; }
+
+    .doc-titles div:first-child {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .doc-titles div:last-child {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+
+    .doc-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .upload-status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+    .upload-status-indicator.uploaded { color: var(--success); }
+    .upload-status-indicator.pending { color: #d97706; }
+    .arrow-icon { color: #94a3b8; font-size: 0.875rem; font-weight: 600; }
+
+    /* Drag & Drop Add Document Zone */
+    .dropzone-box {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      text-align: center;
+      background: #fafafa;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-bottom: 1.5rem;
+    }
+    .dropzone-box:hover {
+      border-color: var(--accent);
+      background: #eff6ff;
+    }
+    .dropzone-icon {
+      width: 36px; height: 36px;
+      background: #ffffff; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--accent); font-size: 1.15rem;
+      box-shadow: var(--shadow-sm); margin-bottom: 0.625rem;
+    }
+    .dropzone-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .dropzone-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+    .dropzone-sub a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+    /* Success Completion Banner */
+    .success-banner {
+      background: var(--success-light);
+      border: 1px solid var(--success-border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+    }
+    .success-banner[hidden] {
+      display: none !important;
+    }
+    .success-icon-circle {
+      width: 28px; height: 28px;
+      background: var(--success); color: #ffffff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.875rem; flex-shrink: 0;
+    }
+    .success-text div:first-child {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #14532d;
+    }
+    .success-text div:last-child {
+      font-size: 0.75rem;
+      color: #166534;
+      margin-top: 0.1rem;
+    }
+
+    /* Footer Trust Mark */
+    .trusted-footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .hidden-file-input { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Brand Navigation Header -->
+  <header class="top-header">
+    <a href="#" class="brand-logo">
+      <div class="logo-icon">C</div>
+      <span>Collectrr</span>
+    </a>
+    <div class="lang-selector">
+      <span>🌐 English</span>
+      <span style="font-size: 0.65rem;">▼</span>
+    </div>
+  </header>
+
+  <!-- Main Document Upload Card Container -->
+  <main class="main-wrapper">
+    <div class="portal-card">
+      
+      <!-- Welcome Header -->
+      <div class="portal-header">
+        <div class="header-icon-circle">📄</div>
+        <h1 id="clientGreeting">Hi Client,</h1>
+        <p id="loanSubtext">Please upload the required documents to continue your loan process.</p>
+      </div>
+
+      <div id="sessionErrorAlert" style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.875rem; border-radius: 8px; font-size: 0.8125rem; margin-bottom: 1.5rem; text-align: center;" hidden></div>
+
+      <!-- Upload Progress Meta Bar -->
+      <div id="progressContainer" style="display: none;">
+        <div class="progress-meta-row">
+          <span>Upload Progress</span>
+          <span id="progressText">0 of 0 uploaded</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill-bar" id="progressFillBar"></div>
+        </div>
+      </div>
+
+      <!-- Dynamic Document Requirements List Stack -->
+      <div class="doc-stack" id="docStack">
+        <p style="text-align: center; padding: 2rem; color: #64748b; font-size: 0.875rem;">Loading document checklist...</p>
+      </div>
+
+      <!-- Drag and Drop Additional Upload Box -->
+      <div class="dropzone-box" onclick="triggerGenericFileInput()">
+        <div class="dropzone-title">Need to add any additional document?</div>
+        <div class="dropzone-sub">
+          Drag & drop your file here or <a href="javascript:void(0)">browse</a><br/>
+          PDF, JPG, PNG up to 15MB
+        </div>
+      </div>
+
+      <!-- All Documents Completed Thank You Banner -->
+      <div class="success-banner" id="allDoneBanner" hidden>
+        <div class="success-icon-circle">✓</div>
+        <div class="success-text">
+          <div>All documents uploaded! Thank you.</div>
+          <div>We will review your documents and keep you updated on WhatsApp.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Trusted Footer -->
+    <div class="trusted-footer">
+      <div>🔒 Secure. Private. Trusted.</div>
+      <div>Powered by Collectrr</div>
+    </div>
+  </main>
+
+  <input type="file" id="genericFileInput" class="hidden-file-input" onchange="handleGenericFileUpload()" />
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("t");
+
+    let currentSession = null;
+    let activeTargetDocId = null;
+
+    async function initPortal() {
+      const errBox = el("sessionErrorAlert");
+      errBox.hidden = true;
+
+      if (!token) {
+        errBox.textContent = "⚠️ Missing Upload Token. Please use the exact link received on WhatsApp.";
+        errBox.hidden = false;
+        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444;">Invalid session token.</p>`;
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/session/${token}`);
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || "Upload link expired or invalid.");
+
+        currentSession = data;
+        
+        // Populate header greeting & loan product subtext
+        if (data.contactPerson) {
+          el("clientGreeting").textContent = `Hi ${data.contactPerson},`;
+        }
+        if (data.loanProduct) {
+          el("loanSubtext").textContent = `Please upload the required documents to continue your ${data.loanProduct} loan process.`;
+        }
+
+        renderDocumentsStack(data.documents || []);
+      } catch (err) {
+        errBox.textContent = "⚠️ " + err.message;
+        errBox.hidden = false;
+        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444;">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function renderDocumentsStack(docs) {
+      const stack = el("docStack");
+      const total = docs.length;
+      const uploadedDocs = docs.filter(d => d.status === "received" || (d.uploadCount && d.uploadCount > 0));
+      const uploadedCount = uploadedDocs.length;
+
+      // Update progress bar & count (hidden if uploadedCount is 0)
+      const progContainer = el("progressContainer");
+      if (progContainer) {
+        progContainer.style.display = uploadedCount > 0 ? "block" : "none";
+      }
+      el("progressText").textContent = `${uploadedCount} of ${total} uploaded`;
+      const fillPct = total > 0 ? (uploadedCount / total) * 100 : 0;
+      el("progressFillBar").style.width = `${fillPct}%`;
+
+      // Show/hide all uploaded success banner ONLY when ALL required documents are fulfilled
+      const banner = el("allDoneBanner");
+      if (banner) {
+        const isAllFulfilled = total > 0 && uploadedCount === total;
+        banner.hidden = !isAllFulfilled;
+        banner.style.display = isAllFulfilled ? "flex" : "none";
+      }
+
+      if (total === 0) {
+        stack.innerHTML = `<p style="text-align: center; padding: 1.5rem; color: #64748b;">No specific documents requested.</p>`;
+        return;
+      }
+
+      stack.innerHTML = "";
+      docs.forEach(doc => {
+        const isUploaded = doc.status === "received" || (typeof doc.uploadCount !== "undefined" && Number(doc.uploadCount) > 0);
+        const iconClass = getDocTypeClass(doc.type);
+        const emoji = getDocEmoji(doc.type);
+
+        const row = document.createElement("div");
+        row.className = "doc-row-item";
+        row.onclick = () => triggerUploadForDoc(doc.id);
+
+        row.innerHTML = `
+          <div class="doc-left">
+            <div class="doc-titles">
+              <div>${escapeHtml(doc.label || doc.type)}</div>
+              <div>${escapeHtml(getDocInstruction(doc.type))}</div>
+            </div>
+          </div>
+          <div class="doc-right">
+            <span class="upload-status-indicator ${isUploaded ? 'uploaded' : 'pending'}">
+              ${isUploaded ? 'Uploaded' : 'Upload'}
+            </span>
+            <span class="arrow-icon">›</span>
+          </div>
+        `;
+        stack.appendChild(row);
+      });
+    }
+
+    function getDocTypeClass(type) {
+      const t = (type || "").toLowerCase();
+      if (t.includes("pan")) return "pan";
+      if (t.includes("aadhaar") || t.includes("aadhar")) return "aadhaar";
+      if (t.includes("bank")) return "bank";
+      if (t.includes("gst")) return "gst";
+      return "default";
+    }
+
+    function getDocEmoji(type) {
+      const t = (type || "").toLowerCase();
+      if (t.includes("pan")) return "🪪";
+      if (t.includes("aadhaar") || t.includes("aadhar")) return "📑";
+      if (t.includes("bank")) return "🏦";
+      if (t.includes("gst")) return "📄";
+      return "📁";
+    }
+
+    function getDocInstruction(type) {
+      const t = (type || "").toLowerCase();
+      if (t.includes("pan")) return "Upload clear front side";
+      if (t.includes("aadhaar") || t.includes("aadhar")) return "Upload front and back side";
+      if (t.includes("bank")) return "Last 6 months statement";
+      if (t.includes("gst")) return "Latest filed GSTR-3B return";
+      if (t.includes("quotation")) return "Equipment or machinery quotation";
+      return "Upload clear image or PDF";
+    }
+
+    function triggerUploadForDoc(docId) {
+      activeTargetDocId = docId;
+      el("genericFileInput").click();
+    }
+
+    function triggerGenericFileInput() {
+      if (!currentSession || !currentSession.documents || currentSession.documents.length === 0) return;
+      const pendingDoc = currentSession.documents.find(d => d.status !== "received" && d.uploadCount === 0);
+      activeTargetDocId = pendingDoc ? pendingDoc.id : currentSession.documents[0].id;
+      el("genericFileInput").click();
+    }
+
+    async function handleGenericFileUpload() {
+      const input = el("genericFileInput");
+      if (!input.files || input.files.length === 0 || !activeTargetDocId) return;
+
+      const file = input.files[0];
+      const targetDocId = activeTargetDocId;
+
+      try {
+        // 1. Get presigned R2 upload URL
+        const urlRes = await fetch(`/api/upload-url/${token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requiredDocId: targetDocId,
+            contentType: file.type || "application/octet-stream",
+            fileLabel: file.name
+          })
+        });
+        const urlData = await urlRes.json();
+        if (!urlRes.ok) throw new Error(urlData.error || "Failed to initiate upload");
+
+        // 2. Put file to R2
+        const putRes = await fetch(urlData.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file
+        });
+        if (!putRes.ok) throw new Error("Failed to upload file content");
+
+        // 3. Confirm upload & trigger OCR
+        const confirmRes = await fetch(`/api/upload-complete/${token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uploadId: urlData.uploadId })
+        });
+        const confirmData = await confirmRes.json();
+        if (!confirmRes.ok) throw new Error(confirmData.error || "Failed to confirm upload");
+
+        // Refresh portal data
+        await initPortal();
+        UI.toast("Document uploaded successfully!", "success");
+      } catch (err) {
+        UI.toast("Upload Error: " + err.message, "error");
+      } finally {
+        input.value = "";
+      }
+    }
+
+    function escapeHtml(str) {
+      return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initPortal);
+    } else {
+      initPortal();
+    }
+  </script>
+  <script src="/js/ui-components.js"></script>
+</body>
+</html>
