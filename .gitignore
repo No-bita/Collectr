@@ -10,3 +10,16 @@ credentials.json
 .wrangler/
 *.mp4*
 *.part
+
+# Build & Logs
+dist/
+*.log
+*.sqlite
+*.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Archives
+*.zip
