@@ -80,12 +80,15 @@ export async function authorizeCaseAccess(db, caseId, user) {
 }
 
 async function sendWhatsAppTemplate(phone, templateName, contactPerson, token, env) {
-  const uploadLink = token 
-    ? `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=${token}`
-    : `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html`;
+  const rawToken = token || "";
+  const baseUrl = `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=`;
+  const uploadLink = rawToken ? `${baseUrl}${rawToken}` : `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html`;
 
   const primaryTemplate = templateName || env.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
   const primaryLang = env.WHATSAPP_TEMPLATE_LANG || "en";
+  const langCodesToTry = [primaryLang];
+  if (primaryLang === "en" && !langCodesToTry.includes("en_US")) langCodesToTry.push("en_US");
+  if (primaryLang === "en_US" && !langCodesToTry.includes("en")) langCodesToTry.push("en");
 
   const phoneIdsToTry = [];
   if (env.WHATSAPP_PROD_PHONE_ID && env.WHATSAPP_PROD_PHONE_ID.trim()) {
@@ -94,58 +97,79 @@ async function sendWhatsAppTemplate(phone, templateName, contactPerson, token, e
   if (env.WHATSAPP_PHONE_ID && !phoneIdsToTry.includes(env.WHATSAPP_PHONE_ID.trim())) {
     phoneIdsToTry.push(env.WHATSAPP_PHONE_ID.trim());
   }
-  if (phoneIdsToTry.length === 0) phoneIdsToTry.push("1078210008704696");
+  if (phoneIdsToTry.length === 0) phoneIdsToTry.push("1073272059211357");
 
   let lastErrorData = null;
+  const attemptedErrors = [];
 
   for (const phoneId of phoneIdsToTry) {
     const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
 
-    // 1. Try Named Parameters Payload
-    const primaryPayload = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
-      template: primaryTemplate === "hello_world" ? {
-        name: "hello_world",
-        language: { code: "en_US" }
-      } : {
-        name: primaryTemplate,
-        language: { code: primaryLang },
-        components: [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", parameter_name: "name", text: contactPerson || "Client" },
-              { type: "text", parameter_name: "uploadlink", text: uploadLink }
-            ]
-          }
-        ]
+    for (const langCode of langCodesToTry) {
+      if (primaryTemplate === "hello_world") {
+        const helloPayload = {
+          messaging_product: "whatsapp",
+          to: phone,
+          type: "template",
+          template: { name: "hello_world", language: { code: "en_US" } }
+        };
+        let res = await fetch(url, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify(helloPayload)
+        });
+        let data = await res.json();
+        if (res.ok) return data;
+        lastErrorData = data;
+        attemptedErrors.push(`[${phoneId}/hello_world]: ${data?.error?.message}`);
+        continue;
       }
-    };
 
-    let res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(primaryPayload),
-    });
-
-    let data = await res.json();
-    if (res.ok) return data;
-    lastErrorData = data;
-
-    // 2. Retry with Positional Parameters if named fails
-    if (primaryTemplate !== "hello_world") {
-      const positionalPayload = {
+      // Variant A: Dynamic URL Button Component (Static Base URL in Meta + Dynamic Token {{1}} in Button)
+      const buttonUrlPayload = {
         messaging_product: "whatsapp",
         to: phone,
         type: "template",
         template: {
           name: primaryTemplate,
-          language: { code: primaryLang },
+          language: { code: langCode },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: contactPerson || "Client" }
+              ]
+            },
+            {
+              type: "button",
+              sub_type: "url",
+              index: "0",
+              parameters: [
+                { type: "text", text: rawToken }
+              ]
+            }
+          ]
+        }
+      };
+
+      let res = await fetch(url, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify(buttonUrlPayload)
+      });
+      let data = await res.json();
+      if (res.ok) return data;
+      lastErrorData = data;
+      attemptedErrors.push(`[${phoneId}/${langCode}/button-url]: ${data?.error?.message || res.statusText}`);
+
+      // Variant B: Body 2-Parameter Payload (Full URL inside Body parameter {{2}})
+      const bodyPayload = {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "template",
+        template: {
+          name: primaryTemplate,
+          language: { code: langCode },
           components: [
             {
               type: "body",
@@ -160,21 +184,18 @@ async function sendWhatsAppTemplate(phone, templateName, contactPerson, token, e
 
       res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(positionalPayload),
+        headers: { "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify(bodyPayload)
       });
-
       data = await res.json();
       if (res.ok) return data;
       lastErrorData = data;
+      attemptedErrors.push(`[${phoneId}/${langCode}/body-url]: ${data?.error?.message || res.statusText}`);
     }
   }
 
-  const details = lastErrorData?.error?.error_data?.details || "";
-  throw new Error(`${lastErrorData?.error?.message || "WhatsApp service unavailable"}${details ? " | " + details : ""}`);
+  const details = lastErrorData?.error?.error_data?.details || lastErrorData?.error?.message || "";
+  throw new Error(`${details} (Attempts: ${attemptedErrors.join(" | ")})`);
 }
 
 // 1. Create Case
