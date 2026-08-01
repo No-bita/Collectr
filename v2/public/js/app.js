@@ -52,10 +52,10 @@ function formatStatus(status) {
 }
 
 function getInitials(name) {
-  if (!name) return "??";
+  if (!name) return "—";
   const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 function getAvatarStyle(name) {
@@ -1218,14 +1218,14 @@ if (btnDocsCreate) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to create loan case.");
 
-      wizardState.generatedCase = data.loanCase;
+      wizardState.generatedCase = { id: data.caseId, token: data.token };
 
       // Populate Screen 3 Success UI
       const nameEl = el("successCustomerName");
       if (nameEl) nameEl.textContent = wizardState.customer.contactPerson;
 
-      const token = data.loanCase.token || '';
-      const shareUrl = `${window.location.origin}/upload?token=${token}`;
+      const token = data.token || '';
+      const shareUrl = `${window.location.origin}/upload.html?t=${token}`;
 
       const waBtn = el("btnShareWhatsApp");
       if (waBtn) {
@@ -1405,7 +1405,7 @@ function renderMappingConfiguratorMatrix() {
   
   const products = (loanProductsList && loanProductsList.length > 0) 
     ? loanProductsList.map(p => p.label) 
-    : ["Working Capital Loan", "Machinery Loan", "Property Loan / LAP", "Unsecured Business Loan"];
+    : ["Working Capital", "Term Loan", "Machinery Loan", "Loan Against Property (LAP)"];
 
   products.forEach(pLabel => {
     const tr = document.createElement("tr");

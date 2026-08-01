@@ -410,6 +410,26 @@
       }
     }
 
+    const DOCUMENT_CATALOG_MAP = {
+      'pan': 'PAN Card',
+      'aadhaar': 'Aadhaar Card',
+      'bank_statement': 'Bank Statement',
+      'itr': 'ITR Acknowledgment',
+      'gst_returns': 'GST Returns',
+      'quotation': 'Machinery/Equipment Quotation',
+      'property_docs': 'Property Ownership Documents',
+      'invoices': 'Pending Invoices'
+    };
+
+    function getDocumentLabel(doc) {
+      if (!doc) return 'Document';
+      const typeKey = String(doc.type || doc.document_type || '').toLowerCase();
+      if (DOCUMENT_CATALOG_MAP[typeKey]) return DOCUMENT_CATALOG_MAP[typeKey];
+      const labelKey = String(doc.label || '').toLowerCase();
+      if (DOCUMENT_CATALOG_MAP[labelKey]) return DOCUMENT_CATALOG_MAP[labelKey];
+      return doc.label || doc.type || 'Document';
+    }
+
     function renderDocumentsStack(docs) {
       const stack = el("docStack");
       const total = docs.length;
@@ -457,7 +477,7 @@
           <div class="doc-left">
             <div class="doc-titles">
               <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; color: #0f172a; font-size: 0.9375rem;">${escapeHtml(doc.label || doc.type)}</span>
+                <span style="font-weight: 700; color: #0f172a; font-size: 0.9375rem;">${escapeHtml(getDocumentLabel(doc))}</span>
                 ${isUploaded ? '<span class="ocr-badge-success">✓ OCR Verified</span>' : ''}
               </div>
             </div>
@@ -527,8 +547,8 @@
         dropzone.addEventListener(eventName, (e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropzone.style.borderColor = "#2563eb";
-          dropzone.style.background = "#eff6ff";
+          dropzone.style.borderColor = "#171717";
+          dropzone.style.background = "#F4F3EF";
         }, false);
       });
 
@@ -536,8 +556,8 @@
         dropzone.addEventListener(eventName, (e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropzone.style.borderColor = "#cbd5e1";
-          dropzone.style.background = "#fafafa";
+          dropzone.style.borderColor = "#ECE8DF";
+          dropzone.style.background = "#FCFBF8";
         }, false);
       });
 
