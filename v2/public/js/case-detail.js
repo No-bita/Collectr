@@ -113,6 +113,7 @@ function maskPhone(phone) {
   const clean = phone.toString().replace(/\D/g, "");
   if (clean.length === 10) return `${clean.slice(0, 2)}*****${clean.slice(7)}`;
   if (clean.length === 12 && clean.startsWith("91")) return `+91 ${clean.slice(2, 4)}*****${clean.slice(9)}`;
+  if (clean.length >= 5) return `${clean.slice(0, 2)}*****${clean.slice(-3)}`;
   return phone;
 }
 
