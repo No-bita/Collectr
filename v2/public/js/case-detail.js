@@ -108,6 +108,14 @@ async function loadCaseDetails(caseId) {
   }
 }
 
+function maskPhone(phone) {
+  if (!phone) return "—";
+  const clean = phone.toString().replace(/\D/g, "");
+  if (clean.length === 10) return `${clean.slice(0, 2)}*****${clean.slice(7)}`;
+  if (clean.length === 12 && clean.startsWith("91")) return `+91 ${clean.slice(2, 4)}*****${clean.slice(9)}`;
+  return phone;
+}
+
 function renderBanner(c) {
   const initialsEl = el("clientInitials");
   if (initialsEl) initialsEl.textContent = getInitials(c.contactPerson);
@@ -124,7 +132,7 @@ function renderBanner(c) {
   }
 
   const phoneEl = el("clientPhone");
-  if (phoneEl) phoneEl.textContent = c.phone || "—";
+  if (phoneEl) phoneEl.textContent = maskPhone(c.phone);
 
   const productEl = el("statProduct");
   if (productEl) productEl.textContent = c.loanProduct || "—";
@@ -176,62 +184,6 @@ function renderBanner(c) {
   if (copyBtn) {
     copyBtn.onclick = handleCopyUploadLink;
   }
-
-  // Retry WhatsApp button - ONLY visible in Timeline section when automatic WhatsApp triggers fail
-  const retryBtn = el("retryWhatsAppBtn");
-  if (retryBtn) {
-    const isFailed = c.whatsappDeliveryStatus === "failed";
-    const used = c.whatsappAttemptsUsed || 0;
-    const left = c.whatsappAttemptsLeft !== undefined ? c.whatsappAttemptsLeft : Math.max(0, 3 - used);
-
-    if (isFailed && left > 0) {
-      retryBtn.hidden = false;
-      retryBtn.disabled = false;
-      retryBtn.textContent = used > 0 ? `Retry WhatsApp (${used}/3 Used)` : `Retry WhatsApp`;
-      retryBtn.title = `Retry sending WhatsApp message to ${c.phone} (${left} attempt(s) remaining)`;
-      retryBtn.style.opacity = "1";
-      retryBtn.style.cursor = "pointer";
-    } else if (isFailed && left <= 0) {
-      retryBtn.hidden = false;
-      retryBtn.disabled = true;
-      retryBtn.textContent = `WhatsApp Limit Reached (3/3 Used)`;
-      retryBtn.title = `Maximum retry attempts (3) reached for this case`;
-      retryBtn.style.opacity = "0.6";
-      retryBtn.style.cursor = "not-allowed";
-    } else {
-      // Hidden by default when WhatsApp delivery succeeded or was not failed
-      retryBtn.hidden = true;
-    }
-
-    retryBtn.onclick = async () => {
-      if (retryBtn.disabled) return;
-      const confirmRetry = await UI.confirm({
-        title: "Retry WhatsApp Message",
-        message: `Attempt to retry WhatsApp message to ${c.contactPerson} (${c.phone})? (Attempt ${used + 1} of 3)`,
-        confirmText: "Retry WhatsApp",
-        isDanger: false
-      });
-      if (!confirmRetry) return;
-
-      retryBtn.disabled = true;
-      retryBtn.textContent = "Sending...";
-      const targetId = c.id || (currentCase && currentCase.id);
-      try {
-        const res = await authFetch(`/api/cases/${targetId}/retry-whatsapp`, { method: "POST" });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          UI.toast(data.message || "WhatsApp message retried successfully!", "success");
-        } else {
-          UI.toast(data.error || "Failed to send WhatsApp message.", "error");
-        }
-      } catch (e) {
-        UI.toast(`Error retrying WhatsApp: ${e.message}`, "error");
-      } finally {
-        loadCaseDetails(targetId);
-        loadTimeline(targetId);
-      }
-    };
-  }
 }
 
 function getDocIconClass(type) {
@@ -270,6 +222,57 @@ function formatUploadTime(dateStr) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function openDocumentPreview(url, label) {
+  const backdrop = el("docPreviewBackdrop");
+  const titleEl = el("previewDocTitle");
+  const downloadBtn = el("previewDownloadBtn");
+  const bodyEl = el("previewDocBody");
+
+  if (!backdrop || !url) return;
+  if (titleEl) titleEl.textContent = label || "Submitted Document";
+  if (downloadBtn) downloadBtn.href = url;
+
+  const isImg = /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(url);
+  if (isImg) {
+    bodyEl.innerHTML = `<img src="${escapeHtml(url)}" class="doc-preview-image" alt="${escapeHtml(label || 'Document')}" />`;
+  } else {
+    bodyEl.innerHTML = `<iframe src="${escapeHtml(url)}" class="doc-preview-iframe"></iframe>`;
+  }
+
+  backdrop.hidden = false;
+  requestAnimationFrame(() => backdrop.classList.add("show"));
+}
+
+function closeDocumentPreview() {
+  const backdrop = el("docPreviewBackdrop");
+  if (!backdrop) return;
+  backdrop.classList.remove("show");
+  setTimeout(() => {
+    backdrop.hidden = true;
+    const bodyEl = el("previewDocBody");
+    if (bodyEl) bodyEl.innerHTML = "";
+  }, 200);
+}
+
+const DOCUMENT_CATALOG_MAP = {
+  'pan': 'PAN Card',
+  'aadhaar': 'Aadhaar Card',
+  'bank_statement': 'Bank Statement',
+  'itr': 'ITR Acknowledgment',
+  'gst_returns': 'GST Returns',
+  'quotation': 'Machinery/Equipment Quotation',
+  'property_docs': 'Property Ownership Documents',
+  'invoices': 'Pending Invoices'
+};
+
+function getDocumentLabel(req) {
+  const typeKey = String(req.type || req.document_type || '').toLowerCase();
+  if (DOCUMENT_CATALOG_MAP[typeKey]) return DOCUMENT_CATALOG_MAP[typeKey];
+  const labelKey = String(req.label || '').toLowerCase();
+  if (DOCUMENT_CATALOG_MAP[labelKey]) return DOCUMENT_CATALOG_MAP[labelKey];
+  return req.label || req.type || 'Document';
+}
+
 function renderDocuments(reqs) {
   const container = el("reqDocsContainer");
   if (!reqs || reqs.length === 0) {
@@ -282,46 +285,48 @@ function renderDocuments(reqs) {
     const uploads = req.uploads || [];
     const hasUploads = uploads.length > 0;
     const isReceived = req.status === 'received' || hasUploads;
-    const iconClass = getDocIconClass(req.type);
-    const emoji = getDocEmoji(req.type);
 
-    const fileCountText = hasUploads ? `${uploads.length} file${uploads.length > 1 ? "s" : ""}` : "0 files";
+    const fileCountText = hasUploads ? `${uploads.length} file${uploads.length > 1 ? "s" : ""}` : "";
     const ocrCount = uploads.filter(u => u.ocrStatus === "processed").length;
     const ocrText = ocrCount > 0 ? ` • OCR completed` : "";
+    const subtext = hasUploads ? `${fileCountText}${ocrText}` : "";
     const latestUploadTime = hasUploads ? formatUploadTime(uploads[uploads.length - 1].uploadedAt || uploads[uploads.length - 1].uploaded_at) : "";
 
     // Primary view file link (first uploaded file)
     const primaryLink = hasUploads && uploads[0].link ? uploads[0].link : null;
+    const label = getDocumentLabel(req);
 
-    const rowWrapper = document.createElement("div");
-
-    // Main row
     const row = document.createElement("div");
     row.className = "doc-row";
     row.innerHTML = `
       <div class="doc-row-info">
         <div>
-          <div class="doc-row-name">${escapeHtml(req.label || req.type)}</div>
-          <div class="doc-row-sub">${fileCountText}${ocrText}</div>
+          <div class="doc-row-name">${escapeHtml(label)}</div>
+          ${subtext ? `<div class="doc-row-sub">${subtext}</div>` : ''}
         </div>
       </div>
       <div class="doc-row-status">
         ${isReceived
           ? `<span class="status-received">Received</span>`
-          : `<span class="status-pending">Pending Upload</span>`
+          : `<span class="status-pending">Pending</span>`
         }
         ${latestUploadTime ? `<span class="doc-row-timestamp">${latestUploadTime}</span>` : ""}
       </div>
-      <div class="doc-row-actions">
+      <div class="doc-row-actions" style="display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
         ${primaryLink
-          ? `<a href="${primaryLink}" target="_blank" class="view-file-btn">View File</a>`
-          : `<span style="font-size: 0.75rem; color: #94a3b8;">—</span>`
+          ? `<button type="button" class="view-file-btn" onclick="openDocumentPreview('${primaryLink}', '${escapeHtml(label)}')">👁️ Preview</button>
+             <a href="${primaryLink}" target="_blank" download class="view-file-btn" style="color: #64748b; font-weight: 500;">⬇️ Download</a>`
+          : ''
         }
+        <button type="button" class="btn btn-secondary" style="height: 32px; padding: 0 10px; font-size: 13px; font-weight: 500;" onclick="triggerInlineRowUpload('${req.id}', '${escapeHtml(label)}')">
+          Manually upload
+        </button>
       </div>
     `;
     container.appendChild(row);
   });
 }
+
 
 async function loadTimeline(caseId) {
   const container = el("timelineFeed");
@@ -355,16 +360,60 @@ async function loadTimeline(caseId) {
         hour12: true
       }) : "";
 
+      let displayContent = t.content || "";
+      if (displayContent.includes(". Product:")) {
+        displayContent = displayContent.split(". Product:")[0];
+      }
+
+      const contentLower = displayContent.toLowerCase();
+      const isWhatsAppFailure = t.type === 'whatsapp_delivery' || t.type === 'system_failure' ||
+        (contentLower.includes("whatsapp") && (contentLower.includes("fail") || contentLower.includes("error")));
+
       item.innerHTML = `
-        <div class="timeline-content">
-          <div class="timeline-text">${escapeHtml(t.content)}</div>
-          <div class="timeline-meta">${formattedTime}</div>
+        <div class="timeline-content" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%;">
+          <div style="flex: 1;">
+            <div class="timeline-text" style="${isWhatsAppFailure ? 'color: #D84A3A; font-weight: 500;' : ''}">${escapeHtml(displayContent)}</div>
+            <div class="timeline-meta hover-only">${formattedTime}</div>
+          </div>
+          ${isWhatsAppFailure ? `
+            <button type="button" class="btn-inline-retry-wa" onclick="handleTimelineRetryWhatsApp('${caseId}')" style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #D84A3A; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer; flex-shrink: 0; white-space: nowrap; transition: all 150ms ease-out;">
+              Retry WhatsApp
+            </button>
+          ` : ''}
         </div>
       `;
       container.appendChild(item);
     });
   } catch (err) {
     container.innerHTML = '<p style="color: #ef4444; font-size: 0.875rem;">Failed to load timeline history.</p>';
+  }
+}
+
+async function handleTimelineRetryWhatsApp(caseId) {
+  const targetId = caseId || (currentCase && currentCase.id);
+  if (!targetId) return;
+
+  const confirmRetry = await UI.confirm({
+    title: "Retry WhatsApp Message",
+    message: `Retry sending WhatsApp message to ${currentCase ? (currentCase.contactPerson || 'borrower') : 'borrower'}?`,
+    confirmText: "Retry WhatsApp",
+    isDanger: false
+  });
+  if (!confirmRetry) return;
+
+  try {
+    const res = await authFetch(`/api/cases/${targetId}/retry-whatsapp`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      UI.toast(data.message || "WhatsApp message sent successfully!", "success");
+    } else {
+      UI.toast(data.error || "Failed to send WhatsApp message.", "error");
+    }
+  } catch (e) {
+    UI.toast(`Error sending WhatsApp message: ${e.message}`, "error");
+  } finally {
+    if (currentCase) loadCaseDetails(targetId);
+    loadTimeline(targetId);
   }
 }
 
@@ -478,8 +527,12 @@ if (actStatusBtn) {
   };
 }
 
+function triggerInlineRowUpload(reqId, reqLabel) {
+  openAgentUploadModal(reqId);
+}
+
 // --- AGENT UPLOAD MODAL LOGIC ---
-function openAgentUploadModal() {
+function openAgentUploadModal(preselectedReqId) {
   if (!currentCase) return;
   const backdrop = el("agentUploadModalBackdrop");
   const select = el("agentUploadDocSelect");
@@ -498,8 +551,12 @@ function openAgentUploadModal() {
       const opt = document.createElement("option");
       opt.value = r.id;
       opt.textContent = `${r.label || r.type} (${r.status === 'received' ? 'Received' : 'Pending'})`;
+      if (preselectedReqId && r.id === preselectedReqId) {
+        opt.selected = true;
+      }
       select.appendChild(opt);
     });
+    if (preselectedReqId) select.value = preselectedReqId;
     UI.replaceSelect(select);
   }
 
@@ -516,10 +573,74 @@ function closeAgentUploadModal() {
 }
 
 const actUploadDocBtn = el("actUploadDoc");
-if (actUploadDocBtn) actUploadDocBtn.onclick = openAgentUploadModal;
+if (actUploadDocBtn) actUploadDocBtn.onclick = () => openAgentUploadModal();
 
-const addDocRowBtn = el("addDocRow");
-if (addDocRowBtn) addDocRowBtn.onclick = openAgentUploadModal;
+// --- REQUEST NEW DOCUMENT TYPE MODAL LOGIC ---
+function openAddRequirementModal() {
+  if (!currentCase) return;
+  const backdrop = el("addRequirementModalBackdrop");
+  const input = el("addRequirementInput");
+  const errBox = el("addRequirementError");
+  if (errBox) errBox.hidden = true;
+  if (input) input.value = "";
+  if (backdrop) backdrop.hidden = false;
+}
+
+function closeAddRequirementModal() {
+  const backdrop = el("addRequirementModalBackdrop");
+  if (backdrop) backdrop.hidden = true;
+}
+
+const addDocReqBtn = el("addDocRequirementBtn");
+if (addDocReqBtn) addDocReqBtn.onclick = openAddRequirementModal;
+
+const closeAddReqBtn = el("closeAddRequirement");
+if (closeAddReqBtn) closeAddReqBtn.onclick = closeAddRequirementModal;
+
+const cancelAddReqBtn = el("cancelAddRequirement");
+if (cancelAddReqBtn) cancelAddReqBtn.onclick = closeAddRequirementModal;
+
+const addReqForm = el("addRequirementForm");
+if (addReqForm) {
+  addReqForm.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!currentCase) return;
+    const input = el("addRequirementInput");
+    const errBox = el("addRequirementError");
+    const submitBtn = el("submitAddRequirement");
+    if (errBox) errBox.hidden = true;
+
+    const label = input.value.trim();
+    if (!label) return;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Adding...";
+    try {
+      const res = await authFetch(`/api/cases/${currentCase.id}/add-requirement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add requirement");
+
+      UI.toast(`Requested new document: ${label}`, "success");
+      closeAddRequirementModal();
+      await loadCaseDetails(currentCase.id);
+      loadTimeline(currentCase.id);
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message;
+        errBox.hidden = false;
+      } else {
+        UI.toast("Error: " + err.message, "error");
+      }
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Request Document";
+    }
+  };
+}
 
 const closeAgentUploadBtn = el("closeAgentUpload");
 if (closeAgentUploadBtn) closeAgentUploadBtn.onclick = closeAgentUploadModal;
@@ -667,7 +788,7 @@ async function openEditCaseModal() {
       const isChecked = existingTypes.has(item.id);
       const div = document.createElement("div");
       div.innerHTML = `
-        <label style="font-size: 0.8125rem; color: #1e293b; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+        <label style="font-size: 13px; color: #171717; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
           <input type="checkbox" name="editDocRequirement" value="${item.id}" ${isChecked ? 'checked' : ''} />
           ${escapeHtml(item.label)}
         </label>
@@ -818,6 +939,25 @@ function updateUserProfileUI() {
 
 function startApp() {
   updateUserProfileUI();
+
+  const closePreviewBtn = el("closeDocPreview");
+  if (closePreviewBtn) closePreviewBtn.onclick = closeDocumentPreview;
+
+  const previewBackdrop = el("docPreviewBackdrop");
+  if (previewBackdrop) {
+    previewBackdrop.onclick = (e) => {
+      if (e.target === previewBackdrop) closeDocumentPreview();
+    };
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeDocumentPreview();
+      closeAgentUploadModal();
+      closeEditCaseModal();
+    }
+  });
+
   init().catch(err => {
     console.error("Initialization error:", err);
     const errBox = el("caseError");
@@ -833,4 +973,5 @@ if (document.readyState === "loading") {
 } else {
   startApp();
 }
+
 

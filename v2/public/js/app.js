@@ -95,6 +95,26 @@ function maskPhone(phone) {
   return phone;
 }
 
+const DOCUMENT_CATALOG_MAP = {
+  'pan': 'PAN Card',
+  'aadhaar': 'Aadhaar Card',
+  'bank_statement': 'Bank Statement',
+  'itr': 'ITR Acknowledgment',
+  'gst_returns': 'GST Returns',
+  'quotation': 'Machinery/Equipment Quotation',
+  'property_docs': 'Property Ownership Documents',
+  'invoices': 'Pending Invoices'
+};
+
+function getDocumentLabel(req) {
+  if (!req) return 'Document';
+  const typeKey = String(req.type || req.document_type || '').toLowerCase();
+  if (DOCUMENT_CATALOG_MAP[typeKey]) return DOCUMENT_CATALOG_MAP[typeKey];
+  const labelKey = String(req.label || '').toLowerCase();
+  if (DOCUMENT_CATALOG_MAP[labelKey]) return DOCUMENT_CATALOG_MAP[labelKey];
+  return req.label || req.type || 'Document';
+}
+
 function getNextActionDisplay(c) {
   const status = c.status || 'lead';
   const prog = c.docProgress || { fulfilled: 0, total: 0 };
@@ -264,6 +284,37 @@ function renderPaginationControls(totalItems) {
   container.appendChild(nextBtn);
 }
 
+function debounce(func, wait = 250) {
+  let timeout;
+  return function (...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
+async function copyCaseUploadLink(token, btn) {
+  if (!token) {
+    if (typeof UI !== 'undefined') UI.toast("Upload link not available for this case.", "warning");
+    return;
+  }
+  const url = `${window.location.origin}/upload.html?t=${token}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    if (btn) {
+      const orig = btn.innerHTML;
+      btn.classList.add("copied");
+      btn.innerHTML = "<span>✓ Copied!</span>";
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.innerHTML = orig;
+      }, 2000);
+    }
+    if (typeof UI !== 'undefined') UI.toast("Client upload link copied to clipboard!", "success");
+  } catch (e) {
+    if (typeof UI !== 'undefined') UI.prompt({ title: "Upload Link", message: "Copy client upload link below:", defaultValue: url });
+  }
+}
+
 function render() {
   const tbody = el("tbody");
   const q = el("search").value.trim().toLowerCase();
@@ -306,7 +357,17 @@ function render() {
 
   tbody.innerHTML = "";
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 3rem; color: #64748b; font-size: 0.875rem;">No matching loan cases found. Try adjusting your search or status filter.</td></tr>';
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8">
+          <div class="empty-state-card">
+            <div class="empty-state-icon">🔍</div>
+            <div class="empty-state-title">No matching loan cases found</div>
+            <div class="empty-state-sub">Try searching with a different customer name, mobile number, or adjusting your status filter.</div>
+          </div>
+        </td>
+      </tr>
+    `;
     return;
   }
 
@@ -368,7 +429,9 @@ function render() {
         <span class="badge badge-${c.status}">${formatStatus(c.status)}</span>
       </td>
       <td style="text-align: center;" onclick="event.stopPropagation();">
-        <button type="button" class="action-more-btn" title="Case Options">⋮</button>
+        <button type="button" class="row-copy-btn" title="Copy Client Upload Link" onclick="copyCaseUploadLink('${c.token}', this)">
+          📋 Copy Link
+        </button>
       </td>
     `;
 
@@ -378,6 +441,7 @@ function render() {
 
     tbody.appendChild(tr);
   });
+
 }
 
 function buildCaseDrawerHtml(c) {
@@ -399,9 +463,9 @@ function buildCaseDrawerHtml(c) {
       docsHtml += `
         <div class="doc-req-item">
           <div class="doc-req-header">
-            <span>${escapeHtml(req.label || req.type)}</span>
+            <span>${escapeHtml(getDocumentLabel(req))}</span>
             <span class="badge ${isReceived ? 'badge-approved' : 'badge-lead'}" style="font-size: 0.7rem;">
-              ${isReceived ? 'Received' : 'Pending Upload'}
+              ${isReceived ? 'Received' : 'Pending'}
             </span>
           </div>
       `;
@@ -952,10 +1016,26 @@ function showActionableError(msg, targetId = "modalErrorStep1") {
 // Event Listeners
 const refBtn = el("refreshBtn");
 if (refBtn) refBtn.addEventListener("click", load);
-el("search").addEventListener("input", () => {
-  currentPage = 1;
-  render();
+if (el("search")) {
+  el("search").addEventListener("input", debounce(() => {
+    currentPage = 1;
+    render();
+  }, 250));
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const backdrop = el("modalBackdrop");
+    if (backdrop && !backdrop.hidden) {
+      backdrop.hidden = true;
+    }
+    const docMappingModal = el("docMappingModalBackdrop");
+    if (docMappingModal && !docMappingModal.hidden) {
+      docMappingModal.hidden = true;
+    }
+  }
 });
+
 
 const statusFilterEl = el("statusFilter");
 if (statusFilterEl) {

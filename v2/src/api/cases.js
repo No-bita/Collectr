@@ -22,6 +22,28 @@ const DEFAULT_LOAN_PRODUCTS = [
 
 const TERMINAL_STATUSES = ['disbursed', 'closed'];
 
+export const DOCUMENT_CATALOG_MAP = {
+  'pan': 'PAN Card',
+  'aadhaar': 'Aadhaar Card',
+  'bank_statement': 'Bank Statement',
+  'itr': 'ITR Acknowledgment',
+  'gst_returns': 'GST Returns',
+  'quotation': 'Machinery/Equipment Quotation',
+  'property_docs': 'Property Ownership Documents',
+  'invoices': 'Pending Invoices'
+};
+
+export function getCanonicalDocumentLabel(docType, providedLabel) {
+  const typeKey = String(docType || '').toLowerCase();
+  if (DOCUMENT_CATALOG_MAP[typeKey]) return DOCUMENT_CATALOG_MAP[typeKey];
+  const labelKey = String(providedLabel || '').toLowerCase();
+  if (DOCUMENT_CATALOG_MAP[labelKey]) return DOCUMENT_CATALOG_MAP[labelKey];
+  if (providedLabel && providedLabel !== String(docType || '').toUpperCase().replace(/_/g, ' ')) {
+    return providedLabel;
+  }
+  return providedLabel || docType || 'Document';
+}
+
 // Centralized Auth & Data Isolation Helpers
 export function getAccessibleCaseFilter(user) {
   if (user && user.role === 'admin') {
@@ -222,14 +244,14 @@ export async function handleCreateCase(c) {
     for (const docType of requiredDocTypes) {
       await db.execute({
         sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
-        args: [crypto.randomUUID(), caseId, docType, docType.toUpperCase().replace(/_/g, ' ')]
+        args: [crypto.randomUUID(), caseId, docType, getCanonicalDocumentLabel(docType)]
       });
     }
 
     await db.execute({
       sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
             VALUES (?, ?, 'case_created', ?, 'agent')`,
-      args: [crypto.randomUUID(), caseId, `Loan Case created for ${contactPerson}. Product: ${loanProduct}, Amount: ${amountRequired ? amountRequired + ' Lacs' : 'N/A'}`]
+      args: [crypto.randomUUID(), caseId, `Loan Case created for ${contactPerson}`]
     });
 
     let whatsappWarning = null;
@@ -402,7 +424,7 @@ export async function handleGetSingleCase(c) {
       return {
         id: req.id,
         type: req.document_type,
-        label: req.label,
+        label: getCanonicalDocumentLabel(req.document_type, req.label),
         status: req.status,
         uploads: uploadsForReq.map(u => ({
           id: u.id,
@@ -721,7 +743,7 @@ export async function handleEditCase(c) {
       if (!existingTypes.has(docType)) {
         await db.execute({
           sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
-          args: [crypto.randomUUID(), id, docType, docType.toUpperCase().replace(/_/g, ' ')]
+          args: [crypto.randomUUID(), id, docType, getCanonicalDocumentLabel(docType)]
         });
       }
     }
@@ -1226,6 +1248,39 @@ export async function handleRetryWhatsApp(c) {
       attemptsLeft: HARD_CAP - nextAttemptNum,
       hardCapReached: nextAttemptNum >= HARD_CAP
     }, 400);
+  }
+}
+
+// 18. Add Document Requirement
+export async function handleAddDocumentRequirement(c) {
+  const db = getDbClient(c.env);
+  const caseId = c.req.param("id");
+  const body = await c.req.json().catch(() => ({}));
+  const label = (body.label || body.documentType || "").trim();
+
+  if (!label) {
+    return c.json({ error: "Document label/name is required" }, 400);
+  }
+
+  const docType = label.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const reqId = crypto.randomUUID();
+
+  try {
+    await db.execute({
+      sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
+      args: [reqId, caseId, docType, label]
+    });
+
+    await db.execute({
+      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
+            VALUES (?, ?, 'requirement_added', ?, 'agent')`,
+      args: [crypto.randomUUID(), caseId, `Requested new document: ${label}`]
+    });
+
+    return c.json({ success: true, requirementId: reqId, label });
+  } catch (err) {
+    console.error("handleAddDocumentRequirement Error:", err);
+    return c.json({ error: "Failed to add document requirement: " + err.message }, 500);
   }
 }
 

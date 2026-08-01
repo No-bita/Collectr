@@ -4,10 +4,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Loan Cases — Collectrr OS</title>
+  <title>Loan Cases — Collectrr</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="/css/dashboard.css" />
 </head>
@@ -15,13 +15,13 @@
 <body>
   <div class="app-layout">
     <!-- Collapsible Sidebar -->
-    <aside class="sidebar" id="appSidebar">
+    <aside class="sidebar" id="appSidebar" style="display: none !important;">
       <div>
         <div class="sidebar-header">
           <div class="sidebar-brand">
-            <div class="brand-icon">C</div>
+            <div class="brand-icon" style="background: #171717;">C</div>
             <div class="brand-text">
-              <h2>Collectrr</h2>
+              <h2 style="font-size: 1.15rem; font-weight: 600; color: #171717;">Collectrr</h2>
             </div>
           </div>
           <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
@@ -29,86 +29,90 @@
 
         <nav class="sidebar-menu">
           <a href="/index.html" class="menu-item active">
-            <span class="menu-label">📊 Dashboard</span>
+            <span class="menu-label">Dashboard</span>
           </a>
           <a href="/admin/analytics" class="menu-item" id="navAnalytics" style="display: none;">
-            <span class="menu-label">📈 Analytics</span>
+            <span class="menu-label">Analytics</span>
           </a>
           <a href="/dd" class="menu-item" id="navObservability" style="display: none;">
-            <span class="menu-label">🛠️ Observability</span>
+            <span class="menu-label">Observability</span>
           </a>
         </nav>
       </div>
 
       <div class="sidebar-user">
-        <div class="user-avatar" id="userAvatar">--</div>
+        <div class="user-avatar" id="sidebarUserAvatar">--</div>
         <div class="user-info">
-          <div id="userName">User</div>
-          <div id="userRole">Agent</div>
+          <div id="sidebarUserName">User</div>
+          <div id="sidebarUserRole">Agent</div>
         </div>
       </div>
     </aside>
 
     <!-- Main Shell Area -->
-    <main class="main-content">
-      <header class="dashboard-top">
-        <div class="header-left">
-          <h1>Loan Cases</h1>
+    <main class="main-content" style="width: 100%; max-width: 1440px; margin: 0 auto; padding: 32px 40px;">
+      
+      <!-- Top Navigation Bar -->
+      <nav class="top-nav-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #ffffff; border: 1px solid #ECE8DF; margin-bottom: 24px; border-radius: 12px;">
+        <div class="sidebar-brand" style="display: flex; align-items: center; gap: 0.625rem;">
+          <div class="brand-icon" style="width: 32px; height: 32px; background: #171717; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 600; font-size: 1rem;">C</div>
+          <div class="brand-text">
+            <h2 style="font-size: 1.15rem; font-weight: 600; color: #171717; margin: 0;">Collectrr</h2>
+          </div>
         </div>
-        <div class="top-actions-row">
-          <button type="button" class="btn btn-secondary btn-lg" id="btnOpenDocMappingModal" style="display: none;">
-            <span class="btn-icon">⚙️</span> Document Rules
-          </button>
-          <button type="button" class="btn btn-primary btn-lg" id="openAdd">
-            <span class="btn-icon">+</span> New Loan Case
-          </button>
-        </div>
-      </header>
-
-      <div id="dashboardError"
-        style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem;"
-        hidden></div>
-
-      <!-- Top Metrics Cards -->
-      <section class="stats-top">
-        <div class="stat-card-modern stat-pending">
-          <div class="stat-icon-circle icon-amber">📄</div>
-          <div class="stat-card-body">
-            <div class="stat-top-line">
-              <span class="stat-count" id="statPending">—</span>
-              <span class="stat-pill pill-amber">Docs Pending</span>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <a href="/admin/analytics" id="navAnalytics" style="display: none; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 13px; color: #6E6A62; text-decoration: none;">Analytics</a>
+          <a href="/dd" id="navObservability" style="display: none; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 13px; color: #6E6A62; text-decoration: none;">Observability</a>
+          <div class="sidebar-user" id="topUserContainer" style="display: flex; align-items: center; gap: 0.625rem; padding: 0.35rem 0.875rem; background: #F4F3EF; border: 1px solid #ECE8DF; border-radius: 999px; cursor: pointer;" title="Click to log out">
+            <div class="user-avatar" id="userAvatar" style="width: 30px; height: 30px; font-size: 13px; background: #171717; color: #ffffff;">--</div>
+            <div class="user-info" style="line-height: 1.2;">
+              <div id="userName" style="font-size: 13px; font-weight: 600; color: #171717;">User</div>
+              <div id="userRole" style="font-size: 13px; color: #6E6A62;">Agent</div>
             </div>
           </div>
         </div>
+      </nav>
 
-        <div class="stat-card-modern stat-review">
-          <div class="stat-icon-circle icon-emerald">✓</div>
-          <div class="stat-card-body">
-            <div class="stat-top-line">
-              <span class="stat-count" id="statReview">—</span>
-              <span class="stat-pill pill-emerald">Ready for Review</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 3: Submitted (Commented out until submission flow is built)
-          <div class="stat-card-modern stat-submitted">
-            <div class="stat-icon-circle icon-purple">✈</div>
+      <!-- Stats + Action CTA Row -->
+      <section class="stats-top-row" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 24px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+          <div class="stat-card-modern stat-pending" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;">
             <div class="stat-card-body">
-              <div class="stat-top-line">
-                <span class="stat-count" id="statSubmitted">—</span>
-                <span class="stat-pill pill-purple">Submitted</span>
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statPending" style="font-size: 24px; font-weight: 600; color: #171717;">—</span>
+                <span class="badge badge-documents_pending">Docs Pending</span>
               </div>
-              <div class="stat-sub">Sent to lender</div>
             </div>
           </div>
-          -->
+
+          <div class="stat-card-modern stat-review" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;">
+            <div class="stat-card-body">
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statReview" style="font-size: 24px; font-weight: 600; color: #171717;">—</span>
+                <span class="badge badge-ready_for_review">Ready for Review</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="top-actions-row" style="display: flex; align-items: center; gap: 0.75rem; margin-left: auto;">
+          <button type="button" class="btn btn-secondary" id="btnOpenDocMappingModal" style="display: none; height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
+            Document Rules
+          </button>
+          <button type="button" class="btn btn-primary" id="openAdd" style="height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px; background: #171717; color: #ffffff; border: none; cursor: pointer;">
+            + New Loan Case
+          </button>
+        </div>
       </section>
 
       <!-- Main Cases Table Card -->
-      <div class="table-card">
+      <div class="table-card" style="background: #ffffff; border: 1px solid #ECE8DF; border-radius: 12px;">
+        <div style="padding: 20px 24px 8px 24px;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 600; color: #171717;">Loan Cases</h2>
+        </div>
         <div class="toolbar">
           <div class="toolbar-left">
+
             <div class="search-box">
               <span class="search-icon">🔍</span>
               <input type="search" id="search" class="search-input" placeholder="Search..." />

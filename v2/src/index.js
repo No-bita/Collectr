@@ -26,7 +26,8 @@ import {
   handleGenerateReport,
   handleAgentUploadUrl,
   handleAgentUploadComplete,
-  handleRetryWhatsApp
+  handleRetryWhatsApp,
+  handleAddDocumentRequirement
 } from "./api/cases.js";
 
 import { 
@@ -112,6 +113,7 @@ app.post("/api/cases/:id/agent-upload-url", handleAgentUploadUrl);
 app.post("/api/cases/:id/agent-upload-complete", handleAgentUploadComplete);
 app.post("/api/cases/:id/generate-report", handleGenerateReport);
 app.post("/api/cases/:id/retry-whatsapp", handleRetryWhatsApp);
+app.post("/api/cases/:id/add-requirement", handleAddDocumentRequirement);
 
 app.get("/api/loan-products", handleGetLoanProducts);
 app.post("/api/loan-products", handleAddLoanProduct);

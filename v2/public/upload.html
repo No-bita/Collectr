@@ -9,23 +9,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f8fafc;
-      --surface: #ffffff;
-      --border: #e2e8f0;
-      --border-focus: #2563eb;
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-      --accent: #2563eb;
-      --accent-light: #eff6ff;
-      --success: #16a34a;
-      --success-light: #f0fdf4;
-      --success-border: #bbf7d0;
-      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-      --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+      --bg: #F8F7F4;
+      --surface: #FFFFFF;
+      --surface-muted: #F4F3EF;
+      --border: #ECE8DF;
+      --border-focus: #171717;
+      --text-main: #171717;
+      --text-muted: #6E6A62;
+      --accent: #E36B2C;
+      --accent-light: #FFF7ED;
+      --btn-primary-bg: #171717;
+      --btn-primary-hover: #2A2A2A;
+      --success: #1C8C5E;
+      --success-light: #E6F4ED;
+      --success-border: #C8E6D7;
+      --shadow-sm: none;
+      --shadow-card: none;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text-main);
       min-height: 100vh;
@@ -33,6 +36,7 @@
       flex-direction: column;
       align-items: center;
       line-height: 1.5;
+      font-size: 16px;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -52,27 +56,28 @@
       text-decoration: none;
     }
     .logo-icon {
-      width: 28px; height: 28px;
-      background: var(--accent);
-      border-radius: 6px;
+      width: 32px; height: 32px;
+      background: #171717;
+      border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      color: #fff; font-weight: 700; font-size: 0.95rem;
+      color: #fff; font-weight: 600; font-size: 1rem;
     }
     .brand-logo span {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: #0f172a;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #171717;
       letter-spacing: -0.01em;
     }
     .lang-selector {
       display: flex; align-items: center; gap: 0.35rem;
-      background: #ffffff; border: 1px solid var(--border);
-      padding: 0.35rem 0.75rem; border-radius: 8px;
-      font-size: 0.8125rem; font-weight: 500; color: #475569;
-      cursor: pointer;
+      background: var(--surface-muted); border: 1px solid var(--border);
+      padding: 0.5rem 0.875rem; border-radius: 10px;
+      font-size: 14px; font-weight: 500; color: #171717;
+      cursor: pointer; transition: background 150ms ease-out;
     }
+    .lang-selector:hover { background: #ECE8DF; }
 
-    /* Central Main Layout Card */
+    /* Central Main Layout Card (Single Workflow Surface) */
     .main-wrapper {
       width: 100%;
       max-width: 720px;
@@ -82,8 +87,8 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 2.5rem 2.5rem 2rem 2.5rem;
-      box-shadow: var(--shadow-card);
+      padding: 2.5rem;
+      box-shadow: none;
     }
 
     /* Welcome Header */
@@ -93,20 +98,20 @@
     }
     .header-icon-circle {
       width: 56px; height: 56px;
-      background: #eff6ff; color: var(--accent);
+      background: var(--surface-muted); color: var(--accent);
       border-radius: 14px;
       display: inline-flex; align-items: center; justify-content: center;
       font-size: 1.6rem; margin-bottom: 1.25rem;
     }
     .portal-header h1 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #0f172a;
+      font-size: 28px;
+      font-weight: 600;
+      color: #171717;
       letter-spacing: -0.015em;
       margin-bottom: 0.5rem;
     }
     .portal-header p {
-      font-size: 0.875rem;
+      font-size: 15px;
       color: var(--text-muted);
       max-width: 440px;
       margin: 0 auto;
@@ -117,14 +122,14 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.75rem;
-      font-weight: 600;
+      font-size: 13px;
+      font-weight: 500;
       color: var(--text-muted);
       margin-bottom: 0.5rem;
     }
     .progress-track {
-      height: 4px;
-      background: #e2e8f0;
+      height: 6px;
+      background: var(--surface-muted);
       border-radius: 999px;
       overflow: hidden;
       margin-bottom: 1.5rem;
@@ -133,7 +138,7 @@
       height: 100%;
       background: var(--accent);
       width: 0%;
-      transition: width 0.4s ease;
+      transition: width 150ms ease-out;
     }
 
     /* Document List Stack */
@@ -149,14 +154,15 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 1.125rem 1.25rem;
+      padding: 1.25rem;
       background: #ffffff;
       border-bottom: 1px solid var(--border);
-      transition: background-color 0.15s ease;
+      transition: background-color 150ms ease-out;
       cursor: pointer;
+      min-height: 52px;
     }
     .doc-row-item:last-child { border-bottom: none; }
-    .doc-row-item:hover { background-color: #f8fafc; }
+    .doc-row-item:hover { background-color: var(--surface-hover); }
 
     .doc-left {
       display: flex;
@@ -169,19 +175,19 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 1.15rem; flex-shrink: 0;
     }
-    .doc-type-badge.pan { background: #eff6ff; color: #2563eb; }
-    .doc-type-badge.aadhaar { background: #f0fdf4; color: #16a34a; }
-    .doc-type-badge.bank { background: #faf5ff; color: #9333ea; }
-    .doc-type-badge.gst { background: #fffbeb; color: #d97706; }
-    .doc-type-badge.default { background: #f1f5f9; color: #475569; }
+    .doc-type-badge.pan { background: var(--surface-muted); color: var(--text-main); }
+    .doc-type-badge.aadhaar { background: var(--success-light); color: var(--success); }
+    .doc-type-badge.bank { background: var(--surface-muted); color: var(--text-main); }
+    .doc-type-badge.gst { background: #FEF3C7; color: #D98A1C; }
+    .doc-type-badge.default { background: var(--surface-muted); color: var(--text-muted); }
 
     .doc-titles div:first-child {
-      font-size: 0.9375rem;
+      font-size: 15px;
       font-weight: 600;
-      color: #0f172a;
+      color: #171717;
     }
     .doc-titles div:last-child {
-      font-size: 0.75rem;
+      font-size: 13px;
       color: var(--text-muted);
       margin-top: 0.15rem;
     }
@@ -195,83 +201,83 @@
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      font-size: 0.8125rem;
-      font-weight: 600;
+      font-size: 13px;
+      font-weight: 500;
     }
     .upload-status-indicator.uploaded { color: var(--success); }
-    .upload-status-indicator.pending { color: #d97706; }
-    .arrow-icon { color: #94a3b8; font-size: 0.875rem; font-weight: 600; }
+    .upload-status-indicator.pending { color: #D98A1C; }
+    .arrow-icon { color: var(--text-muted); font-size: 14px; font-weight: 600; }
 
     /* Drag & Drop Add Document Zone */
     .dropzone-box {
-      border: 2px dashed #cbd5e1;
+      border: 2px dashed var(--border);
       border-radius: 12px;
-      padding: 1.75rem 1.5rem;
+      padding: 2rem 1.5rem;
       text-align: center;
-      background: #fafafa;
+      background: #FCFBF8;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 150ms ease-out;
       margin-bottom: 1.5rem;
     }
     .dropzone-box:hover {
       border-color: var(--accent);
-      background: #eff6ff;
+      background: #FFF7ED;
     }
     .dropzone-icon {
-      width: 36px; height: 36px;
+      width: 44px; height: 44px;
       background: #ffffff; border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center;
-      color: var(--accent); font-size: 1.15rem;
-      box-shadow: var(--shadow-sm); margin-bottom: 0.625rem;
+      color: var(--accent); font-size: 1.25rem;
+      border: 1px solid var(--border); margin-bottom: 0.75rem;
     }
     .dropzone-title {
-      font-size: 0.875rem;
+      font-size: 15px;
       font-weight: 600;
-      color: #0f172a;
+      color: #171717;
     }
     .dropzone-sub {
-      font-size: 0.75rem;
+      font-size: 13px;
       color: var(--text-muted);
-      margin-top: 0.2rem;
+      margin-top: 0.3rem;
     }
-    .dropzone-sub a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .dropzone-sub a { color: var(--accent); text-decoration: none; font-weight: 500; }
 
     /* Success Completion Banner */
     .success-banner {
       background: var(--success-light);
       border: 1px solid var(--success-border);
-      border-radius: 10px;
-      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      padding: 1.25rem;
       display: flex;
       align-items: center;
-      gap: 0.875rem;
+      gap: 1rem;
     }
     .success-banner[hidden] {
       display: none !important;
     }
     .success-icon-circle {
-      width: 28px; height: 28px;
+      width: 32px; height: 32px;
       background: var(--success); color: #ffffff;
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.875rem; flex-shrink: 0;
+      font-weight: 600; font-size: 14px; flex-shrink: 0;
     }
     .success-text div:first-child {
-      font-size: 0.875rem;
-      font-weight: 700;
-      color: #14532d;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1C8C5E;
     }
     .success-text div:last-child {
-      font-size: 0.75rem;
-      color: #166534;
-      margin-top: 0.1rem;
+      font-size: 13px;
+      color: #15803D;
+      margin-top: 0.2rem;
     }
 
     /* Footer Trust Mark */
     .trusted-footer {
       text-align: center;
-      font-size: 0.75rem;
-      color: #94a3b8;
+      font-size: 13px;
+      color: var(--text-muted);
       margin-top: 1.5rem;
       display: flex;
       flex-direction: column;
@@ -302,17 +308,22 @@
       <!-- Welcome Header -->
       <div class="portal-header">
         <div class="header-icon-circle">📄</div>
-        <h1 id="clientGreeting">Hi Client,</h1>
-        <p id="loanSubtext">Please upload the required documents to continue your loan process.</p>
+        <h1 id="clientGreeting">Namaste,</h1>
       </div>
 
-      <div id="sessionErrorAlert" style="background: #fee2e2; border: 1px solid #f87171; color: #b91c1c; padding: 0.875rem; border-radius: 8px; font-size: 0.8125rem; margin-bottom: 1.5rem; text-align: center;" hidden></div>
+      <!-- Network Failure & Retry Banner -->
+      <div id="uploadErrorBanner" style="background: var(--status-danger-bg); border: 1px solid var(--border); color: var(--status-danger-text); padding: 1rem; border-radius: 10px; font-size: 14px; margin-bottom: 1.5rem; text-align: center;" hidden>
+        <span id="uploadErrorMessage">Unable to upload file. Please check connection and try again.</span>
+        <button type="button" id="btnRetryUpload" style="margin-left: 0.75rem; background: #171717; color: #ffffff; border: none; padding: 0.4rem 0.875rem; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">Retry</button>
+      </div>
+
+      <div id="sessionErrorAlert" style="background: var(--status-danger-bg); border: 1px solid var(--border); color: var(--status-danger-text); padding: 1rem; border-radius: 10px; font-size: 14px; margin-bottom: 1.5rem; text-align: center;" hidden></div>
 
       <!-- Upload Progress Meta Bar -->
       <div id="progressContainer" style="display: none;">
         <div class="progress-meta-row">
           <span>Upload Progress</span>
-          <span id="progressText">0 of 0 uploaded</span>
+          <span id="progressText" style="color: var(--accent); font-weight: 600;">0 of 0 uploaded</span>
         </div>
         <div class="progress-track">
           <div class="progress-fill-bar" id="progressFillBar"></div>
@@ -321,24 +332,24 @@
 
       <!-- Dynamic Document Requirements List Stack -->
       <div class="doc-stack" id="docStack">
-        <p style="text-align: center; padding: 2rem; color: #64748b; font-size: 0.875rem;">Loading document checklist...</p>
+        <p style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 15px;">Loading document checklist...</p>
       </div>
 
       <!-- Drag and Drop Additional Upload Box -->
-      <div class="dropzone-box" onclick="triggerGenericFileInput()">
+      <div class="dropzone-box" id="dropzoneBox" onclick="triggerGenericFileInput()">
         <div class="dropzone-title">Need to add any additional document?</div>
         <div class="dropzone-sub">
-          Drag & drop your file here or <a href="javascript:void(0)">browse</a><br/>
+          Drag & drop your file here or <a href="javascript:void(0)">browse / snap photo</a><br/>
           PDF, JPG, PNG up to 15MB
         </div>
       </div>
 
-      <!-- All Documents Completed Thank You Banner -->
-      <div class="success-banner" id="allDoneBanner" hidden>
-        <div class="success-icon-circle">✓</div>
+      <!-- All Documents Completed Reassurance Banner -->
+      <div class="success-banner" id="allDoneBanner" hidden style="background: var(--success-light); border: 1px solid var(--success-border); border-radius: 12px; padding: 1.25rem; display: flex; align-items: center; gap: 1rem;">
+        <div class="success-icon-circle" style="width: 32px; height: 32px; background: var(--success); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px;">✓</div>
         <div class="success-text">
-          <div>All documents uploaded! Thank you.</div>
-          <div>We will review your documents and keep you updated on WhatsApp.</div>
+          <div style="font-size: 15px; font-weight: 600; color: #1C8C5E;">Everything's ready. Your documents have been received.</div>
+          <div style="font-size: 13px; color: #15803D; margin-top: 0.2rem;">Your loan officer will review the submitted files and notify you on WhatsApp.</div>
         </div>
       </div>
 
@@ -346,12 +357,13 @@
 
     <!-- Trusted Footer -->
     <div class="trusted-footer">
-      <div>🔒 Secure. Private. Trusted.</div>
+      <div>🔒 256-Bit Encrypted • Private • Trusted</div>
       <div>Powered by Collectrr</div>
     </div>
   </main>
 
-  <input type="file" id="genericFileInput" class="hidden-file-input" onchange="handleGenericFileUpload()" />
+  <input type="file" id="genericFileInput" class="hidden-file-input" accept="image/*,application/pdf" onchange="handleGenericFileUpload(this)" />
+  <input type="file" id="cameraFileInput" class="hidden-file-input" accept="image/*" capture="environment" onchange="handleGenericFileUpload(this)" />
 
   <script>
     const el = (id) => document.getElementById(id);
@@ -360,15 +372,17 @@
 
     let currentSession = null;
     let activeTargetDocId = null;
+    let lastFailedFile = null;
+    let lastFailedTargetDocId = null;
 
     async function initPortal() {
       const errBox = el("sessionErrorAlert");
       errBox.hidden = true;
 
       if (!token) {
-        errBox.textContent = "⚠️ Missing Upload Token. Please use the exact link received on WhatsApp.";
+        errBox.innerHTML = `⚠️ <strong>Missing Upload Token</strong><br/>Please open the exact link sent to your mobile phone on WhatsApp.`;
         errBox.hidden = false;
-        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444;">Invalid session token.</p>`;
+        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444; font-weight: 600;">Invalid session token.</p>`;
         return;
       }
 
@@ -376,21 +390,21 @@
         const res = await fetch(`/api/session/${token}`);
         const data = await res.json();
 
-        if (!res.ok) throw new Error(data.error || "Upload link expired or invalid.");
+        if (!res.ok) {
+          throw new Error(data.error || "Upload link expired or invalid.");
+        }
 
         currentSession = data;
         
-        // Populate header greeting & loan product subtext
-        if (data.contactPerson) {
-          el("clientGreeting").textContent = `Hi ${data.contactPerson},`;
-        }
-        if (data.loanProduct) {
-          el("loanSubtext").textContent = `Please upload the required documents to continue your ${data.loanProduct} loan process.`;
+        // Populate header greeting
+        if (el("clientGreeting")) {
+          el("clientGreeting").textContent = data.contactPerson ? `Namaste ${data.contactPerson},` : "Namaste,";
         }
 
         renderDocumentsStack(data.documents || []);
+        setupDropzoneHandlers();
       } catch (err) {
-        errBox.textContent = "⚠️ " + err.message;
+        errBox.innerHTML = `⚠️ <strong>Link Expired or Invalid</strong><br/>${escapeHtml(err.message)}<br/><span style="font-size: 0.75rem; margin-top: 0.5rem; display: block; color: #475569;">Please contact your loan officer on WhatsApp to receive a fresh upload link.</span>`;
         errBox.hidden = false;
         el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444;">${escapeHtml(err.message)}</p>`;
       }
@@ -402,10 +416,10 @@
       const uploadedDocs = docs.filter(d => d.status === "received" || (d.uploadCount && d.uploadCount > 0));
       const uploadedCount = uploadedDocs.length;
 
-      // Update progress bar & count (hidden if uploadedCount is 0)
+      // Update progress bar & count
       const progContainer = el("progressContainer");
       if (progContainer) {
-        progContainer.style.display = uploadedCount > 0 ? "block" : "none";
+        progContainer.style.display = total > 0 ? "block" : "none";
       }
       el("progressText").textContent = `${uploadedCount} of ${total} uploaded`;
       const fillPct = total > 0 ? (uploadedCount / total) * 100 : 0;
@@ -432,24 +446,42 @@
 
         const row = document.createElement("div");
         row.className = "doc-row-item";
-        row.onclick = () => triggerUploadForDoc(doc.id);
+        row.id = `doc-row-${doc.id}`;
+        if (isUploaded) {
+          row.style.background = "#f0fdf4";
+          row.style.borderColor = "#bbf7d0";
+        }
+        row.onclick = () => promptMobileUploadChoice(doc.id);
 
         row.innerHTML = `
           <div class="doc-left">
             <div class="doc-titles">
-              <div>${escapeHtml(doc.label || doc.type)}</div>
-              <div>${escapeHtml(getDocInstruction(doc.type))}</div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-weight: 700; color: #0f172a; font-size: 0.9375rem;">${escapeHtml(doc.label || doc.type)}</span>
+                ${isUploaded ? '<span class="ocr-badge-success">✓ OCR Verified</span>' : ''}
+              </div>
             </div>
           </div>
-          <div class="doc-right">
+          <div class="doc-right" id="doc-status-col-${doc.id}">
             <span class="upload-status-indicator ${isUploaded ? 'uploaded' : 'pending'}">
-              ${isUploaded ? 'Uploaded' : 'Upload'}
+              ${isUploaded ? '✓ Uploaded' : 'Upload File'}
             </span>
             <span class="arrow-icon">›</span>
           </div>
         `;
         stack.appendChild(row);
       });
+    }
+
+    function promptMobileUploadChoice(docId) {
+      activeTargetDocId = docId;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        // Trigger native file picker which allows Camera or Files on iOS/Android
+        el("cameraFileInput").click();
+      } else {
+        el("genericFileInput").click();
+      }
     }
 
     function getDocTypeClass(type) {
@@ -472,32 +504,76 @@
 
     function getDocInstruction(type) {
       const t = (type || "").toLowerCase();
-      if (t.includes("pan")) return "Upload clear front side";
-      if (t.includes("aadhaar") || t.includes("aadhar")) return "Upload front and back side";
-      if (t.includes("bank")) return "Last 6 months statement";
-      if (t.includes("gst")) return "Latest filed GSTR-3B return";
+      if (t.includes("pan")) return "Upload clear front photo or PDF";
+      if (t.includes("aadhaar") || t.includes("aadhar")) return "Upload clear photo of card";
+      if (t.includes("bank")) return "PDF statement of last 6 months";
+      if (t.includes("gst")) return "Latest filed GSTR-3B return PDF";
       if (t.includes("quotation")) return "Equipment or machinery quotation";
       return "Upload clear image or PDF";
     }
 
-    function triggerUploadForDoc(docId) {
-      activeTargetDocId = docId;
-      el("genericFileInput").click();
-    }
-
     function triggerGenericFileInput() {
       if (!currentSession || !currentSession.documents || currentSession.documents.length === 0) return;
-      const pendingDoc = currentSession.documents.find(d => d.status !== "received" && d.uploadCount === 0);
+      const pendingDoc = currentSession.documents.find(d => d.status !== "received" && (!d.uploadCount || d.uploadCount === 0));
       activeTargetDocId = pendingDoc ? pendingDoc.id : currentSession.documents[0].id;
-      el("genericFileInput").click();
+      promptMobileUploadChoice(activeTargetDocId);
     }
 
-    async function handleGenericFileUpload() {
-      const input = el("genericFileInput");
-      if (!input.files || input.files.length === 0 || !activeTargetDocId) return;
+    function setupDropzoneHandlers() {
+      const dropzone = el("dropzoneBox");
+      if (!dropzone) return;
 
-      const file = input.files[0];
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.style.borderColor = "#2563eb";
+          dropzone.style.background = "#eff6ff";
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.style.borderColor = "#cbd5e1";
+          dropzone.style.background = "#fafafa";
+        }, false);
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files && files.length > 0) {
+          triggerGenericFileInput();
+          uploadFileObj(files[0]);
+        }
+      }, false);
+    }
+
+    async function handleGenericFileUpload(inputEl) {
+      const files = inputEl.files;
+      if (!files || files.length === 0 || !activeTargetDocId) return;
+      const file = files[0];
+      await uploadFileObj(file);
+      inputEl.value = "";
+    }
+
+    async function uploadFileObj(file) {
       const targetDocId = activeTargetDocId;
+      const errBanner = el("uploadErrorBanner");
+      errBanner.hidden = true;
+
+      // Update UI row to show progress spinner
+      const statusCol = el(`doc-status-col-${targetDocId}`);
+      if (statusCol) {
+        statusCol.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 0.5rem; color: #2563eb; font-weight: 600; font-size: 0.8125rem;">
+            <span class="upload-progress-ring"></span>
+            <span id="upload-pct-${targetDocId}">Uploading... 0%</span>
+          </div>
+        `;
+      }
 
       try {
         // 1. Get presigned R2 upload URL
@@ -513,13 +589,31 @@
         const urlData = await urlRes.json();
         if (!urlRes.ok) throw new Error(urlData.error || "Failed to initiate upload");
 
-        // 2. Put file to R2
-        const putRes = await fetch(urlData.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type || "application/octet-stream" },
-          body: file
+        // 2. Put file directly to R2 with real-time XHR progress tracking
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", urlData.uploadUrl, true);
+          xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const pct = Math.round((e.loaded / e.total) * 100);
+              const pctEl = el(`upload-pct-${targetDocId}`);
+              if (pctEl) pctEl.textContent = `Uploading... ${pct}%`;
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Storage Upload failed with status ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Network connection lost during file transfer."));
+          xhr.send(file);
         });
-        if (!putRes.ok) throw new Error("Failed to upload file content");
 
         // 3. Confirm upload & trigger OCR
         const confirmRes = await fetch(`/api/upload-complete/${token}`, {
@@ -530,15 +624,42 @@
         const confirmData = await confirmRes.json();
         if (!confirmRes.ok) throw new Error(confirmData.error || "Failed to confirm upload");
 
-        // Refresh portal data
+        // Refresh portal data & show micro-success
         await initPortal();
-        UI.toast("Document uploaded successfully!", "success");
+        if (typeof UI !== "undefined" && UI.toast) {
+          UI.toast("Document uploaded & verified!", "success");
+        }
       } catch (err) {
-        UI.toast("Upload Error: " + err.message, "error");
-      } finally {
-        input.value = "";
+        lastFailedFile = file;
+        lastFailedTargetDocId = targetDocId;
+
+        if (errBanner) {
+          el("uploadErrorMessage").textContent = `⚠️ Upload Error: ${err.message}`;
+          errBanner.hidden = false;
+        }
+
+        // Revert status col
+        if (statusCol) {
+          statusCol.innerHTML = `
+            <span class="upload-status-indicator pending" style="color: #dc2626;">
+              Tap to Retry
+            </span>
+            <span class="arrow-icon">›</span>
+          `;
+        }
+
+        if (typeof UI !== "undefined" && UI.toast) {
+          UI.toast("Upload Error: " + err.message, "error");
+        }
       }
     }
+
+    el("btnRetryUpload").onclick = () => {
+      if (lastFailedFile && lastFailedTargetDocId) {
+        activeTargetDocId = lastFailedTargetDocId;
+        uploadFileObj(lastFailedFile);
+      }
+    };
 
     function escapeHtml(str) {
       return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -553,3 +674,4 @@
   <script src="/js/ui-components.js"></script>
 </body>
 </html>
+
