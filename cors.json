@@ -3,11 +3,15 @@
     {
       "id": "UploadFromBrowser",
       "allowed": {
-        "origins": ["*"],
-        "methods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-        "headers": ["*"]
+        "origins": [
+          "https://collectrr-v2.collectr.workers.dev",
+          "http://localhost:3000",
+          "http://localhost:8788"
+        ],
+        "methods": ["GET", "PUT", "HEAD"],
+        "headers": ["Content-Type"]
       },
-      "maxAgeSeconds": 3000
+      "maxAgeSeconds": 3600
     }
   ]
 }

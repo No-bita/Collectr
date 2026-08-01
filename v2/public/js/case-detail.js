@@ -919,11 +919,11 @@ function updateUserProfileUI() {
     navObservability.style.display = isAdmin ? '' : 'none';
   }
 
-  const userContainer = document.querySelector('.sidebar-user');
-  if (userContainer) {
-    userContainer.style.cursor = 'pointer';
-    userContainer.title = 'Click to log out';
-    userContainer.onclick = async () => {
+  const userContainers = document.querySelectorAll('.sidebar-user');
+  userContainers.forEach(container => {
+    container.style.cursor = 'pointer';
+    container.title = 'Click to log out';
+    container.onclick = async () => {
       const ok = await UI.confirm({
         title: "Confirm Logout",
         message: `Log out from ${username}?`,
@@ -935,7 +935,7 @@ function updateUserProfileUI() {
         window.location.href = '/login.html';
       }
     };
-  }
+  });
 }
 
 function startApp() {

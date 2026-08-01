@@ -1108,7 +1108,7 @@ if (btnDetailsContinue) {
     const contactPerson = contactPersonInput ? contactPersonInput.value.trim() : "";
     if (!contactPerson) {
       if (contactPersonInput) contactPersonInput.classList.add("input-error");
-      showActionableError("Please enter the contact person's full name.", "modalErrorStep1");
+      showActionableError("Please enter the borrower's full name.", "modalErrorStep1");
       if (contactPersonInput) contactPersonInput.focus();
       return;
     }
@@ -1198,7 +1198,16 @@ if (btnDocsCreate) {
     }
 
     wizardState.documents.selectedIds = selectedDocs;
+    
+    // Store original button content & show immediate spinner loading state
+    const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
+    submitBtn.style.opacity = "0.7";
+    submitBtn.style.cursor = "not-allowed";
+    submitBtn.innerHTML = `
+      <span class="upload-progress-ring" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 0.5rem; border-color: rgba(255,255,255,0.3); border-top-color: #ffffff;"></span>
+      Creating Loan Case...
+    `;
 
     try {
       const postBody = {
@@ -1255,6 +1264,9 @@ if (btnDocsCreate) {
       showActionableError(err.message, "modalErrorStep2");
     } finally {
       submitBtn.disabled = false;
+      submitBtn.style.opacity = "1";
+      submitBtn.style.cursor = "pointer";
+      submitBtn.innerHTML = originalText;
     }
   });
 }
@@ -1364,11 +1376,11 @@ function updateUserProfileUI() {
     btnDocMapping.style.display = isAdmin ? '' : 'none';
   }
 
-  const userContainer = document.querySelector('.sidebar-user');
-  if (userContainer) {
-    userContainer.style.cursor = 'pointer';
-    userContainer.title = 'Click to log out';
-    userContainer.onclick = async () => {
+  const userContainers = document.querySelectorAll('.sidebar-user');
+  userContainers.forEach(container => {
+    container.style.cursor = 'pointer';
+    container.title = 'Click to log out';
+    container.onclick = async () => {
       const ok = await UI.confirm({
         title: "Confirm Logout",
         message: `Log out from ${username}?`,
@@ -1380,7 +1392,7 @@ function updateUserProfileUI() {
         window.location.href = '/login.html';
       }
     };
-  }
+  });
 }
 
 // Initial load

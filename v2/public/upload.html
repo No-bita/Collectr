@@ -44,10 +44,14 @@
     .top-header {
       width: 100%;
       max-width: 1080px;
-      padding: 1.5rem 2rem;
+      margin: 1.5rem auto 0 auto;
+      padding: 16px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      background: #ffffff;
+      border: 1px solid #ECE8DF;
+      border-radius: 12px;
     }
     .brand-logo {
       display: flex;
@@ -63,10 +67,16 @@
       color: #fff; font-weight: 600; font-size: 1rem;
     }
     .brand-logo span {
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 600;
       color: #171717;
       letter-spacing: -0.01em;
+    }
+    .security-badge {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: #F4F3EF; border: 1px solid #ECE8DF;
+      padding: 0.35rem 0.875rem; border-radius: 999px;
+      font-size: 13px; font-weight: 500; color: #6E6A62;
     }
     .lang-selector {
       display: flex; align-items: center; gap: 0.35rem;
@@ -295,9 +305,10 @@
       <div class="logo-icon">C</div>
       <span>Collectrr</span>
     </a>
-    <div class="lang-selector">
-      <span>🌐 English</span>
-      <span style="font-size: 0.65rem;">▼</span>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <div class="security-badge">
+        <span>🔒 256-Bit Encrypted</span>
+      </div>
     </div>
   </header>
 
@@ -561,11 +572,17 @@
         }, false);
       });
 
+      dropzone.addEventListener('click', () => {
+        triggerGenericFileInput();
+      });
+
       dropzone.addEventListener('drop', (e) => {
         const dt = e.dataTransfer;
         const files = dt.files;
         if (files && files.length > 0) {
-          triggerGenericFileInput();
+          if (!currentSession || !currentSession.documents || currentSession.documents.length === 0) return;
+          const pendingDoc = currentSession.documents.find(d => d.status !== "received" && (!d.uploadCount || d.uploadCount === 0));
+          activeTargetDocId = pendingDoc ? pendingDoc.id : currentSession.documents[0].id;
           uploadFileObj(files[0]);
         }
       }, false);
@@ -610,30 +627,50 @@
         if (!urlRes.ok) throw new Error(urlData.error || "Failed to initiate upload");
 
         // 2. Put file directly to R2 with real-time XHR progress tracking
-        await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("PUT", urlData.uploadUrl, true);
-          xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        try {
+          await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", urlData.uploadUrl, true);
+            xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
 
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 100);
-              const pctEl = el(`upload-pct-${targetDocId}`);
-              if (pctEl) pctEl.textContent = `Uploading... ${pct}%`;
-            }
-          };
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                const pctEl = el(`upload-pct-${targetDocId}`);
+                if (pctEl) pctEl.textContent = `Uploading... ${pct}%`;
+              }
+            };
 
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
-            } else {
-              reject(new Error(`Storage Upload failed with status ${xhr.status}`));
-            }
-          };
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(new Error(`Storage Upload failed with status ${xhr.status}`));
+              }
+            };
 
-          xhr.onerror = () => reject(new Error("Network connection lost during file transfer."));
-          xhr.send(file);
-        });
+            xhr.onerror = () => reject(new Error("Network connection lost during file transfer."));
+            xhr.send(file);
+          });
+        } catch (r2Err) {
+          console.warn("Presigned R2 upload failed, attempting direct upload fallback:", r2Err);
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("requiredDocId", targetDocId);
+
+          const directRes = await fetch(`/api/direct-upload/${token}`, {
+            method: "POST",
+            body: formData
+          });
+          const directData = await directRes.json();
+          if (!directRes.ok) throw new Error(directData.error || "Upload failed");
+          
+          await initPortal();
+          if (typeof UI !== "undefined" && UI.toast) {
+            UI.toast("Document uploaded & verified!", "success");
+          }
+          return;
+        }
 
         // 3. Confirm upload & trigger OCR
         const confirmRes = await fetch(`/api/upload-complete/${token}`, {
@@ -656,6 +693,11 @@
         if (errBanner) {
           el("uploadErrorMessage").textContent = `⚠️ Upload Error: ${err.message}`;
           errBanner.hidden = false;
+          
+          if (window.errorBannerTimer) clearTimeout(window.errorBannerTimer);
+          window.errorBannerTimer = setTimeout(() => {
+            errBanner.hidden = true;
+          }, 6000);
         }
 
         // Revert status col

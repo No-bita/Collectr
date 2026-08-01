@@ -4,7 +4,7 @@ import { verify } from "hono/jwt";
 
 import { handleLogin, handleRegister } from "./api/auth.js";
 import { handleSessionRequest } from "./api/session.js";
-import { handleUploadUrlRequest } from "./api/upload.js";
+import { handleUploadUrlRequest, handleDirectUpload } from "./api/upload.js";
 import { handleWebhookVerify, handleWebhookEvent } from "./api/webhook.js";
 import { handleUploadComplete } from "./api/ocr.js";
 import { 
@@ -86,6 +86,7 @@ app.get("/", (c) => c.text("Collectrr v2 API Running"));
 // Public Client Upload Flow
 app.get("/api/session/:token", handleSessionRequest);
 app.post("/api/upload-url/:token", handleUploadUrlRequest);
+app.post("/api/direct-upload/:token", handleDirectUpload);
 app.post("/api/upload-complete/:token", handleUploadComplete);
 
 // Public Webhook Routes
