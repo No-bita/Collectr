@@ -21,6 +21,8 @@ import {
   handleRejectUpload,
   handleGetLoanProducts,
   handleAddLoanProduct,
+  handleGetProductMappings,
+  handleSaveProductMappings,
   handleGenerateReport,
   handleAgentUploadUrl,
   handleAgentUploadComplete,
@@ -113,6 +115,9 @@ app.post("/api/cases/:id/retry-whatsapp", handleRetryWhatsApp);
 
 app.get("/api/loan-products", handleGetLoanProducts);
 app.post("/api/loan-products", handleAddLoanProduct);
+app.get("/api/loan-product-mappings", handleGetProductMappings);
+app.post("/api/admin/loan-product-mappings", authMiddleware, handleSaveProductMappings);
+app.put("/api/admin/loan-product-mappings", authMiddleware, handleSaveProductMappings);
 app.get("/api/document-catalog", handleDocumentCatalog);
 app.post("/api/reject-upload", handleRejectUpload);
 

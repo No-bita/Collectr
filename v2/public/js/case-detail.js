@@ -785,9 +785,16 @@ function updateUserProfileUI() {
   if (nameEl) nameEl.textContent = username;
   if (roleEl) roleEl.textContent = role;
 
+  const isAdmin = user && (user.role === 'admin' || user.role === 'Admin');
+
   const navAnalytics = document.getElementById("navAnalytics");
   if (navAnalytics) {
-    navAnalytics.style.display = (user.role === 'admin') ? '' : 'none';
+    navAnalytics.style.display = isAdmin ? '' : 'none';
+  }
+
+  const navObservability = document.getElementById("navObservability");
+  if (navObservability) {
+    navObservability.style.display = isAdmin ? '' : 'none';
   }
 
   const userContainer = document.querySelector('.sidebar-user');

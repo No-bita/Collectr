@@ -542,6 +542,69 @@ export async function handleAddLoanProduct(c) {
   }
 }
 
+const DEFAULT_PRODUCT_MAPPINGS = {
+  "Working Capital Loan": ["pan", "aadhaar", "bank_statement", "gst_returns"],
+  "Machinery Loan": ["pan", "aadhaar", "bank_statement", "gst_returns", "quotation"],
+  "Property Loan / LAP": ["pan", "aadhaar", "bank_statement", "property_docs", "itr"],
+  "Unsecured Business Loan": ["pan", "aadhaar", "bank_statement", "gst_returns"]
+};
+
+export async function handleGetProductMappings(c) {
+  const db = getDbClient(c.env);
+  try {
+    const res = await db.execute("SELECT product_label, required_doc_ids FROM loan_product_doc_mappings");
+    const mappings = { ...DEFAULT_PRODUCT_MAPPINGS };
+    
+    res.rows.forEach(row => {
+      try {
+        const docIds = typeof row.required_doc_ids === 'string' ? JSON.parse(row.required_doc_ids) : row.required_doc_ids;
+        if (Array.isArray(docIds)) {
+          mappings[row.product_label] = docIds;
+        }
+      } catch (e) {}
+    });
+
+    return c.json({ mappings });
+  } catch (err) {
+    return c.json({ mappings: DEFAULT_PRODUCT_MAPPINGS });
+  }
+}
+
+export async function handleSaveProductMappings(c) {
+  const db = getDbClient(c.env);
+  const body = await c.req.json().catch(() => ({}));
+  const { productLabel, requiredDocIds, mappings } = body;
+
+  try {
+    if (mappings && typeof mappings === 'object') {
+      for (const [pLabel, docIds] of Object.entries(mappings)) {
+        await db.execute({
+          sql: `INSERT INTO loan_product_doc_mappings (product_label, required_doc_ids, updated_at) 
+                VALUES (?, ?, datetime('now'))
+                ON CONFLICT(product_label) DO UPDATE SET required_doc_ids = excluded.required_doc_ids, updated_at = datetime('now')`,
+          args: [pLabel, JSON.stringify(docIds || [])]
+        });
+      }
+      return c.json({ success: true, message: "All document mappings saved successfully." });
+    }
+
+    if (!productLabel) {
+      return c.json({ error: "Please specify a product label." }, 400);
+    }
+
+    await db.execute({
+      sql: `INSERT INTO loan_product_doc_mappings (product_label, required_doc_ids, updated_at) 
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(product_label) DO UPDATE SET required_doc_ids = excluded.required_doc_ids, updated_at = datetime('now')`,
+      args: [productLabel, JSON.stringify(requiredDocIds || [])]
+    });
+
+    return c.json({ success: true, message: `Document mappings updated for ${productLabel}.` });
+  } catch (err) {
+    return c.json({ error: `Failed to save mapping: ${err.message}` }, 500);
+  }
+}
+
 // 5. Get Timeline
 export async function handleGetTimeline(c) {
   const db = getDbClient(c.env);

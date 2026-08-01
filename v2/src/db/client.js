@@ -42,6 +42,17 @@ export function getDbClient(env) {
         const res = await stmt.all();
         return { rows: res.results };
       }
+      if (msg.includes("no such table: loan_product_doc_mappings")) {
+        try {
+          await db.prepare("CREATE TABLE IF NOT EXISTS loan_product_doc_mappings (product_label TEXT PRIMARY KEY, required_doc_ids JSON NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) {
+          stmt = stmt.bind(...args);
+        }
+        const res = await stmt.all();
+        return { rows: res.results };
+      }
       throw err;
     }
   };

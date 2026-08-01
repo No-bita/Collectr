@@ -418,13 +418,29 @@
         });
       };
 
-      trigger.onclick = (e) => {
-        e.stopPropagation();
+      const toggleDropdown = (e) => {
+        if (e) e.stopPropagation();
+        const isOpen = wrapper.classList.contains("open");
         document.querySelectorAll(".ui-select-wrapper.open").forEach(w => {
           if (w !== wrapper) w.classList.remove("open");
         });
-        wrapper.classList.toggle("open");
-        populateOptions();
+        if (isOpen) {
+          wrapper.classList.remove("open");
+        } else {
+          wrapper.classList.add("open");
+          populateOptions();
+        }
+      };
+
+      trigger.onclick = toggleDropdown;
+
+      trigger.onkeydown = (e) => {
+        if (e.key === " " || e.key === "Spacebar" || e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          toggleDropdown(e);
+        } else if (e.key === "Escape") {
+          wrapper.classList.remove("open");
+        }
       };
 
       updateTriggerText();

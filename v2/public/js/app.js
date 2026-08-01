@@ -726,6 +726,25 @@ function setWizardScreen(screenName) {
   });
 }
 
+let loanProductMappings = {
+  "Working Capital Loan": ["pan", "aadhaar", "bank_statement", "gst_returns"],
+  "Machinery Loan": ["pan", "aadhaar", "bank_statement", "gst_returns", "quotation"],
+  "Property Loan / LAP": ["pan", "aadhaar", "bank_statement", "property_docs", "itr"],
+  "Unsecured Business Loan": ["pan", "aadhaar", "bank_statement", "gst_returns"]
+};
+
+async function loadProductMappings() {
+  try {
+    const res = await authFetch("/api/loan-product-mappings");
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.mappings) {
+      loanProductMappings = { ...loanProductMappings, ...data.mappings };
+    }
+  } catch (e) {
+    console.error("Failed loading loan product mappings", e);
+  }
+}
+
 function getRecommendedDocsForProduct(prodLabel) {
   if (!documentCatalog || documentCatalog.length === 0) {
     return [
@@ -734,6 +753,11 @@ function getRecommendedDocsForProduct(prodLabel) {
       { id: 'bank_statement', label: 'Bank Statement' },
       { id: 'gst_returns', label: 'GST Returns' }
     ];
+  }
+
+  if (prodLabel && loanProductMappings[prodLabel] && Array.isArray(loanProductMappings[prodLabel])) {
+    const recSet = new Set(loanProductMappings[prodLabel]);
+    return documentCatalog.filter(d => recSet.has(d.id));
   }
 
   const p = (prodLabel || "").toLowerCase();
@@ -822,23 +846,14 @@ function renderScreen2DocChecklists() {
         <div class="doc-icon-box ${iconMeta.bgClass}">${iconMeta.icon}</div>
         <span class="doc-card-label">${escapeHtml(doc.label)}</span>
       </div>
-      ${isRec ? '<span class="doc-badge-recommended">Recommended</span>' : ''}
     `;
 
     if (isRec) {
-      recCount++;
       recContainer.appendChild(card);
     } else {
-      addCount++;
       addContainer.appendChild(card);
     }
   });
-
-  const recBadge = el("recommendedCountBadge");
-  if (recBadge) recBadge.textContent = recCount;
-
-  const addBadge = el("additionalCountBadge");
-  if (addBadge) addBadge.textContent = addCount;
 }
 
 function renderLoanProductSelect() {
@@ -897,7 +912,7 @@ async function load() {
   if (dashErr) dashErr.hidden = true;
 
   try {
-    await Promise.all([loadLoanProducts(), loadDocumentCatalog()]);
+    await Promise.all([loadLoanProducts(), loadDocumentCatalog(), loadProductMappings()]);
     const res = await authFetch("/api/cases");
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Unable to retrieve loan cases from server. Please refresh.");
@@ -1255,9 +1270,21 @@ function updateUserProfileUI() {
   if (nameEl) nameEl.textContent = username;
   if (roleEl) roleEl.textContent = role;
 
+  const isAdmin = user && (user.role === 'admin' || user.role === 'Admin');
+
   const navAnalytics = document.getElementById("navAnalytics");
   if (navAnalytics) {
-    navAnalytics.style.display = (user.role === 'admin') ? '' : 'none';
+    navAnalytics.style.display = isAdmin ? '' : 'none';
+  }
+
+  const navObservability = document.getElementById("navObservability");
+  if (navObservability) {
+    navObservability.style.display = isAdmin ? '' : 'none';
+  }
+
+  const btnDocMapping = el("btnOpenDocMappingModal");
+  if (btnDocMapping) {
+    btnDocMapping.style.display = isAdmin ? '' : 'none';
   }
 
   const userContainer = document.querySelector('.sidebar-user');
@@ -1283,3 +1310,99 @@ function updateUserProfileUI() {
 setupSidebarToggle();
 updateUserProfileUI();
 load();
+
+function renderMappingConfiguratorMatrix() {
+  const headerRow = el("mappingMatrixHeaderRow");
+  const tbody = el("mappingMatrixTableBody");
+  if (!headerRow || !tbody) return;
+
+  headerRow.innerHTML = "<th>Loan Product</th>";
+  documentCatalog.forEach(doc => {
+    const th = document.createElement("th");
+    th.style.textAlign = "center";
+    th.textContent = doc.label;
+    headerRow.appendChild(th);
+  });
+
+  tbody.innerHTML = "";
+  
+  const products = (loanProductsList && loanProductsList.length > 0) 
+    ? loanProductsList.map(p => p.label) 
+    : ["Working Capital Loan", "Machinery Loan", "Property Loan / LAP", "Unsecured Business Loan"];
+
+  products.forEach(pLabel => {
+    const tr = document.createElement("tr");
+    const tdProd = document.createElement("td");
+    tdProd.innerHTML = `<strong>${escapeHtml(pLabel)}</strong>`;
+    tr.appendChild(tdProd);
+
+    const activeDocIds = new Set(loanProductMappings[pLabel] || []);
+
+    documentCatalog.forEach(doc => {
+      const tdCheck = document.createElement("td");
+      tdCheck.className = "matrix-cell-check";
+      const checked = activeDocIds.has(doc.id);
+      tdCheck.innerHTML = `<input type="checkbox" data-matrix-product="${escapeHtml(pLabel)}" data-matrix-doc="${doc.id}" ${checked ? 'checked' : ''} />`;
+      tr.appendChild(tdCheck);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+const btnOpenDocMappingModal = el("btnOpenDocMappingModal");
+if (btnOpenDocMappingModal) {
+  btnOpenDocMappingModal.addEventListener("click", () => {
+    renderMappingConfiguratorMatrix();
+    if (el("docMappingModalBackdrop")) el("docMappingModalBackdrop").hidden = false;
+  });
+}
+
+const closeDocMappingModal = el("closeDocMappingModal");
+if (closeDocMappingModal) closeDocMappingModal.addEventListener("click", () => { if (el("docMappingModalBackdrop")) el("docMappingModalBackdrop").hidden = true; });
+
+const cancelDocMappingModal = el("cancelDocMappingModal");
+if (cancelDocMappingModal) cancelDocMappingModal.addEventListener("click", () => { if (el("docMappingModalBackdrop")) el("docMappingModalBackdrop").hidden = true; });
+
+const btnSaveDocMappings = el("btnSaveDocMappings");
+if (btnSaveDocMappings) {
+  btnSaveDocMappings.addEventListener("click", async () => {
+    const submitBtn = el("btnSaveDocMappings");
+    const errBox = el("mappingConfigError");
+    if (errBox) errBox.hidden = true;
+
+    const newMappings = {};
+    document.querySelectorAll("input[data-matrix-product]").forEach(cb => {
+      const pLabel = cb.getAttribute("data-matrix-product");
+      const docId = cb.getAttribute("data-matrix-doc");
+      if (!newMappings[pLabel]) newMappings[pLabel] = [];
+      if (cb.checked) {
+        newMappings[pLabel].push(docId);
+      }
+    });
+
+    submitBtn.disabled = true;
+    try {
+      const res = await authFetch("/api/admin/loan-product-mappings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mappings: newMappings })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save mapping rules.");
+
+      loanProductMappings = newMappings;
+      if (typeof UI !== 'undefined' && UI.toast) {
+        UI.toast("Document collection rules updated!", "success");
+      }
+      if (el("docMappingModalBackdrop")) el("docMappingModalBackdrop").hidden = true;
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message;
+        errBox.hidden = false;
+      }
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}

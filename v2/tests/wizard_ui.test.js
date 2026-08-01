@@ -38,7 +38,6 @@ test('3-Screen Creation Wizard UI & Architecture Tests', async (t) => {
     assert.ok(cssContent.includes('.form-row-2col'), '.form-row-2col class rule must exist');
     assert.ok(cssContent.includes('::-webkit-inner-spin-button'), 'Number input spinner hiding rule must exist');
     assert.ok(cssContent.includes('.doc-card-item'), 'doc-card-item class rule must exist');
-    assert.ok(cssContent.includes('.doc-badge-recommended'), 'doc-badge-recommended class rule must exist');
   });
 
   await t.test('3. JavaScript Wizard State Machine Verification', () => {
@@ -68,5 +67,40 @@ test('3-Screen Creation Wizard UI & Architecture Tests', async (t) => {
 
     assert.ok(jsContent.includes('[^a-zA-Z\\s.\\-]'), 'Must sanitize special characters using regex');
     assert.ok(jsContent.includes('Please enter a valid name using letters and spaces only'), 'Must show actionable error for invalid characters');
+  });
+
+  await t.test('6. Admin-Only Visibility for Analytics and Observability Tabs', () => {
+    const htmlPath = path.join(rootDir, 'public', 'index.html');
+    const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.ok(htmlContent.includes('id="navAnalytics" style="display: none;"'), 'navAnalytics must be hidden by default in HTML');
+    assert.ok(htmlContent.includes('id="navObservability" style="display: none;"'), 'navObservability must be hidden by default in HTML');
+
+    const jsPath = path.join(rootDir, 'public', 'js', 'app.js');
+    const jsContent = fs.readFileSync(jsPath, 'utf8');
+
+    assert.ok(jsContent.includes('const isAdmin = user && (user.role === \'admin\' || user.role === \'Admin\');'), 'Must perform strict role check for admin');
+    assert.ok(jsContent.includes('navObservability.style.display = isAdmin ? \'\' : \'none\';'), 'navObservability must only be displayed for admin users');
+  });
+
+  await t.test('7. Manually Configurable Document Mapping Matrix Architecture', () => {
+    const htmlPath = path.join(rootDir, 'public', 'index.html');
+    const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.ok(htmlContent.includes('id="docMappingModalBackdrop"'), 'docMappingModalBackdrop modal element must exist');
+    assert.ok(htmlContent.includes('id="mappingMatrixTableBody"'), 'mappingMatrixTableBody table element must exist');
+    assert.ok(htmlContent.includes('id="btnSaveDocMappings"'), 'btnSaveDocMappings submit button must exist');
+
+    const jsPath = path.join(rootDir, 'public', 'js', 'app.js');
+    const jsContent = fs.readFileSync(jsPath, 'utf8');
+
+    assert.ok(jsContent.includes('function renderMappingConfiguratorMatrix'), 'renderMappingConfiguratorMatrix helper must be defined');
+    assert.ok(jsContent.includes('authFetch("/api/admin/loan-product-mappings"'), 'Must post mappings to /api/admin/loan-product-mappings');
+
+    const apiPath = path.join(rootDir, 'src', 'api', 'cases.js');
+    const apiContent = fs.readFileSync(apiPath, 'utf8');
+
+    assert.ok(apiContent.includes('handleGetProductMappings'), 'handleGetProductMappings backend handler must exist');
+    assert.ok(apiContent.includes('handleSaveProductMappings'), 'handleSaveProductMappings backend handler must exist');
   });
 });

@@ -623,8 +623,45 @@ input[type="number"] {
   appearance: textfield !important;
 }
 
-.wizard-body {
-  margin-bottom: 1.5rem;
+/* Document Mapping Configurator Matrix */
+.mapping-matrix-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 0.84rem !important;
+  text-align: left !important;
+  margin-top: 0.5rem !important;
+}
+
+.mapping-matrix-table th {
+  background: #f8fafc !important;
+  color: #334155 !important;
+  font-weight: 700 !important;
+  padding: 0.75rem 0.6rem !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  white-space: nowrap !important;
+}
+
+.mapping-matrix-table td {
+  padding: 0.75rem 0.6rem !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  vertical-align: middle !important;
+  color: #0f172a !important;
+  font-weight: 500 !important;
+}
+
+.mapping-matrix-table tr:hover td {
+  background: #f8fafc !important;
+}
+
+.mapping-matrix-table td.matrix-cell-check {
+  text-align: center !important;
+}
+
+.mapping-matrix-table input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #2563eb !important;
+  cursor: pointer !important;
 }
 
 /* Document Checklist Card Grid (Screen 2) */

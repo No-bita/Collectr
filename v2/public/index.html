@@ -31,10 +31,10 @@
           <a href="/index.html" class="menu-item active">
             <span class="menu-label">📊 Dashboard</span>
           </a>
-          <a href="/admin/analytics" class="menu-item" id="navAnalytics">
+          <a href="/admin/analytics" class="menu-item" id="navAnalytics" style="display: none;">
             <span class="menu-label">📈 Analytics</span>
           </a>
-          <a href="/dd" class="menu-item" id="navObservability">
+          <a href="/dd" class="menu-item" id="navObservability" style="display: none;">
             <span class="menu-label">🛠️ Observability</span>
           </a>
         </nav>
@@ -56,6 +56,9 @@
           <h1>Loan Cases</h1>
         </div>
         <div class="top-actions-row">
+          <button type="button" class="btn btn-secondary btn-lg" id="btnOpenDocMappingModal" style="display: none;">
+            <span class="btn-icon">⚙️</span> Document Rules
+          </button>
           <button type="button" class="btn btn-primary btn-lg" id="openAdd">
             <span class="btn-icon">+</span> New Loan Case
           </button>
@@ -228,7 +231,6 @@
             <div class="wizard-icon-badge icon-circle-purple">📄</div>
             <div>
               <h2>Documents</h2>
-              <p class="wizard-subtitle">We've recommended documents based on the selected loan type.</p>
             </div>
           </div>
 
@@ -236,18 +238,14 @@
             <div class="doc-section">
               <div class="doc-section-title-row">
                 <span class="doc-section-title">Recommended</span>
-                <span id="recommendedCountBadge" class="doc-count-pill green-pill">0</span>
               </div>
-              <p class="doc-section-subtext">These are required for this loan type.</p>
               <div id="recommendedDocsFields" class="doc-cards-grid"></div>
             </div>
 
             <div class="doc-section" style="margin-top: 1.5rem;">
               <div class="doc-section-title-row">
                 <span class="doc-section-title">Additional (Optional)</span>
-                <span id="additionalCountBadge" class="doc-count-pill gray-pill">0</span>
               </div>
-              <p class="doc-section-subtext">Select if applicable.</p>
               <div id="additionalDocsFields" class="doc-cards-grid"></div>
             </div>
 
@@ -288,6 +286,41 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- Document Rules Configurator Modal (Admin Only) -->
+    <div class="modal-backdrop" id="docMappingModalBackdrop" hidden>
+      <div class="wizard-modal" style="max-width: 860px !important;">
+        <button type="button" class="wizard-close-btn" id="closeDocMappingModal" title="Close">✕</button>
+
+        <div class="wizard-header">
+          <div class="wizard-icon-badge icon-circle-purple">⚙️</div>
+          <div>
+            <h2>Document Collection Rules Matrix</h2>
+            <p class="wizard-subtitle" style="font-size: 0.84rem; color: #64748b; margin-top: 0.25rem;">Configure which documents are recommended for each loan product.</p>
+          </div>
+        </div>
+
+        <div class="wizard-body" style="overflow-x: auto;">
+          <div id="mappingConfigError" class="wizard-error-box" hidden style="margin-bottom: 1rem;"></div>
+          <table class="mapping-matrix-table">
+            <thead>
+              <tr id="mappingMatrixHeaderRow">
+                <th>Loan Product</th>
+                <!-- Dynamic Document Catalog Columns -->
+              </tr>
+            </thead>
+            <tbody id="mappingMatrixTableBody">
+              <!-- Dynamic Checkbox Matrix Rows -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="wizard-footer">
+          <button type="button" class="btn" id="cancelDocMappingModal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnSaveDocMappings">💾 Save Rules</button>
+        </div>
       </div>
     </div>
 

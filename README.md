@@ -74,18 +74,13 @@ When enabled and the uploaded document type is in `OCR_DOCUMENTS`, the document 
 
 ## Folder structure
 
-- `src/modules/leads`: lead APIs, rules, and sheet repository.
-- `src/modules/documents`: document catalog and state rules.
-- `src/modules/webhook`: webhook verification and processing flow.
-- `src/modules/document-validation`: OCR preprocessing, classification, decisioning, review, and KPI APIs.
-- `src/integrations`: WhatsApp + Drive external clients.
-- `src/infrastructure`: Google API clients.
+- `src/api`: Hono edge controllers for APIs, webhooks, and OCR execution.
+- `src/db`: Database client configuration.
 - `docs`: architecture, data flow, contracts, and decisions.
 
 ## Where to start reading
 
-1. `src/app.js`
-2. `src/modules/leads/leads.controller.js`
-3. `src/modules/leads/leads.service.js`
-4. `src/modules/webhook/webhook.service.js`
-5. `src/modules/documents/documents.service.js`
+1. `src/index.js`
+2. `src/api/leads.js`
+3. `src/api/webhook.js`
+4. `src/api/ocr.js`
