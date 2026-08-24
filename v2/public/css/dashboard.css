@@ -1912,4 +1912,234 @@ tr.case-row:hover .row-copy-btn {
   overflow-y: auto;
 }
 
+/* ==========================================================================
+   Message Templates Modal & Live WhatsApp Preview
+   ========================================================================== */
+.template-modal-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+@media (max-width: 820px) {
+  .template-modal-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.tpl-tabs {
+  display: flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 1.25rem;
+}
+.tpl-tab-btn {
+  flex: 1;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tpl-tab-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.pill-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.pill-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.whatsapp-preview-container {
+  background: #ECE5DD;
+  background-image: radial-gradient(#0000000d 1px, transparent 1px);
+  background-size: 16px 16px;
+  border: 1px solid #d4cdc5;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 280px;
+}
+.whatsapp-preview-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #075E54;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.whatsapp-bubble {
+  background: #ffffff;
+  border-radius: 8px 8px 8px 0;
+  padding: 10px 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  position: relative;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #111827;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.whatsapp-bubble-time {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #8696A0;
+  margin-top: 4px;
+}
+.whatsapp-button-preview {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #E2E8F0;
+  text-align: center;
+}
+.whatsapp-button-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  color: #00A884;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.tpl-list-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.tpl-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.tpl-badge-system {
+  background: #E0E7FF;
+  color: #3730A3;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.tpl-badge-custom {
+  background: #DCFCE7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   Bulk Import Modal & Table Preview Styles
+   ========================================================================== */
+.bulk-upload-dropzone {
+  border: 2px dashed #CBD5E1;
+  border-radius: 12px;
+  background: #F8FAFC;
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.bulk-upload-dropzone:hover,
+.bulk-upload-dropzone.dragover {
+  border-color: #0F172A;
+  background: #F1F5F9;
+}
+.bulk-preview-wrapper {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+.bulk-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.bulk-preview-table th {
+  background: #F8FAFC;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 1px solid #E2E8F0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.bulk-preview-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  color: #1E293B;
+}
+.bulk-preview-table tr:hover td {
+  background: #F8FAFC;
+}
+.row-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.row-status-pill.valid {
+  background: #DCFCE7;
+  color: #166534;
+}
+.row-status-pill.invalid {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+
+
 

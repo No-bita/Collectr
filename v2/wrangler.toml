@@ -1,0 +1,39 @@
+name = "collectrr-v2"
+compatibility_date = "2026-05-24"
+main = "src/index.js"
+
+[vars]
+ENVIRONMENT = "production"
+FRONTEND_URL = "https://collectrr-v2.collectr.workers.dev"
+WHATSAPP_PROD_PHONE_ID = "1073272059211357"
+WHATSAPP_VERIFY_TOKEN = "CollectrWhatsappTokenAuth2026"
+WHATSAPP_NEW_LEAD_TEMPLATE = "new_convo_1"
+WHATSAPP_TEMPLATE_LANG = "en"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lekho-db"
+database_id = "d2bb5eeb-85ea-4f2d-842a-4d04570d0c21"
+
+[[r2_buckets]]
+binding = "DOCUMENT_BUCKET"
+bucket_name = "lekho-documents"
+preview_bucket_name = "lekho-documents"
+
+[assets]
+directory = "./public"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1

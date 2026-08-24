@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test, describe } from "node:test";
+import { getWhatsAppTemplate } from "../src/config/whatsapp-templates.js";
 
 /**
  * Unit & Integration Test Suite for WhatsApp Workflow
@@ -149,6 +150,17 @@ describe("WhatsApp Workflow Integration Tests", () => {
       handleWebhookVerify("subscribe", "wrong_token", "11582014"),
       { status: 403, error: "Forbidden" }
     );
+  });
+
+  test("6. Central WhatsApp Template Registry (getWhatsAppTemplate)", () => {
+    const tplConfig = getWhatsAppTemplate("onboarding_first_message", {});
+    assert.equal(tplConfig.id, "onboarding_first_message");
+    const payloads = tplConfig.getPayloads({ phone: "919876543210", contactPerson: "Test Client", rawToken: "tok_123", templateParams: ["Aryan", "Aaryan Shah & Co"] });
+    assert.equal(payloads.length, 2);
+    assert.equal(payloads[0].template.name, "onboarding_first_message");
+
+    const loanAgentConfig = getWhatsAppTemplate("loan_agent_first_outreach");
+    assert.equal(loanAgentConfig.id, "loan_agent_first_outreach");
   });
 
 });

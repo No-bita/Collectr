@@ -3,6 +3,7 @@ import { logSystemFailure } from "./failures.js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { runGeminiOcr } from "./ocr.js";
+import { getWhatsAppTemplate } from "../config/whatsapp-templates.js";
 
 const VALID_STATUSES = [
   'lead', 'documents_pending', 'ready_for_review', 
@@ -46,20 +47,28 @@ export function getCanonicalDocumentLabel(docType, providedLabel) {
 
 // Centralized Auth & Data Isolation Helpers
 export function getAccessibleCaseFilter(user) {
-  if (user && user.role === 'admin') {
+  const role = String(user?.role || '').toLowerCase();
+  if (role === 'admin') {
     return { whereClause: "1=1", params: [] };
   }
-  const userId = user ? (user.id || user.sub || '') : '';
+  const userId = user ? (user.id || user.sub || user.user_id || '') : '';
+  if (userId) {
+    return {
+      whereClause: "(user_id = ? OR is_demo = 1)",
+      params: [userId]
+    };
+  }
   return {
-    whereClause: "(user_id = ? OR is_demo = 1)",
-    params: [userId]
+    whereClause: "(user_id IS NULL OR user_id = '' OR is_demo = 1)",
+    params: []
   };
 }
 
 export async function authorizeCaseAccess(db, caseId, user) {
   if (!user) return { authorized: false, caseItem: null };
-  const userId = user.id || user.sub || '';
-  if (user.role === 'admin') {
+  const role = String(user.role || '').toLowerCase();
+  const userId = user.id || user.sub || user.user_id || '';
+  if (role === 'admin') {
     const res = await db.execute({
       sql: "SELECT * FROM loan_cases WHERE id = ?",
       args: [caseId]
@@ -79,16 +88,128 @@ export async function authorizeCaseAccess(db, caseId, user) {
   }
 }
 
-async function sendWhatsAppTemplate(phone, templateName, contactPerson, token, env) {
-  const rawToken = token || "";
-  const baseUrl = `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=`;
-  const uploadLink = rawToken ? `${baseUrl}${rawToken}` : `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html`;
+export async function executeWhatsAppMessagingPipeline(db, user, phone, templateName, contactPerson, token, env, referenceId, templateParams = []) {
+  const MESSAGE_COST_PAISE = 90;
+  const idempotencyKey = `idemp_${user?.id || 'sys'}_${referenceId}`;
 
-  const primaryTemplate = templateName || env.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
-  const primaryLang = env.WHATSAPP_TEMPLATE_LANG || "en";
+  const msgCheck = await db.execute({
+    sql: "SELECT status FROM whatsapp_messages WHERE user_id = ? AND idempotency_key = ?",
+    args: [user?.id || 'sys', idempotencyKey]
+  });
+  if (msgCheck.rows.length > 0 && msgCheck.rows[0].status === 'SENT') {
+    return { success: true, delivered: true, idempotent: true };
+  }
+
+  const isDevEnv = (env?.ENVIRONMENT === 'development');
+  let currentBalance = 900;
+
+  if (isDevEnv) {
+    const userRes = await db.execute({
+      sql: "SELECT credit_balance FROM users WHERE id = ?",
+      args: [user?.id || 'sys']
+    });
+    currentBalance = (userRes.rows[0]?.credit_balance !== undefined && userRes.rows[0]?.credit_balance !== null) ? Number(userRes.rows[0].credit_balance) : 900;
+    if (currentBalance < MESSAGE_COST_PAISE) {
+      const balanceRupees = (currentBalance / 100).toFixed(2);
+      return {
+        success: false,
+        insufficientCredits: true,
+        error: "INSUFFICIENT_CREDITS",
+        message: `Your credit balance (₹${balanceRupees}) is exhausted. Minimum ₹0.90 required to send WhatsApp messages.`,
+        balancePaise: currentBalance,
+        balanceRupees
+      };
+    }
+  }
+
+  const msgId = "msg_" + crypto.randomUUID();
+  await db.execute({
+    sql: "INSERT INTO whatsapp_messages (id, user_id, idempotency_key, status) VALUES (?, ?, ?, 'SENDING') ON CONFLICT(user_id, idempotency_key) DO UPDATE SET status = 'SENDING'",
+    args: [msgId, user?.id || 'sys', idempotencyKey]
+  }).catch(e => console.error("Failed writing whatsapp_message:", e));
+
+  const resId = "res_" + crypto.randomUUID();
+  if (isDevEnv) {
+    await db.execute({
+      sql: "INSERT INTO credit_reservations (id, user_id, amount_paise, reference_id, status) VALUES (?, ?, ?, ?, 'PENDING')",
+      args: [resId, user?.id || 'sys', MESSAGE_COST_PAISE, referenceId]
+    }).catch(e => console.error("Failed writing reservation:", e));
+  }
+
+  try {
+    const providerResult = await sendWhatsAppTemplate(phone, templateName, contactPerson, token, env, templateParams, db);
+    const providerMsgId = providerResult?.messages?.[0]?.id || null;
+
+    let newBalance = currentBalance;
+    if (isDevEnv) {
+      newBalance = Math.max(0, currentBalance - MESSAGE_COST_PAISE);
+      await db.execute({
+        sql: "UPDATE users SET credit_balance = ? WHERE id = ?",
+        args: [newBalance, user?.id || 'sys']
+      });
+
+      await db.execute({
+        sql: "UPDATE credit_reservations SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        args: [resId]
+      }).catch(e => console.error("Failed updating reservation success:", e));
+
+      const txId = "tx_ded_" + crypto.randomUUID();
+      await db.execute({
+        sql: "INSERT INTO credit_transactions (id, user_id, amount_paise, balance_after_paise, transaction_type, reference_type, reference_id, description) VALUES (?, ?, ?, ?, 'whatsapp_deduction', 'whatsapp_message', ?, 'Outbound WhatsApp Request (-₹0.90)')",
+        args: [txId, user?.id || 'sys', -MESSAGE_COST_PAISE, newBalance, referenceId]
+      }).catch(e => console.error("Failed writing deduction ledger:", e));
+    }
+
+    await db.execute({
+      sql: "UPDATE whatsapp_messages SET status = 'SENT', provider_message_id = ? WHERE id = ?",
+      args: [providerMsgId, msgId]
+    }).catch(e => console.error("Failed updating message success:", e));
+
+    return { success: true, delivered: true, newBalancePaise: newBalance };
+  } catch (waErr) {
+    const errMsg = String(waErr?.message || waErr).toLowerCase();
+    const isTimeout = errMsg.includes("timeout") || errMsg.includes("econnreset") || errMsg.includes("504") || errMsg.includes("502");
+
+    if (isTimeout) {
+      await db.execute({
+        sql: "UPDATE credit_reservations SET status = 'UNKNOWN' WHERE id = ?",
+        args: [resId]
+      }).catch(e => console.error(e));
+      await db.execute({
+        sql: "UPDATE whatsapp_messages SET status = 'UNKNOWN' WHERE id = ?",
+        args: [msgId]
+      }).catch(e => console.error(e));
+      return { success: false, error: "WHATSAPP_TIMEOUT", message: "WhatsApp gateway status unknown due to provider timeout." };
+    } else {
+      await db.execute({
+        sql: "UPDATE credit_reservations SET status = 'REFUNDED', completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        args: [resId]
+      }).catch(e => console.error(e));
+      await db.execute({
+        sql: "UPDATE whatsapp_messages SET status = 'FAILED' WHERE id = ?",
+        args: [msgId]
+      }).catch(e => console.error(e));
+      return { success: false, error: "WHATSAPP_FAILED", message: waErr.message || "WhatsApp message delivery failed. Credits remain intact." };
+    }
+  }
+}
+
+async function sendWhatsAppTemplate(phone, templateName, contactPerson, token, env, templateParams = [], db = null) {
+  const rawToken = token || "verify";
+  const baseUrl = `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=`;
+  const uploadLink = `${baseUrl}${rawToken}`;
+
+  let customTpls = [];
+  if (db) {
+    try {
+      const customRes = await db.execute("SELECT * FROM message_templates");
+      if (customRes && customRes.rows) customTpls = customRes.rows;
+    } catch (_) {}
+  }
+
+  const tplConfig = getWhatsAppTemplate(templateName, env, customTpls);
+  const primaryLang = tplConfig.defaultLang || "en";
   const langCodesToTry = [primaryLang];
-  if (primaryLang === "en" && !langCodesToTry.includes("en_US")) langCodesToTry.push("en_US");
-  if (primaryLang === "en_US" && !langCodesToTry.includes("en")) langCodesToTry.push("en");
 
   const phoneIdsToTry = [];
   if (env.WHATSAPP_PROD_PHONE_ID && env.WHATSAPP_PROD_PHONE_ID.trim()) {
@@ -106,91 +227,18 @@ async function sendWhatsAppTemplate(phone, templateName, contactPerson, token, e
     const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
 
     for (const langCode of langCodesToTry) {
-      if (primaryTemplate === "hello_world") {
-        const helloPayload = {
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "template",
-          template: { name: "hello_world", language: { code: "en_US" } }
-        };
+      const payloads = tplConfig.getPayloads({ phone, contactPerson, rawToken, uploadLink, langCode, templateParams });
+      for (const payload of payloads) {
         let res = await fetch(url, {
           method: "POST",
           headers: { "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify(helloPayload)
+          body: JSON.stringify(payload)
         });
         let data = await res.json();
         if (res.ok) return data;
         lastErrorData = data;
-        attemptedErrors.push(`[${phoneId}/hello_world]: ${data?.error?.message}`);
-        continue;
+        attemptedErrors.push(`[${phoneId}/${langCode}/${payload.template.name}]: ${data?.error?.message || res.statusText}`);
       }
-
-      // Variant A: Dynamic URL Button Component (Static Base URL in Meta + Dynamic Token {{1}} in Button)
-      const buttonUrlPayload = {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "template",
-        template: {
-          name: primaryTemplate,
-          language: { code: langCode },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: contactPerson || "Client" }
-              ]
-            },
-            {
-              type: "button",
-              sub_type: "url",
-              index: "0",
-              parameters: [
-                { type: "text", text: rawToken }
-              ]
-            }
-          ]
-        }
-      };
-
-      let res = await fetch(url, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-        body: JSON.stringify(buttonUrlPayload)
-      });
-      let data = await res.json();
-      if (res.ok) return data;
-      lastErrorData = data;
-      attemptedErrors.push(`[${phoneId}/${langCode}/button-url]: ${data?.error?.message || res.statusText}`);
-
-      // Variant B: Body 2-Parameter Payload (Full URL inside Body parameter {{2}})
-      const bodyPayload = {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "template",
-        template: {
-          name: primaryTemplate,
-          language: { code: langCode },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: contactPerson || "Client" },
-                { type: "text", text: uploadLink }
-              ]
-            }
-          ]
-        }
-      };
-
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-        body: JSON.stringify(bodyPayload)
-      });
-      data = await res.json();
-      if (res.ok) return data;
-      lastErrorData = data;
-      attemptedErrors.push(`[${phoneId}/${langCode}/body-url]: ${data?.error?.message || res.statusText}`);
     }
   }
 
@@ -219,26 +267,37 @@ export async function handleCreateCase(c) {
     return c.json({ error: "Please provide a contact person name for this loan case." }, 400);
   }
 
-  const loanProduct = String(body.loanProduct || "").trim();
-  if (!loanProduct) {
-    return c.json({ error: "Please select a loan product from the dropdown." }, 400);
-  }
-
   let amountRequired = null;
-  if (body.amountRequired !== undefined && body.amountRequired !== null && body.amountRequired !== "") {
-    amountRequired = parseFloat(body.amountRequired);
-    if (isNaN(amountRequired) || amountRequired <= 0) {
+  if (body.amountRequired !== undefined && body.amountRequired !== null && body.amountRequired !== "" && body.amountRequired !== 0 && body.amountRequired !== "0") {
+    const parsed = parseFloat(body.amountRequired);
+    if (isNaN(parsed) || parsed <= 0) {
       return c.json({ error: "Please enter a valid positive number for Amount Required in Lacs (e.g. 25)." }, 400);
     }
-  }
-
-  let requiredDocTypes = body.requiredDocIds || [];
-  if (requiredDocTypes.length === 0) {
-    requiredDocTypes = ['pan', 'bank_statement', 'gst_returns'];
+    amountRequired = parsed;
   }
 
   const env = c.env;
   const db = getDbClient(env);
+
+  const user = c.get("user");
+  const userId = user ? (user.id || user.sub || null) : null;
+  const isAdmin = user && (user.role === 'admin' || user.role === 'Admin');
+  const isDevEnv = (env?.ENVIRONMENT === 'development');
+
+  let isNoDocs = !!(body.noDocsRequired || body.noDocs);
+
+  let loanProduct = String(body.loanProduct || body.templateName || (isNoDocs ? "Direct Outreach" : "")).trim();
+  if (!loanProduct) {
+    return c.json({ error: "Please select a loan product or template from the dropdown." }, 400);
+  }
+
+  const templateParams = Array.isArray(body.templateParams) ? body.templateParams : [];
+  const targetTemplate = body.templateName || (isNoDocs ? body.loanProduct : null) || env.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
+
+  let requiredDocTypes = isNoDocs ? [] : (body.requiredDocIds || []);
+  if (!isNoDocs && requiredDocTypes.length === 0) {
+    requiredDocTypes = ['pan', 'bank_statement', 'gst_returns'];
+  }
 
   try {
     const caseId = crypto.randomUUID();
@@ -254,7 +313,7 @@ export async function handleCreateCase(c) {
     await db.execute({
       sql: `INSERT INTO loan_cases (id, user_id, is_demo, contact_person, phone_number, loan_product, amount_required, status, created_at, last_updated)
             VALUES (?, ?, 0, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      args: [caseId, userId, contactPerson, phone, loanProduct, amountRequired, initialStatus]
+      args: [caseId, userId, contactPerson, phone, loanProduct, isNoDocs ? null : amountRequired, initialStatus]
     });
 
     await db.execute({
@@ -262,45 +321,68 @@ export async function handleCreateCase(c) {
       args: [token, caseId, expiresAt.toISOString()]
     });
 
-    for (const docType of requiredDocTypes) {
-      await db.execute({
-        sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
-        args: [crypto.randomUUID(), caseId, docType, getCanonicalDocumentLabel(docType)]
-      });
+    if (!isNoDocs) {
+      for (const docType of requiredDocTypes) {
+        await db.execute({
+          sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
+          args: [crypto.randomUUID(), caseId, docType, getCanonicalDocumentLabel(docType)]
+        });
+      }
     }
 
     await db.execute({
       sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
             VALUES (?, ?, 'case_created', ?, 'agent')`,
-      args: [crypto.randomUUID(), caseId, `Loan Case created for ${contactPerson}`]
+      args: [crypto.randomUUID(), caseId, isNoDocs ? `Direct outreach message dispatched to ${contactPerson}` : `Filing request created for ${contactPerson}`]
     });
 
     let whatsappWarning = null;
     try {
-      if (env.WHATSAPP_NEW_LEAD_TEMPLATE) {
-        await sendWhatsAppTemplate(phone, env.WHATSAPP_NEW_LEAD_TEMPLATE, contactPerson, token, env);
-        await db.execute({
-          sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'sent', last_updated = datetime('now') WHERE id = ?",
-          args: [caseId]
-        });
-        await db.execute({
-          sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
-                VALUES (?, ?, 'whatsapp_sent', 'WhatsApp onboarding message sent to client', 'system')`,
-          args: [crypto.randomUUID(), caseId]
-        }).catch(e => console.error("Failed writing timeline success:", e));
+      if (targetTemplate) {
+        const pipeRes = await executeWhatsAppMessagingPipeline(db, user, phone, targetTemplate, contactPerson, token, env, caseId, templateParams);
+        if (pipeRes.insufficientCredits) {
+          whatsappWarning = pipeRes.message;
+          await db.execute({
+            sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'failed', last_updated = datetime('now') WHERE id = ?",
+            args: [caseId]
+          });
+        } else if (pipeRes.delivered) {
+          await db.execute({
+            sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'sent', last_updated = datetime('now') WHERE id = ?",
+            args: [caseId]
+          });
+          await db.execute({
+            sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
+                  VALUES (?, ?, 'whatsapp_sent', 'WhatsApp onboarding message sent to client (-₹0.90 credits)', 'system')`,
+            args: [crypto.randomUUID(), caseId]
+          }).catch(e => console.error("Failed writing timeline success:", e));
+        } else {
+          whatsappWarning = pipeRes.message || "WhatsApp message delivery failed.";
+          await db.execute({
+            sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'failed', last_updated = datetime('now') WHERE id = ?",
+            args: [caseId]
+          });
+          await logSystemFailure(db, "whatsapp_delivery", caseId, whatsappWarning).catch(() => {});
+          await db.execute({
+            sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+                  VALUES (?, ?, 'whatsapp_failed', ?, ?, 'system')`,
+            args: [crypto.randomUUID(), caseId, `WhatsApp message delivery failed: ${whatsappWarning}`, JSON.stringify({ whatsapp_status: 'failed', error: whatsappWarning })]
+          }).catch(e => console.error("Failed writing timeline failure:", e));
+        }
       }
     } catch (waErr) {
       console.error("WhatsApp Delivery Failed:", waErr);
-      whatsappWarning = "Case created successfully, but WhatsApp message could not be sent to client.";
+      const errMsg = waErr.message || String(waErr);
+      whatsappWarning = `WhatsApp delivery failed: ${errMsg}`;
       await db.execute({
         sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'failed', last_updated = datetime('now') WHERE id = ?",
         args: [caseId]
       });
-      await logSystemFailure(db, "whatsapp_delivery", caseId, waErr.message || waErr);
+      await logSystemFailure(db, "whatsapp_delivery", caseId, errMsg).catch(() => {});
       await db.execute({
-        sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
-              VALUES (?, ?, 'whatsapp_failed', ?, 'system')`,
-        args: [crypto.randomUUID(), caseId, `WhatsApp message delivery failed: ${waErr.message || waErr}`]
+        sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+              VALUES (?, ?, 'whatsapp_failed', ?, ?, 'system')`,
+        args: [crypto.randomUUID(), caseId, `WhatsApp message delivery failed: ${errMsg}`, JSON.stringify({ whatsapp_status: 'failed', error: errMsg })]
       }).catch(e => console.error("Failed writing timeline failure:", e));
     }
 
@@ -309,6 +391,153 @@ export async function handleCreateCase(c) {
     console.error("Failed to create loan case:", err);
     return c.json({ error: `Database error while creating loan case: ${err.message || "Unknown error"}. Please check server logs.` }, 500);
   }
+}
+
+// 1.1 Bulk Import Clients / Cases Handler
+export async function handleBulkImportCases(c) {
+  const body = await c.req.json().catch(() => ({}));
+  const rawClients = Array.isArray(body.clients) ? body.clients : [];
+  if (rawClients.length === 0) {
+    return c.json({ error: "No client records provided for import." }, 400);
+  }
+
+  if (rawClients.length > 500) {
+    return c.json({ error: "Import limit exceeded. Maximum 500 clients per batch." }, 400);
+  }
+
+  const env = c.env;
+  const db = getDbClient(env);
+  const user = c.get("user");
+  const userId = user ? (user.id || user.sub || null) : null;
+  const isNoDocs = !!(body.noDocsRequired || body.noDocs);
+  const sendWhatsApp = body.sendWhatsApp !== false;
+  const templateName = body.templateName || env?.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
+  const defaultProduct = body.defaultLoanProduct || "Direct Intake";
+  const defaultRequiredDocs = isNoDocs ? [] : (body.defaultRequiredDocIds || ['pan', 'bank_statement', 'gst_returns']);
+
+  const results = [];
+  let importedCount = 0;
+  let failedCount = 0;
+
+  for (let i = 0; i < rawClients.length; i++) {
+    const item = rawClients[i];
+    let contactPerson = String(item.contactPerson || item.name || item.contact_person || "").trim();
+    let rawPhone = String(item.phoneNumber || item.phone || item.phone_number || item.mobile || "").trim();
+    let digits = rawPhone.replace(/\D/g, "");
+
+    // Normalize phone number
+    if (digits.length === 10) {
+      digits = "91" + digits;
+    } else if (digits.length === 12 && digits.startsWith("91")) {
+      // already normalized
+    } else if (digits.length === 11 && digits.startsWith("0")) {
+      digits = "91" + digits.substring(1);
+    }
+
+    if (!digits || digits.length < 10) {
+      failedCount++;
+      results.push({ index: i, name: contactPerson || "Unknown", phone: rawPhone, success: false, error: "Invalid phone number (must be 10 digits)" });
+      continue;
+    }
+
+    if (!contactPerson) {
+      contactPerson = "Client " + digits.slice(-4);
+    }
+
+    let loanProduct = String(item.loanProduct || item.category || item.product || defaultProduct).trim();
+    let amountRequired = null;
+    if (item.amountRequired !== undefined && item.amountRequired !== null && String(item.amountRequired).trim() !== "") {
+      const parsedAmount = parseFloat(String(item.amountRequired).replace(/[^0-9.]/g, ""));
+      if (!isNaN(parsedAmount)) amountRequired = parsedAmount;
+    }
+
+    try {
+      const caseId = crypto.randomUUID();
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 14);
+
+      const initialStatus = defaultRequiredDocs.length > 0 ? 'documents_pending' : 'lead';
+
+      await db.execute({
+        sql: `INSERT INTO loan_cases (id, user_id, is_demo, contact_person, phone_number, loan_product, amount_required, status, created_at, last_updated)
+              VALUES (?, ?, 0, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        args: [caseId, userId, contactPerson, digits, loanProduct, amountRequired, initialStatus]
+      });
+
+      await db.execute({
+        sql: "INSERT INTO secure_tokens (token, case_id, expires_at) VALUES (?, ?, ?)",
+        args: [token, caseId, expiresAt.toISOString()]
+      });
+
+      if (!isNoDocs && defaultRequiredDocs.length > 0) {
+        for (const docType of defaultRequiredDocs) {
+          await db.execute({
+            sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
+            args: [crypto.randomUUID(), caseId, docType, getCanonicalDocumentLabel(docType)]
+          });
+        }
+      }
+
+      await db.execute({
+        sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
+              VALUES (?, ?, 'case_created', ?, 'agent')`,
+        args: [crypto.randomUUID(), caseId, `Client imported via bulk list: ${contactPerson}`]
+      });
+
+      let whatsappStatus = 'not_sent';
+      const rowParams = Array.isArray(item.templateParams) ? item.templateParams : (Array.isArray(item.params) ? item.params : []);
+      if (sendWhatsApp && env.WHATSAPP_PHONE_ID) {
+        try {
+          const pipeRes = await executeWhatsAppMessagingPipeline(db, user, digits, templateName, contactPerson, token, env, caseId, rowParams);
+          if (pipeRes.delivered) {
+            whatsappStatus = 'sent';
+            await db.execute({
+              sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'sent', last_updated = datetime('now') WHERE id = ?",
+              args: [caseId]
+            });
+            await db.execute({
+              sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
+                    VALUES (?, ?, 'whatsapp_sent', 'WhatsApp onboarding message dispatched (-₹0.90 credits)', 'system')`,
+              args: [crypto.randomUUID(), caseId]
+            }).catch(() => {});
+          } else {
+            whatsappStatus = 'failed';
+            await db.execute({
+              sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'failed', last_updated = datetime('now') WHERE id = ?",
+              args: [caseId]
+            });
+          }
+        } catch (e) {
+          whatsappStatus = 'failed';
+        }
+      }
+
+      importedCount++;
+      results.push({
+        index: i,
+        caseId,
+        name: contactPerson,
+        phone: digits,
+        loanProduct,
+        whatsappStatus,
+        success: true
+      });
+    } catch (err) {
+      console.error(`Error importing row ${i}:`, err);
+      failedCount++;
+      results.push({ index: i, name: contactPerson, phone: digits, success: false, error: err.message || "Failed to insert record" });
+    }
+  }
+
+  return c.json({
+    success: true,
+    message: `Successfully imported ${importedCount} of ${rawClients.length} clients.`,
+    total: rawClients.length,
+    importedCount,
+    failedCount,
+    results
+  });
 }
 
 // 2. Get Cases (List for Dashboard)
@@ -323,7 +552,7 @@ export async function handleGetCases(c) {
       sql: `SELECT c.*, st.token as upload_token 
             FROM loan_cases c 
             LEFT JOIN secure_tokens st ON c.id = st.case_id AND st.status = 'active'
-            WHERE ${filter.whereClause} AND c.status NOT IN ('lead', 'disbursed', 'submitted')
+            WHERE ${filter.whereClause}
             ORDER BY c.last_updated DESC`,
       args: filter.params
     });
@@ -353,8 +582,11 @@ export async function handleGetCases(c) {
         };
       });
 
-      const totalReqs = docRequirements.length > 0 ? docRequirements.length : 3;
-      const fulfilledReqs = docRequirements.filter(d => d.uploads.length > 0 || d.status === 'received').length;
+      const totalReqs = caseReqDocs.length;
+      const fulfilledReqs = caseReqDocs.filter(d => {
+        const u = caseUploads.filter(up => up.required_doc_id === d.id);
+        return u.length > 0 || d.status === 'received';
+      }).length;
 
       // Extract numeric 10-digit phone for frontend display
       let displayPhone = row.phone_number || '';
@@ -364,7 +596,7 @@ export async function handleGetCases(c) {
 
       let normalizedStatus = row.status;
       if (normalizedStatus === 'lender_query' || normalizedStatus === 'lead') {
-        normalizedStatus = 'documents_pending';
+        normalizedStatus = totalReqs > 0 ? 'documents_pending' : 'lead';
       }
 
       return {
@@ -376,6 +608,8 @@ export async function handleGetCases(c) {
         loanProduct: row.loan_product,
         amountRequired: row.amount_required, // Amount in Lacs
         status: normalizedStatus,
+        noDocs: (caseReqDocs.length === 0),
+        noDocsRequired: (caseReqDocs.length === 0),
         docProgress: { fulfilled: fulfilledReqs, total: totalReqs },
         docRequirements,
         aiReport: row.ai_metadata ? JSON.parse(row.ai_metadata) : null,
@@ -664,7 +898,18 @@ export async function handleGetTimeline(c) {
       sql: "SELECT * FROM case_timeline WHERE case_id = ? ORDER BY created_at DESC",
       args: [id]
     });
-    return c.json({ timeline: res.rows });
+    const waStatus = auth.caseItem ? (auth.caseItem.whatsapp_delivery_status || 'none') : 'none';
+    let lastErrorDetails = null;
+    if (waStatus === 'failed') {
+      const failRes = await db.execute({
+        sql: "SELECT details FROM system_failures WHERE case_id = ? AND error_type = 'whatsapp_delivery' ORDER BY created_at DESC LIMIT 1",
+        args: [id]
+      }).catch(() => ({ rows: [] }));
+      if (failRes.rows.length > 0) {
+        lastErrorDetails = failRes.rows[0].details;
+      }
+    }
+    return c.json({ timeline: res.rows, whatsappDeliveryStatus: waStatus, whatsappErrorDetails: lastErrorDetails });
   } catch (e) {
     return c.json({ error: "Failed to load timeline history for this case." }, 500);
   }
@@ -687,10 +932,13 @@ export async function handleAddTimelineNote(c) {
       return c.json({ error: auth.notFound ? "Loan case not found." : "Unauthorized access." }, auth.notFound ? 404 : 403);
     }
 
+    const waStatus = auth.caseItem ? (auth.caseItem.whatsapp_delivery_status || 'none') : 'none';
+    const metadataJson = JSON.stringify({ whatsapp_status: waStatus });
+
     await db.execute({
-      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
-            VALUES (?, ?, 'note', ?, ?)`,
-      args: [crypto.randomUUID(), id, note.trim(), user ? user.username : 'agent']
+      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+            VALUES (?, ?, 'note', ?, ?, ?)`,
+      args: [crypto.randomUUID(), id, note.trim(), metadataJson, user ? user.username : 'agent']
     });
 
     await db.execute({
@@ -738,11 +986,12 @@ export async function handleEditCase(c) {
     }
 
     let amountRequired = null;
-    if (body.amountRequired !== undefined && body.amountRequired !== null && body.amountRequired !== "") {
-      amountRequired = parseFloat(body.amountRequired);
-      if (isNaN(amountRequired) || amountRequired <= 0) {
-        return c.json({ error: "Please enter a valid positive number for Amount Required in Lacs." }, 400);
+    if (body.amountRequired !== undefined && body.amountRequired !== null && body.amountRequired !== "" && body.amountRequired !== 0 && body.amountRequired !== "0") {
+      const parsed = parseFloat(body.amountRequired);
+      if (isNaN(parsed) || parsed <= 0) {
+        return c.json({ error: "Please enter a valid positive number for Amount Required in Lacs (e.g. 25)." }, 400);
       }
+      amountRequired = parsed;
     }
 
     const requiredDocIds = body.requiredDocIds || [];
@@ -993,7 +1242,8 @@ export async function handleAgentUploadComplete(c) {
 
 // 10. Document Catalog
 export async function handleDocumentCatalog(c) {
-  const catalog = [
+  const variant = c.req.query("variant") || "ca";
+  let catalog = [
     { id: 'pan', label: 'PAN Card' },
     { id: 'aadhaar', label: 'Aadhaar Card' },
     { id: 'bank_statement', label: 'Bank Statement' },
@@ -1003,6 +1253,12 @@ export async function handleDocumentCatalog(c) {
     { id: 'property_docs', label: 'Property Ownership Documents' },
     { id: 'invoices', label: 'Pending Invoices' }
   ];
+
+  if (variant === 'ca') {
+    const excluded = new Set(['gst_returns', 'quotation', 'property_docs', 'invoices']);
+    catalog = catalog.filter(d => !excluded.has(d.id));
+  }
+
   return c.json({ documentCatalog: catalog });
 }
 
@@ -1219,15 +1475,32 @@ export async function handleRetryWhatsApp(c) {
   const nextAttemptNum = attemptsUsed + 1;
 
   try {
-    if (c.env.WHATSAPP_NEW_LEAD_TEMPLATE) {
-      await sendWhatsAppTemplate(
-        caseItem.phone_number,
-        c.env.WHATSAPP_NEW_LEAD_TEMPLATE,
-        caseItem.contact_person,
-        token,
-        c.env
-      );
-    }
+    const targetTemplate = caseItem.loan_product || c.env.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
+    const refId = `${caseId}_retry_${nextAttemptNum}`;
+    const pipeRes = await executeWhatsAppMessagingPipeline(
+      db,
+      user,
+      caseItem.phone_number,
+      targetTemplate,
+      caseItem.contact_person,
+      token,
+      c.env,
+      refId
+    );
+
+      if (pipeRes.insufficientCredits) {
+        return c.json({
+          error: "INSUFFICIENT_CREDITS",
+          message: pipeRes.message,
+          insufficientCredits: true,
+          balancePaise: pipeRes.balancePaise,
+          balanceRupees: pipeRes.balanceRupees
+        }, 402);
+      }
+
+      if (!pipeRes.delivered) {
+        throw new Error(pipeRes.message || "WhatsApp delivery failed");
+      }
 
     // Success
     await db.execute({
@@ -1236,35 +1509,27 @@ export async function handleRetryWhatsApp(c) {
     });
 
     await db.execute({
-      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
-            VALUES (?, ?, 'whatsapp_sent', ?, 'agent')`,
-      args: [crypto.randomUUID(), caseId, `WhatsApp message retried successfully (Attempt ${nextAttemptNum} of ${HARD_CAP})`]
+      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+            VALUES (?, ?, 'whatsapp_sent', 'Retried WhatsApp message delivery', ?, 'agent')`,
+      args: [crypto.randomUUID(), caseId, JSON.stringify({ whatsapp_status: 'sent', retry: true })]
     });
 
     return c.json({
       success: true,
-      message: `WhatsApp message sent successfully (Attempt ${nextAttemptNum} of ${HARD_CAP}).`,
+      message: "WhatsApp message retry successful!",
       attemptsUsed: nextAttemptNum,
       attemptsLeft: HARD_CAP - nextAttemptNum
     });
-  } catch (waErr) {
-    console.error("WhatsApp Retry Attempt Failed:", waErr);
-
+  } catch (err) {
     await db.execute({
       sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'failed', last_updated = datetime('now') WHERE id = ?",
       args: [caseId]
-    });
+    }).catch(() => {});
 
-    await logSystemFailure(db, "whatsapp_delivery", caseId, waErr.message || waErr);
-
-    await db.execute({
-      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
-            VALUES (?, ?, 'whatsapp_failed', ?, 'system')`,
-      args: [crypto.randomUUID(), caseId, `WhatsApp retry attempt ${nextAttemptNum} of ${HARD_CAP} failed: ${waErr.message || waErr}`]
-    });
+    await logSystemFailure(db, "whatsapp_delivery", caseId, err.message || err).catch(() => {});
 
     return c.json({
-      error: `WhatsApp retry attempt ${nextAttemptNum} of ${HARD_CAP} failed: ${waErr.message || waErr}`,
+      error: `WhatsApp retry attempt ${nextAttemptNum} of ${HARD_CAP} failed: ${err.message || err}`,
       attemptsUsed: nextAttemptNum,
       attemptsLeft: HARD_CAP - nextAttemptNum,
       hardCapReached: nextAttemptNum >= HARD_CAP
@@ -1302,6 +1567,64 @@ export async function handleAddDocumentRequirement(c) {
   } catch (err) {
     console.error("handleAddDocumentRequirement Error:", err);
     return c.json({ error: "Failed to add document requirement: " + err.message }, 500);
+  }
+}
+
+export async function handleSendWhatsAppText(c) {
+  const db = getDbClient(c.env);
+  const user = c.get("user");
+  const caseId = c.req.param("id");
+
+  const { authorized, notFound, caseItem } = await authorizeCaseAccess(db, caseId, user);
+  if (notFound) return c.json({ error: "Case not found." }, 404);
+  if (!authorized) return c.json({ error: "Access denied." }, 403);
+
+  const body = await c.req.json().catch(() => ({}));
+  const text = String(body.message || "").trim();
+  if (!text) {
+    return c.json({ error: "Please enter a message to send." }, 400);
+  }
+
+  const phone = caseItem.phone_number;
+  if (!phone) {
+    return c.json({ error: "No mobile number available for this contact." }, 400);
+  }
+
+  try {
+    const url = `https://graph.facebook.com/v17.0/${c.env.WHATSAPP_PHONE_ID}/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${c.env.WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body: text },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const details = data.error?.error_data?.details || "";
+      throw new Error(`${data.error?.message || "Failed to send WhatsApp message"}${details ? " | Details: " + details : ""}`);
+    }
+
+    await db.execute({
+      sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'sent', last_updated = datetime('now') WHERE id = ?",
+      args: [caseId]
+    });
+
+    await db.execute({
+      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+            VALUES (?, ?, 'whatsapp_sent', ?, ?, ?)`,
+      args: [crypto.randomUUID(), caseId, text, JSON.stringify({ whatsapp_status: 'sent', direct_message: true }), user ? user.username || user.id : 'agent']
+    });
+
+    return c.json({ success: true, message: "WhatsApp message sent successfully." });
+  } catch (err) {
+    return c.json({ error: err.message || "Failed to send WhatsApp message." }, 500);
   }
 }
 

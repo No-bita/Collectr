@@ -120,6 +120,9 @@
   </head>
   <body>
     <div class="login-card">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <a href="/" style="font-size: 13px; color: var(--muted); text-decoration: none;">← Back to Home</a>
+      </div>
       <div class="brand-header">
         <div class="brand-icon">C</div>
         <div class="brand-title">
@@ -192,7 +195,7 @@
           }
           
           setTimeout(() => {
-            window.location.href = '/index.html';
+            window.location.href = '/dashboard.html';
           }, 1000);
         } catch (err) {
           errBox.textContent = err.message;

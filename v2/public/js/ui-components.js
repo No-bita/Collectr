@@ -373,6 +373,12 @@
         selectElement.style.display = "none";
       }
 
+      if (selectElement.hidden || selectElement.hasAttribute("hidden")) {
+        wrapper.style.display = "none";
+      } else {
+        wrapper.style.display = "";
+      }
+
       let trigger = wrapper.querySelector(".ui-select-trigger");
       if (!trigger) {
         trigger = document.createElement("div");
@@ -456,7 +462,7 @@
             window.location.href = "/admin/analytics";
           } else if (e.altKey && e.key.toLowerCase() === "d") {
             e.preventDefault();
-            window.location.href = "/index.html";
+            window.location.href = "/dashboard.html";
           }
         });
       }

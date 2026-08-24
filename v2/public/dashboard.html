@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Client Collections — Collectrr</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+  <script src="/js/variant-config.js?v=3.2"></script>
+</head>
+
+<body>
+  <div class="app-layout">
+    <!-- Collapsible Sidebar -->
+    <aside class="sidebar" id="appSidebar" style="display: none !important;">
+      <div>
+        <div class="sidebar-header">
+          <div class="sidebar-brand">
+            <div class="brand-icon" style="background: #171717;">C</div>
+            <div class="brand-text">
+              <h2 style="font-size: 1.15rem; font-weight: 600; color: #171717;">Collectrr</h2>
+            </div>
+          </div>
+          <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
+        </div>
+
+        <nav class="sidebar-menu">
+          <a href="/dashboard.html" class="menu-item active">
+            <span class="menu-label">Dashboard</span>
+          </a>
+          <a href="/admin/analytics" class="menu-item" id="navAnalytics" style="display: none;">
+            <span class="menu-label">Analytics</span>
+          </a>
+          <a href="/dd" class="menu-item" id="navObservability" style="display: none;">
+            <span class="menu-label">Observability</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-user">
+        <div class="user-avatar" id="sidebarUserAvatar">--</div>
+        <div class="user-info">
+          <div id="sidebarUserName">User</div>
+          <div id="sidebarUserRole">Agent</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Shell Area -->
+    <main class="main-content" style="width: 100%; max-width: 1440px; margin: 0 auto; padding: 32px 40px;">
+      
+      <!-- Top Navigation Bar -->
+      <nav class="top-nav-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #ffffff; border: 1px solid #ECE8DF; margin-bottom: 24px; border-radius: 12px;">
+        <a href="/" class="top-nav-brand" style="display: flex; align-items: center; gap: 0.625rem; text-decoration: none; cursor: pointer; padding: 0; border: none;">
+          <div class="brand-icon" style="width: 32px; height: 32px; background: #171717; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 600; font-size: 1rem;">C</div>
+          <div class="brand-text">
+            <h2 style="font-size: 1.15rem; font-weight: 600; color: #171717; margin: 0;">Collectrr</h2>
+          </div>
+        </a>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="display: flex; background: #F4F3EF; padding: 3px; border-radius: 999px; border: 1px solid #ECE8DF;">
+            <button type="button" id="personaToggleCA" onclick="window.setVariantKey('ca')" style="padding: 4px 12px; font-size: 12px; border-radius: 999px; border: none; cursor: pointer;">CA</button>
+            <button type="button" id="personaToggleLoan" onclick="window.setVariantKey('loan_agent')" style="padding: 4px 12px; font-size: 12px; border-radius: 999px; border: none; cursor: pointer;">Loan Agent</button>
+            <button type="button" id="personaToggleOutreach" onclick="window.setVariantKey('direct_outreach')" style="display: none; padding: 4px 12px; font-size: 12px; border-radius: 999px; border: none; cursor: pointer;">Direct Outreach</button>
+          </div>
+          <a href="/admin/analytics" id="navAnalytics" style="display: none; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 13px; color: #6E6A62; text-decoration: none;">Analytics</a>
+          <a href="/dd" id="navObservability" style="display: none; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 13px; color: #6E6A62; text-decoration: none;">Observability</a>
+          <button type="button" id="userCreditBadge" onclick="openRechargeModal()" style="display: none; background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 999px; padding: 0.35rem 0.875rem; font-size: 13px; font-weight: 600; color: #92400E; cursor: pointer; align-items: center; gap: 6px; transition: all 0.15s ease;" title="Click to view messaging credits & recharge">
+            <span style="font-size: 14px;">⚡</span>
+            <span id="creditBadgeText">₹9.00</span>
+          </button>
+
+          <div class="sidebar-user" id="topUserContainer" style="display: flex; align-items: center; gap: 0.625rem; padding: 0.35rem 0.875rem; background: #F4F3EF; border: 1px solid #ECE8DF; border-radius: 999px; cursor: pointer;" title="Click to log out">
+            <div class="user-avatar" id="userAvatar" style="width: 30px; height: 30px; font-size: 13px; background: #171717; color: #ffffff;">--</div>
+            <div class="user-info" style="line-height: 1.2;">
+              <div id="userName" style="font-size: 13px; font-weight: 600; color: #171717;">User</div>
+              <div id="userRole" style="font-size: 13px; color: #6E6A62;">Agent</div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Stats + Action CTA Row -->
+      <section class="stats-top-row" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 24px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+          <div class="stat-card-modern stat-pending" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;">
+            <div class="stat-card-body">
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statPending" style="font-size: 24px; font-weight: 600; color: #171717;">—</span>
+                <span class="badge badge-documents_pending">Docs Pending</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card-modern stat-review" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;">
+            <div class="stat-card-body">
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statReview" style="font-size: 24px; font-weight: 600; color: #171717;">—</span>
+                <span class="badge badge-ready_for_review">Ready for Review</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="top-actions-row" style="display: flex; align-items: center; gap: 0.75rem; margin-left: auto;">
+          <button type="button" class="btn btn-secondary" id="btnOpenDocMappingModal" style="display: none; height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
+            Document Rules
+          </button>
+          <button type="button" class="btn btn-secondary" id="btnOpenTemplateModal" style="display: none; height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
+            Message Templates
+          </button>
+          <button type="button" class="btn btn-secondary" id="btnOpenBulkImportModal" style="height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
+            📥 Import List
+          </button>
+          <button type="button" class="btn btn-primary" id="openAdd" data-variant-key="dashboardNewBtn" style="height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px; background: #171717; color: #ffffff; border: none; cursor: pointer;">
+            + New Client
+          </button>
+        </div>
+      </section>
+
+      <!-- Actionable Dashboard Error Banner -->
+      <div id="dashboardError" style="display: none; padding: 14px 20px; background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 12px; margin-bottom: 20px; color: #991B1B; font-size: 14px; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 18px;">⚠️</span>
+          <span id="dashboardErrorMessage">Failed to load cases from server.</span>
+        </div>
+        <button type="button" onclick="load()" class="btn" style="background: #991B1B; color: #ffffff; padding: 6px 14px; font-size: 13px; border-radius: 8px; border: none; cursor: pointer;">
+          🔄 Retry Loading
+        </button>
+      </div>
+
+      <!-- Main Cases Table Card -->
+      <div class="table-card" style="background: #ffffff; border: 1px solid #ECE8DF; border-radius: 12px;">
+        <div style="padding: 20px 24px 8px 24px;">
+          <h2 data-variant-key="dashboardHeader" style="margin: 0; font-size: 18px; font-weight: 600; color: #171717;">Your Clients</h2>
+        </div>
+        <div class="toolbar">
+          <div class="toolbar-left">
+
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="search" id="search" class="search-input" placeholder="Search clients" />
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <select id="loanTypeFilter" class="filter-select-pill">
+              <option value="all" data-variant-key="filterAllCategories">All Categories</option>
+            </select>
+
+            <select id="amountFilter" class="filter-select-pill">
+              <option value="all">Amount</option>
+              <option value="0-25">₹0 - ₹25 Lacs</option>
+              <option value="25-50">₹25 - ₹50 Lacs</option>
+              <option value="50+">₹50+ Lacs</option>
+            </select>
+
+            <select id="statusFilter" class="filter-select-pill">
+              <option value="all">All Statuses</option>
+              <option value="documents_pending">Pending</option>
+              <option value="ready_for_review">Ready for Review</option>
+              <option value="submitted">Submitted</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="cases-table-modern">
+            <thead>
+              <tr>
+                <th style="width: 4%; text-align: center;">#</th>
+                <th style="width: 22%">Customer</th>
+                <th style="width: 18%" data-variant-key="thCategory">Category</th>
+                <th style="width: 14%" id="thAmount">Amount</th>
+                <th style="width: 18%">Doc Progress</th>
+                <th style="width: 18%">Next Action</th>
+                <th style="width: 10%">Status</th>
+                <th style="width: 4%; text-align: center;"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 2.5rem; color: #64748b;">Loading cases...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Footer -->
+        <div class="table-pagination-footer" style="display: none;">
+          <div class="pagination-info" id="footerCasesCount">Showing cases</div>
+          <div class="pagination-buttons" id="paginationPages">
+            <button type="button" class="page-nav-btn">&lt;</button>
+            <button type="button" class="page-nav-btn active">1</button>
+            <button type="button" class="page-nav-btn">&gt;</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 3-Screen Creation Wizard Modal -->
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <div class="wizard-modal" id="wizardModal" data-active-screen="details">
+        <button type="button" class="wizard-close-btn" id="closeModal" title="Close Modal">✕</button>
+
+        <!-- SCREEN 1: Customer & Loan Details (640px) -->
+        <div class="wizard-screen" data-screen="details">
+          <div class="wizard-header">
+            <div class="wizard-icon-badge icon-circle-blue">👤</div>
+            <div>
+              <h2 data-variant-key="wizardTitle">New Client</h2>
+            </div>
+          </div>
+
+          <form id="detailsForm" onsubmit="event.preventDefault();">
+            <div class="wizard-body">
+              <div class="form-row-2col">
+                <div class="field">
+                  <label for="contactPerson">Client Name</label>
+                  <input id="contactPerson" name="contactPerson" type="text" placeholder="Ramesh Kumar" pattern="[a-zA-Z\s.\-]+" required />
+                </div>
+
+                <div class="field">
+                  <label for="phone">Mobile Number</label>
+                  <input id="phone" name="phone" type="tel" placeholder="9876543210" maxlength="10" pattern="[0-9]{10}" required />
+                </div>
+              </div>
+
+              <div class="field" id="loanProductGroup">
+                <label for="loanProductSelect" data-variant-key="lblCategorySelect">Filing</label>
+                <select id="loanProductSelect" name="loanProduct" required>
+                  <option value="" disabled selected data-variant-key="optSelectCategory">Select Filing...</option>
+                </select>
+              </div>
+
+              <div class="field" id="customProductGroup" hidden>
+                <label for="customProductInput" data-variant-key="lblCustomCategory">New Custom Category Name</label>
+                <input id="customProductInput" type="text" placeholder="ITR Salaried Pack" />
+              </div>
+
+              <div class="field" id="outreachTemplateGroup" style="display: none;">
+                <label for="outreachTemplateSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">WhatsApp Message Template</label>
+                <select id="outreachTemplateSelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 14px;">
+                  <option value="new_convo_1">new_convo_1 (Onboarding Intake)</option>
+                  <option value="hello_world">hello_world (Meta Default)</option>
+                </select>
+                <div id="outreachDynamicParamsContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+              </div>
+
+              <div class="field" id="amountRequiredGroup">
+                <label for="amountRequired" id="lblAmountRequired">Amount Required (₹ Lakhs)</label>
+                <input id="amountRequired" name="amountRequired" type="number" step="any" min="0" placeholder="25" required />
+              </div>
+
+              <div id="modalErrorStep1" class="wizard-error-box" hidden></div>
+            </div>
+
+            <div class="wizard-footer">
+              <button type="button" class="btn" id="cancelAdd">Cancel</button>
+              <button type="button" class="btn btn-primary" id="btnDetailsContinue">Continue →</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- SCREEN 2: Documents Checklist (720px) -->
+        <div class="wizard-screen" data-screen="documents" hidden>
+          <div class="wizard-header">
+            <div class="wizard-icon-badge icon-circle-purple">📄</div>
+            <div>
+              <h2>Documents</h2>
+            </div>
+          </div>
+
+          <div class="wizard-body">
+            <div class="doc-section">
+              <div class="doc-section-title-row">
+                <span class="doc-section-title">Recommended</span>
+              </div>
+              <div id="recommendedDocsFields" class="doc-cards-grid"></div>
+            </div>
+
+            <div class="doc-section" style="margin-top: 1.5rem;">
+              <div class="doc-section-title-row">
+                <span class="doc-section-title">Other Documents</span>
+              </div>
+              <div id="additionalDocsFields" class="doc-cards-grid"></div>
+            </div>
+
+            <div id="modalErrorStep2" class="wizard-error-box" hidden></div>
+          </div>
+
+          <div class="wizard-footer">
+            <button type="button" class="btn" id="btnDocsBack">← Back</button>
+            <button type="button" class="btn btn-primary" id="btnDocsCreate" data-variant-key="btnCreateRequest">Create Request →</button>
+          </div>
+        </div>
+
+        <!-- SCREEN 3: Success Screen (560px) -->
+        <div class="wizard-screen" data-screen="success" hidden>
+          <div class="success-hero">
+            <div class="success-check-circle">✓</div>
+            <h2>Case Created</h2>
+            <p class="success-subtitle">Upload link ready for <strong id="successCustomerName">Customer</strong></p>
+          </div>
+
+          <div class="upload-link-card">
+            <div class="upload-link-header">
+              <span class="link-icon">🔗</span> Share Upload Link
+            </div>
+            <div class="share-actions-grid">
+              <a href="#" id="btnShareWhatsApp" target="_blank" rel="noopener" class="btn btn-whatsapp-share">
+                <span>💬 WhatsApp</span>
+              </a>
+              <button type="button" id="btnCopyLink" class="btn btn-copy-share">
+                <span>📋 Copy Link</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="wizard-footer success-footer">
+            <button type="button" class="btn btn-primary btn-block" id="btnSuccessGoToCase">Go to Case Details →</button>
+            <button type="button" class="btn-link-subtle" id="btnSuccessCreateAnother">Create another case</button>
+          </div>
+        </div>
+
+        </div>
+    </div>
+
+    <!-- Document Rules Configurator Modal (Admin Only) -->
+    <div class="modal-backdrop" id="docMappingModalBackdrop" hidden>
+      <div class="wizard-modal" style="max-width: 860px !important;">
+        <button type="button" class="wizard-close-btn" id="closeDocMappingModal" title="Close">✕</button>
+
+        <div class="wizard-header">
+          <div class="wizard-icon-badge icon-circle-purple">⚙️</div>
+          <div>
+            <h2 data-variant-key="matrixTitle">Document Rules Matrix</h2>
+            <p class="wizard-subtitle" style="font-size: 0.84rem; color: #64748b; margin-top: 0.25rem;" data-variant-key="matrixSubtitle">Configure which documents are recommended for each category.</p>
+          </div>
+        </div>
+
+        <div class="wizard-body" style="overflow-x: auto;">
+          <div id="mappingConfigError" class="wizard-error-box" hidden style="margin-bottom: 1rem;"></div>
+          <table class="mapping-matrix-table">
+            <thead>
+              <tr id="mappingMatrixHeaderRow">
+                <th data-variant-key="matrixHeaderCategory">Category</th>
+                <!-- Dynamic Document Catalog Columns -->
+              </tr>
+            </thead>
+            <tbody id="mappingMatrixTableBody">
+              <!-- Dynamic Checkbox Matrix Rows -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="wizard-footer">
+          <button type="button" class="btn" id="cancelDocMappingModal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnSaveDocMappings">💾 Save Rules</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message Templates Configurator Modal (Admin / Live Account Only) -->
+    <div class="modal-backdrop" id="templateModalBackdrop" hidden>
+      <div class="wizard-modal" style="max-width: 860px !important;">
+        <button type="button" class="wizard-close-btn" id="closeTemplateModal" title="Close">✕</button>
+
+        <div class="wizard-header">
+          <div class="wizard-icon-badge icon-circle-green" style="background: #DCFCE7; color: #166534; font-size: 20px;">💬</div>
+          <div>
+            <h2>Message Templates</h2>
+          </div>
+        </div>
+
+        <div class="tpl-tabs">
+          <button type="button" class="tpl-tab-btn active" id="tabTplList" onclick="switchTemplateTab('list')">Active Templates</button>
+          <button type="button" class="tpl-tab-btn" id="tabTplCreate" onclick="switchTemplateTab('create')">+ Configure Meta Template</button>
+        </div>
+
+        <!-- Tab 1: Template List View -->
+        <div id="tplListView" class="wizard-body">
+          <div id="tplListLoading" style="text-align: center; padding: 24px; color: #64748B;">Loading message templates...</div>
+          <div id="tplListContainer" class="tpl-list-grid" hidden></div>
+        </div>
+
+        <!-- Tab 2: Create Template View -->
+        <div id="tplCreateView" class="wizard-body" hidden>
+          <div id="tplCreateError" class="wizard-error-box" hidden style="margin-bottom: 1rem;"></div>
+          
+          <div class="template-modal-layout">
+            <!-- Form Column -->
+            <div style="max-height: 520px; overflow-y: auto; padding-right: 4px;">
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="tplNameInput" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Template Identifier (Meta API Name)</label>
+                <input type="text" id="tplNameInput" class="form-input" placeholder="client_document_reminder_v1" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;" />
+              </div>
+
+              <div class="form-row-2col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <div class="form-group">
+                  <label for="tplCategorySelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Category</label>
+                  <select id="tplCategorySelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;">
+                    <option value="UTILITY">Utility</option>
+                    <option value="MARKETING">Marketing</option>
+                    <option value="AUTHENTICATION">Authentication</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="tplLangSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Language</label>
+                  <select id="tplLangSelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;">
+                    <option value="en_IN">English (IND) / en_IN</option>
+                    <option value="en">English (en)</option>
+                    <option value="en_US">English US (en_US)</option>
+                    <option value="en_GB">English UK (en_GB)</option>
+                    <option value="hi">Hindi (hi)</option>
+                    <option value="mr">Marathi (mr)</option>
+                    <option value="gu">Gujarati (gu)</option>
+                    <option value="ta">Tamil (ta)</option>
+                    <option value="te">Telugu (te)</option>
+                    <option value="kn">Kannada (kn)</option>
+                    <option value="bn">Bengali (bn)</option>
+                    <option value="pa">Punjabi (pa)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Header Configuration (Optional) -->
+              <div class="form-row-2col" style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-bottom: 10px;">
+                <div class="form-group">
+                  <label for="tplHeaderTypeSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Header</label>
+                  <select id="tplHeaderTypeSelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;">
+                    <option value="NONE">None</option>
+                    <option value="TEXT">Text</option>
+                  </select>
+                </div>
+                <div class="form-group" id="tplHeaderGroup" style="display: none;">
+                  <label for="tplHeaderInput" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Header Text</label>
+                  <input type="text" id="tplHeaderInput" class="form-input" placeholder="Verification Required" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;" />
+                </div>
+              </div>
+
+              <!-- Body Configuration -->
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="tplBodyInput" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Message Body</label>
+                <div class="pill-group" style="margin-bottom: 6px;">
+                  <button type="button" class="pill-btn" onclick="insertTemplateToken('{{1}}')">+ {{1}} Client Name</button>
+                  <button type="button" class="pill-btn" onclick="insertTemplateToken('{{2}}')">+ {{2}} Upload Link</button>
+                  <button type="button" class="pill-btn" onclick="insertTemplateToken('{{3}}')">+ {{3}} Category</button>
+                  <button type="button" class="pill-btn" onclick="insertTemplateToken('{{4}}')">+ {{4}} Amount</button>
+                </div>
+                <textarea id="tplBodyInput" class="form-textarea" rows="4" placeholder="Hi {{1}}, please upload your pending documents for {{3}} using this secure link: {{2}}" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.4; resize: vertical; box-sizing: border-box;"></textarea>
+              </div>
+
+              <!-- Footer Configuration (Optional) -->
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="tplFooterInput" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Footer Text (Optional)</label>
+                <input type="text" id="tplFooterInput" class="form-input" placeholder="Collectrr Secure Verification Portal" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;" />
+              </div>
+
+              <!-- Button Action Configuration -->
+              <div class="form-row-2col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <div class="form-group">
+                  <label for="tplButtonTypeSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Button Type</label>
+                  <select id="tplButtonTypeSelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;">
+                    <option value="none">No Button</option>
+                    <option value="static_url">Static URL (e.g. Website link)</option>
+                    <option value="dynamic_url">Dynamic URL Button (with Token)</option>
+                    <option value="quick_reply">Quick Reply</option>
+                  </select>
+                </div>
+                <div class="form-group" id="tplButtonTextGroup">
+                  <label for="tplButtonTextInput" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Button Label</label>
+                  <input type="text" id="tplButtonTextInput" class="form-input" value="Upload Documents" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 13px;" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Real-Time WhatsApp Live Preview Column -->
+            <div>
+              <div class="whatsapp-preview-container">
+                <div class="whatsapp-preview-header">
+                  <span>📱</span> WhatsApp Live Preview
+                </div>
+                <div class="whatsapp-bubble">
+                  <div id="tplLiveHeader" style="font-weight: 700; font-size: 13px; color: #0F172A; margin-bottom: 4px; display: none;"></div>
+                  <div id="tplLivePreviewText">Hi Aryan Shah, please upload your requested documents to proceed with your verification using this link: https://collectrr-v2.collectr.workers.dev/upload.html?t=secure_token</div>
+                  <div id="tplLiveFooter" style="font-size: 11px; color: #8696A0; margin-top: 6px; display: none;">Collectrr Secure Verification Portal</div>
+                  <div class="whatsapp-bubble-time">
+                    <span id="tplLivePreviewTime">12:00 PM</span>
+                    <span>✓✓</span>
+                  </div>
+                  <div id="tplLiveButtonContainer" class="whatsapp-button-preview">
+                    <a href="#" class="whatsapp-button-preview-btn" id="tplLiveButtonText" onclick="return false;">
+                      <span>🔗</span> Upload Documents
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wizard-footer" style="margin-top: 1.5rem;">
+          <button type="button" class="btn" id="cancelTemplateModal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnSaveTemplate" onclick="saveCustomTemplate()" style="display: none; background: #16A34A; color: #ffffff; border: none;">💾 Save Configuration</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Import Clients / Targets Modal -->
+    <div class="modal-backdrop" id="bulkImportModalBackdrop" hidden>
+      <div class="wizard-modal" style="max-width: 800px !important;">
+        <button type="button" class="wizard-close-btn" id="closeBulkImportModal" title="Close">✕</button>
+
+        <div class="wizard-header">
+          <div class="wizard-icon-badge icon-circle-blue" style="background: #EFF6FF; color: #2563EB; font-size: 20px;">📥</div>
+          <div>
+            <h2 id="bulkImportModalTitle">Import Client List</h2>
+          </div>
+        </div>
+
+        <div class="wizard-body">
+          <div id="bulkImportError" class="wizard-error-box" hidden style="margin-bottom: 1rem;"></div>
+
+          <!-- Expected Data Format Sample Card -->
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-weight: 600; font-size: 13px; color: #0F172A;">Expected File Format (.csv or .tsv)</span>
+              <button type="button" class="pill-btn" onclick="downloadSampleCsv()" title="Download CSV Template">
+                📄 Download Sample CSV
+              </button>
+            </div>
+            <div id="bulkSampleFormatContent" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #334155; background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; padding: 8px 12px; line-height: 1.6; overflow-x: auto;">
+              <div style="color: #64748B; font-weight: 600;">Name, Phone, Category, Amount</div>
+              <div>Aryan Shah, 9137839907, Direct Intake, 500000</div>
+              <div>Priya Patel, 9876543210, ITR Filing, 250000</div>
+            </div>
+          </div>
+
+          <!-- File Upload Dropzone -->
+          <div id="bulkFileView">
+            <input type="file" id="bulkFileInput" accept=".csv, .tsv, .txt" hidden />
+            <div class="bulk-upload-dropzone" id="bulkDropzone" onclick="document.getElementById('bulkFileInput').click()">
+              <span style="font-size: 28px;">📄</span>
+              <div style="font-weight: 600; font-size: 14px; color: #1E293B;">Click to upload CSV or drag and drop</div>
+              <div style="font-size: 12px; color: #64748B;">Upload your prepared spreadsheet or CSV file</div>
+            </div>
+          </div>
+
+          <!-- Import Configuration Options -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px;">
+            <div class="form-group" id="bulkCategoryGroup">
+              <label for="bulkCategorySelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Default Category</label>
+              <select id="bulkCategorySelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 14px;">
+                <option value="Direct Intake">Direct Intake</option>
+                <option value="ITR Filing">ITR Filing</option>
+                <option value="GST Registration">GST Registration</option>
+                <option value="Audit & Compliance">Audit & Compliance</option>
+              </select>
+            </div>
+            <div class="form-group" id="bulkTemplateGroup">
+              <label for="bulkTemplateSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">WhatsApp Message Template</label>
+              <select id="bulkTemplateSelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 14px;">
+                <option value="new_convo_1">new_convo_1 (Onboarding Intake)</option>
+                <option value="hello_world">hello_world (Meta Default)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="bulkSendWhatsAppCheck" checked style="width: 16px; height: 16px;" />
+              <span>Send WhatsApp onboarding message to all valid contacts</span>
+            </label>
+          </div>
+
+          <!-- Parsed Data Preview Table -->
+          <div id="bulkPreviewSection" style="margin-top: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-weight: 600; font-size: 13px; color: #1E293B;">Parsed List Preview</span>
+              <span id="bulkParsedBadge" style="font-size: 12px; font-weight: 600; color: #64748B;">0 clients loaded</span>
+            </div>
+            <div class="bulk-preview-wrapper">
+              <table class="bulk-preview-table">
+                <thead>
+                  <tr>
+                    <th style="width: 80px;">Status</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="bulkPreviewTableBody">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: #94A3B8; padding: 20px;">No client records loaded yet. Upload a CSV file above.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="wizard-footer" style="margin-top: 1.5rem;">
+          <button type="button" class="btn" id="cancelBulkImportModal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnExecuteBulkImport" onclick="executeBulkImport()" style="background: #2563EB; color: #ffffff; border: none; font-weight: 600;" disabled>📥 Import Valid Clients</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recharge Wallet & Credits Modal -->
+    <div class="modal-backdrop" id="rechargeModalBackdrop" hidden>
+      <div class="wizard-modal" style="max-width: 520px;">
+        <button type="button" class="wizard-close-btn" id="closeRechargeModal" onclick="closeRechargeModal()" title="Close Modal">✕</button>
+        
+        <div class="wizard-header" style="align-items: flex-start;">
+          <div class="wizard-icon-badge icon-circle-blue" style="background: #FEF3C7; color: #D97706; font-size: 20px;">⚡</div>
+          <div>
+            <h2 id="rechargeModalTitle" style="margin: 0; font-size: 18px; font-weight: 700; color: #0F172A;">Recharge Wallet</h2>
+            <p id="rechargeModalSub" style="margin: 4px 0 0 0; font-size: 13px; color: #64748B; line-height: 1.4;">
+              Add credits to continue sending WhatsApp document collection requests and reminders.
+            </p>
+          </div>
+        </div>
+
+        <div class="wizard-body" style="padding: 16px 24px;">
+          <!-- Wallet Balance Status Box -->
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #64748B; letter-spacing: 0.5px;">Available Balance</div>
+              <div id="walletBalanceDisplay" style="font-size: 28px; font-weight: 700; color: #0F172A; margin-top: 2px;">₹9.00</div>
+            </div>
+            <div style="text-align: right;">
+              <span id="walletMessagesBadge" style="display: inline-block; background: #DBEAFE; color: #1E40AF; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;">
+                ≈ 10 messages left
+              </span>
+            </div>
+          </div>
+
+          <!-- Recharge Tier Options -->
+          <div style="font-size: 14px; font-weight: 600; color: #1E293B; margin-bottom: 10px;">Select Recharge Tier</div>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px;">
+            <label class="recharge-tier-card" style="border: 2px solid #CBD5E1; border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.15s ease; position: relative;">
+              <input type="radio" name="rechargeTier" value="50" style="position: absolute; right: 10px; top: 12px;" />
+              <div style="font-size: 16px; font-weight: 700; color: #0F172A;">₹50</div>
+              <div style="font-size: 12px; color: #64748B; margin-top: 2px;">~55 Messages</div>
+            </label>
+
+            <label class="recharge-tier-card selected-tier" style="border: 2px solid #2563EB; background: #EFF6FF; border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.15s ease; position: relative;">
+              <input type="radio" name="rechargeTier" value="100" checked style="position: absolute; right: 10px; top: 12px;" />
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 16px; font-weight: 700; color: #1E40AF;">₹100</span>
+                <span style="background: #2563EB; color: #ffffff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">Popular</span>
+              </div>
+              <div style="font-size: 12px; color: #1E40AF; margin-top: 2px;">~111 Messages</div>
+            </label>
+
+            <label class="recharge-tier-card" style="border: 2px solid #CBD5E1; border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.15s ease; position: relative;">
+              <input type="radio" name="rechargeTier" value="250" style="position: absolute; right: 10px; top: 12px;" />
+              <div style="font-size: 16px; font-weight: 700; color: #0F172A;">₹250</div>
+              <div style="font-size: 12px; color: #64748B; margin-top: 2px;">~277 Messages</div>
+            </label>
+
+            <label class="recharge-tier-card" style="border: 2px solid #CBD5E1; border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.15s ease; position: relative;">
+              <input type="radio" name="rechargeTier" value="500" style="position: absolute; right: 10px; top: 12px;" />
+              <div style="font-size: 16px; font-weight: 700; color: #0F172A;">₹500</div>
+              <div style="font-size: 12px; color: #64748B; margin-top: 2px;">~555 Messages</div>
+            </label>
+          </div>
+
+          <!-- Recent Financial Ledger Transactions -->
+          <div style="font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px;">Recent Transaction Activity</div>
+          <div id="creditTransactionsList" style="max-height: 140px; overflow-y: auto; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 12px;">
+            <div style="font-size: 12px; color: #94A3B8; text-align: center; padding: 10px;">Loading transaction ledger...</div>
+          </div>
+        </div>
+
+        <div class="wizard-footer" style="padding: 16px 24px; border-top: 1px solid #F1F5F9;">
+          <button type="button" class="btn" onclick="closeRechargeModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnExecuteRecharge" onclick="executeSelectedRecharge()" style="background: #2563EB; color: #ffffff; border: none; font-weight: 600; padding: 0 20px;">
+            ⚡ Recharge ₹100
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/js/ui-components.js?v=3.2"></script>
+  <script src="/js/app.js?v=3.2"></script>
+</body>
+
+</html>

@@ -38,6 +38,150 @@ function formatLacs(amount) {
   return `₹${num} Lacs`;
 }
 
+// ----------------------------------------------------
+// FREEMIUM CREDITS & RECHARGE WALLET ENGINE
+// ----------------------------------------------------
+let currentCreditState = null;
+
+async function fetchUserCredits() {
+  try {
+    const res = await authFetch("/api/user/credits");
+    if (!res.ok) return;
+    const data = await res.json();
+    currentCreditState = data;
+
+    const isDevHost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const badgeText = el("creditBadgeText");
+    const badgeBtn = el("userCreditBadge");
+
+    if (badgeBtn && !isDevHost) {
+      badgeBtn.style.display = "none";
+    } else if (badgeText && badgeBtn && isDevHost) {
+      badgeBtn.style.display = "flex";
+      const msgs = data.messagesRemaining || 0;
+      if (data.status === 'exhausted') {
+        badgeText.textContent = `${data.formatted} · Out of Credits`;
+        badgeBtn.style.background = "#FEE2E2";
+        badgeBtn.style.borderColor = "#FCA5A5";
+        badgeBtn.style.color = "#991B1B";
+      } else if (data.status === 'almost_out') {
+        badgeText.textContent = `${data.formatted} · 1 msg left`;
+        badgeBtn.style.background = "#FEF3C7";
+        badgeBtn.style.borderColor = "#FDE68A";
+        badgeBtn.style.color = "#92400E";
+      } else if (data.status === 'low') {
+        badgeText.textContent = `${data.formatted} · ${msgs} msgs left`;
+        badgeBtn.style.background = "#FEF3C7";
+        badgeBtn.style.borderColor = "#FDE68A";
+        badgeBtn.style.color = "#92400E";
+      } else {
+        badgeText.textContent = `${data.formatted}`;
+        badgeBtn.style.background = "#F1F5F9";
+        badgeBtn.style.borderColor = "#E2E8F0";
+        badgeBtn.style.color = "#1E293B";
+      }
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed fetching user credits:", err);
+  }
+}
+
+async function openRechargeModal() {
+  const backdrop = el("rechargeModalBackdrop");
+  if (!backdrop) return;
+
+  backdrop.hidden = false;
+  const creditData = await fetchUserCredits();
+  
+  const balanceDisplay = el("walletBalanceDisplay");
+  const msgsBadge = el("walletMessagesBadge");
+  const modalTitle = el("rechargeModalTitle");
+  const modalSub = el("rechargeModalSub");
+  const txList = el("creditTransactionsList");
+
+  if (creditData) {
+    if (balanceDisplay) balanceDisplay.textContent = creditData.formatted;
+    if (msgsBadge) {
+      msgsBadge.textContent = `≈ ${creditData.messagesRemaining} message${creditData.messagesRemaining === 1 ? '' : 's'} left`;
+    }
+
+    if (modalTitle && modalSub) {
+      if (creditData.balancePaise <= 0) {
+        modalTitle.textContent = "You're out of messaging credits";
+        modalSub.textContent = "Add credits to continue sending WhatsApp document collection requests and reminders.";
+      } else {
+        modalTitle.textContent = "You're running low on credits";
+        modalSub.textContent = `You have ${creditData.formatted} remaining (${creditData.messagesRemaining} message${creditData.messagesRemaining === 1 ? '' : 's'} left). Add credits to continue.`;
+      }
+    }
+
+    if (txList) {
+      if (!creditData.transactions || creditData.transactions.length === 0) {
+        txList.innerHTML = `<div style="font-size: 12px; color: #94A3B8; text-align: center; padding: 10px;">No previous transaction activity.</div>`;
+      } else {
+        txList.innerHTML = creditData.transactions.map(tx => {
+          const isPositive = Number(tx.amountRupees) > 0;
+          const color = isPositive ? '#16A34A' : '#DC2626';
+          const sign = isPositive ? '+' : '';
+          const dateStr = new Date(tx.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+          return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #F1F5F9; font-size: 12px;">
+            <div>
+              <div style="font-weight: 600; color: #334155;">${tx.description || tx.transactionType}</div>
+              <div style="font-size: 10px; color: #94A3B8;">${dateStr}</div>
+            </div>
+            <div style="font-weight: 700; color: ${color};">
+              ${sign}₹${Math.abs(Number(tx.amountRupees)).toFixed(2)}
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+  }
+}
+
+function closeRechargeModal() {
+  const backdrop = el("rechargeModalBackdrop");
+  if (backdrop) backdrop.hidden = true;
+}
+
+async function executeSelectedRecharge() {
+  const selected = document.querySelector('input[name="rechargeTier"]:checked');
+  if (!selected) return;
+
+  const amt = selected.value;
+  const btn = el("btnExecuteRecharge");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Processing...";
+  }
+
+  try {
+    const res = await authFetch("/api/user/recharge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amountRupees: Number(amt) })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to process recharge");
+
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast(data.message || `Wallet recharged successfully with ₹${amt}!`, "success");
+    }
+
+    await fetchUserCredits();
+    closeRechargeModal();
+  } catch (err) {
+    alert(err.message || "Recharge failed.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = `⚡ Recharge ₹${amt}`;
+    }
+  }
+}
+
 function formatStatus(status) {
   const map = {
     lead: "Lead",
@@ -178,7 +322,8 @@ function populateLoanTypeFilter() {
 
   const sortedTypes = Array.from(typesSet).sort();
 
-  filterEl.innerHTML = '<option value="all">All Loan Types</option>';
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  filterEl.innerHTML = persona === 'ca' ? '<option value="all">All Categories</option>' : '<option value="all">All Collection Types</option>';
   sortedTypes.forEach(t => {
     const opt = document.createElement("option");
     opt.value = t;
@@ -312,14 +457,77 @@ async function copyCaseUploadLink(token, btn) {
   }
 }
 
+function isCaseForPersona(c, persona) {
+  const prod = String(c.loanProduct || '').trim().toLowerCase();
+  const totalDocs = c.docProgress?.total !== undefined ? c.docProgress.total : (c.docRequirements ? c.docRequirements.length : 0);
+  const isDirectOutreach = (
+    totalDocs === 0 || 
+    Boolean(c.noDocs) || 
+    Boolean(c.noDocsRequired) || 
+    prod.includes('hello_world') || 
+    prod.includes('new_convo_1') || 
+    prod.includes('outreach') || 
+    prod.includes('announcement') || 
+    prod.includes('notice') ||
+    (Array.isArray(cachedTemplates) && cachedTemplates.some(t => t.name.toLowerCase() === prod))
+  );
+
+  if (persona === 'direct_outreach') {
+    return isDirectOutreach;
+  }
+
+  if (isDirectOutreach) return false;
+
+  const isLoanProduct = (
+    prod.includes('working capital') ||
+    prod.includes('term loan') ||
+    prod.includes('machinery') ||
+    prod.includes('equipment') ||
+    prod.includes('property') ||
+    prod.includes('lap') ||
+    prod.includes('cash credit') ||
+    prod.includes('overdraft') ||
+    prod.includes('invoice financing') ||
+    prod.includes('home loan') ||
+    prod.includes('business loan') ||
+    prod.includes('personal loan')
+  );
+
+  const isCaProduct = (
+    prod.includes('gst') ||
+    prod.includes('itr') ||
+    prod.includes('tax') ||
+    prod.includes('audit') ||
+    prod.includes('filing') ||
+    prod.includes('salaried') ||
+    prod.includes('capital gains')
+  );
+
+  if (persona === 'ca') {
+    if (isLoanProduct && !isCaProduct) return false;
+    return true;
+  }
+
+  if (persona === 'loan_agent') {
+    if (isCaProduct && !isLoanProduct) return false;
+    return true;
+  }
+
+  return true;
+}
+
 function render() {
   const tbody = el("tbody");
   const q = el("search").value.trim().toLowerCase();
   const selectedStatus = statusFilter || "all";
   const selectedLoanType = el("loanTypeFilter") ? el("loanTypeFilter").value : "all";
   const selectedAmount = el("amountFilter") ? el("amountFilter").value : "all";
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+
+  updateSummary();
 
   const filtered = allCases.filter(c => {
+    if (!isCaseForPersona(c, persona)) return false;
     if (selectedStatus !== "all" && c.status !== selectedStatus) return false;
     if (selectedLoanType !== "all" && (c.loanProduct || "").trim() !== selectedLoanType) return false;
     if (selectedAmount !== "all") {
@@ -344,23 +552,58 @@ function render() {
   const startIdx = totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
   const endIdx = Math.min(currentPage * pageSize, totalItems);
 
-  // Update Footer Count
+  // Update Footer Count & Pagination Bar (only shown when exceeding 1 page limit)
   const footerCountEl = el("footerCasesCount");
-  if (footerCountEl) {
-    footerCountEl.textContent = totalItems > 0 ? `Showing ${startIdx} to ${endIdx} of ${totalItems} cases` : `Showing 0 cases`;
+  const paginationFooterEl = footerCountEl ? footerCountEl.closest(".table-pagination-footer") : null;
+
+  if (totalItems <= pageSize) {
+    if (footerCountEl) footerCountEl.style.display = "none";
+    if (paginationFooterEl) paginationFooterEl.style.display = "none";
+  } else {
+    if (footerCountEl) {
+      footerCountEl.style.display = "";
+      footerCountEl.textContent = `Showing ${startIdx} to ${endIdx} of ${totalItems} cases`;
+    }
+    if (paginationFooterEl) paginationFooterEl.style.display = "";
   }
 
   renderPaginationControls(totalItems);
 
+  const isCa = (persona === 'ca');
+  if (el("thAmount")) el("thAmount").hidden = isCa;
+
+  const amtSelect = el("amountFilter");
+  if (amtSelect) {
+    amtSelect.hidden = isCa;
+    const wrapper = amtSelect.closest(".ui-select-wrapper");
+    if (wrapper) wrapper.style.display = isCa ? "none" : "";
+  }
+
+  const typeSelect = el("loanTypeFilter");
+  if (typeSelect) {
+    typeSelect.hidden = isCa;
+    const wrapper = typeSelect.closest(".ui-select-wrapper");
+    if (wrapper) wrapper.style.display = isCa ? "none" : "";
+  }
+
+  const statusSelect = el("statusFilter");
+  if (statusSelect) {
+    statusSelect.hidden = false;
+    const wrapper = statusSelect.closest(".ui-select-wrapper");
+    if (wrapper) wrapper.style.display = "";
+  }
+
   tbody.innerHTML = "";
   if (filtered.length === 0) {
+    const emptyTitle = isCa ? "No matching client files found" : "No matching loan cases found";
+    const colSpan = isCa ? 7 : 8;
     tbody.innerHTML = `
       <tr>
-        <td colspan="8">
+        <td colspan="${colSpan}">
           <div class="empty-state-card">
             <div class="empty-state-icon">🔍</div>
-            <div class="empty-state-title">No matching loan cases found</div>
-            <div class="empty-state-sub">Try searching with a different customer name, mobile number, or adjusting your status filter.</div>
+            <div class="empty-state-title">${emptyTitle}</div>
+            <div class="empty-state-sub">Try searching with a different client name, mobile number, or adjusting your status filter.</div>
           </div>
         </td>
       </tr>
@@ -381,6 +624,12 @@ function render() {
     const initials = getInitials(c.contactPerson);
     const avatarStyle = getAvatarStyle(c.contactPerson);
     const absoluteIdx = (currentPage - 1) * pageSize + idx + 1;
+
+    const amountTd = isCa ? '' : `
+      <td>
+        <div class="amount-val">${formatAmountDisplay(c.amountRequired)}</div>
+      </td>
+    `;
 
     tr.innerHTML = `
       <td style="color: #94a3b8; font-weight: 500; font-size: 0.8125rem; text-align: center;">${absoluteIdx}</td>
@@ -403,19 +652,21 @@ function render() {
       <td>
         <div class="loan-type-main">${escapeHtml(c.loanProduct || 'Unspecified')}</div>
       </td>
+      ${amountTd}
       <td>
-        <div class="amount-val">${formatAmountDisplay(c.amountRequired)}</div>
-      </td>
-      <td>
-        <div class="doc-prog-wrapper">
-          <div style="flex: 1;">
-            <div class="doc-prog-track">
-              <div class="doc-prog-fill" style="width: ${pct}%; background-color: ${progressColor};"></div>
+        ${prog.total > 0 ? `
+          <div class="doc-prog-wrapper">
+            <div style="flex: 1;">
+              <div class="doc-prog-track">
+                <div class="doc-prog-fill" style="width: ${pct}%; background-color: ${progressColor};"></div>
+              </div>
+              <div class="doc-prog-sub">${prog.fulfilled} / ${prog.total} docs</div>
             </div>
-            <div class="doc-prog-sub">${prog.fulfilled} / ${prog.total} docs</div>
+            <div class="doc-prog-text">${pct}%</div>
           </div>
-          <div class="doc-prog-text">${pct}%</div>
-        </div>
+        ` : `
+          <span class="badge" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0;">No Docs Required</span>
+        `}
       </td>
       <td>
         <div class="next-action-main" style="color: ${nextAction.color};">
@@ -426,9 +677,13 @@ function render() {
         <span class="badge badge-${c.status}">${formatStatus(c.status)}</span>
       </td>
       <td style="text-align: center;" onclick="event.stopPropagation();">
-        <button type="button" class="row-copy-btn" title="Copy Client Upload Link" onclick="copyCaseUploadLink('${c.token}', this)">
-          📋 Copy Link
-        </button>
+        ${prog.total > 0 ? `
+          <button type="button" class="row-copy-btn" title="Copy Client Upload Link" onclick="copyCaseUploadLink('${c.token}', this)">
+            📋 Copy Link
+          </button>
+        ` : `
+          <span style="font-size: 0.8125rem; color: #64748b;">${escapeHtml(maskPhone(c.phone))}</span>
+        `}
       </td>
     `;
 
@@ -514,15 +769,34 @@ function buildCaseDrawerHtml(c) {
     `<option value="${s.id}" ${c.status === s.id ? 'selected' : ''}>${s.label}</option>`
   ).join("");
 
+  const isDirectOutreach = (prog.total === 0 || reqs.length === 0 || c.noDocsRequired || c.noDocs);
+
+  const docsCardHtml = isDirectOutreach ? `
+    <div class="drawer-card">
+      <div class="drawer-card-title">
+        <span>💬 WhatsApp Outreach Conversation</span>
+      </div>
+      <div class="timeline-mini-list" id="drawer-wa-thread-${c.id}">
+        <p style="color: #94a3b8; font-size: 0.75rem;">Loading WhatsApp thread...</p>
+      </div>
+      <form style="margin-top: 0.75rem; display: flex; gap: 0.5rem;" onsubmit="handleDrawerDirectWhatsAppSend(event, '${c.id}')">
+        <input type="text" id="drawer-wa-input-${c.id}" placeholder="Type WhatsApp message to send..." style="flex: 1; font-size: 0.8125rem; padding: 0.4rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 4px;" required />
+        <button type="submit" class="btn btn-primary" style="padding: 0.4rem 0.75rem; font-size: 0.75rem;">Send ➔</button>
+      </form>
+    </div>
+  ` : `
+    <div class="drawer-card">
+      <div class="drawer-card-title">
+        <span>Case Documents (${prog.fulfilled}/${prog.total} Requirements Fulfilled)</span>
+        ${allDocsSubmitted ? `<span class="badge badge-approved" style="font-size: 0.7rem;">100% Complete</span>` : ''}
+      </div>
+      ${docsHtml}
+    </div>
+  `;
+
   return `
     <div class="case-drawer">
-      <div class="drawer-card">
-        <div class="drawer-card-title">
-          <span>Case Documents (${prog.fulfilled}/${prog.total} Requirements Fulfilled)</span>
-          ${allDocsSubmitted ? `<span class="badge badge-approved" style="font-size: 0.7rem;">100% Complete</span>` : ''}
-        </div>
-        ${docsHtml}
-      </div>
+      ${docsCardHtml}
 
       <div style="display: flex; flex-direction: column; gap: 1rem;">
         <div class="drawer-card">
@@ -535,7 +809,7 @@ function buildCaseDrawerHtml(c) {
               ${statusOptions}
             </select>
           </div>
-          ${c.token ? `
+          ${(c.token && !isDirectOutreach) ? `
             <div style="margin-bottom: 0.5rem;">
               <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 0.25rem;">Client Upload Link</label>
               <input type="text" readonly value="${window.location.origin}/upload.html?t=${c.token}" style="font-size: 0.75rem; padding: 0.35rem 0.5rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; width: 100%; color: #334155;" onclick="this.select()" />
@@ -588,13 +862,16 @@ function openReportModal(caseId) {
   const body = el("reportModalBody");
 
   const scoreColor = r.readinessScore >= 85 ? "#059669" : r.readinessScore >= 75 ? "#d97706" : "#dc2626";
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const readinessHeading = persona === 'ca' ? "Filing & Audit Readiness" : "Loan Approval Readiness";
+  const amountText = (persona === 'loan_agent' || c.amountRequired) ? ` | Amount: <strong>${formatLacs(c.amountRequired)}</strong>` : '';
 
   body.innerHTML = `
     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
       <div>
-        <div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase;">Loan Approval Readiness</div>
+        <div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase;">${readinessHeading}</div>
         <div style="font-size: 1.5rem; font-weight: 700; color: #0f172a; margin-top: 0.2rem;">${escapeHtml(r.readinessGrade)}</div>
-        <div style="font-size: 0.8125rem; color: #475569; margin-top: 0.25rem;">Client: <strong>${escapeHtml(c.contactPerson)}</strong> | Product: <strong>${escapeHtml(c.loanProduct)}</strong> | Amount: <strong>${formatLacs(c.amountRequired)}</strong></div>
+        <div style="font-size: 0.8125rem; color: #475569; margin-top: 0.25rem;">Client: <strong>${escapeHtml(c.contactPerson)}</strong> | Product: <strong>${escapeHtml(c.loanProduct)}</strong>${amountText}</div>
       </div>
       <div style="text-align: center; background: #ffffff; border: 2px solid ${scoreColor}; padding: 0.75rem 1.25rem; border-radius: 12px;">
         <div style="font-size: 1.75rem; font-weight: 800; color: ${scoreColor};">${r.readinessScore}</div>
@@ -651,12 +928,53 @@ async function fetchAndRenderTimeline(caseId) {
     if (!res.ok) throw new Error(data.error || "Failed");
 
     const timeline = data.timeline || [];
+    const globalWaStatus = data.whatsappDeliveryStatus || 'none';
+    const globalWaError = data.whatsappErrorDetails || null;
+    const waContainer = el(`drawer-wa-thread-${caseId}`);
+    if (waContainer) {
+      const threadEvents = timeline.filter(t => {
+        const content = (t.content || "").toLowerCase();
+        return t.event_type === 'whatsapp_sent' || t.event_type === 'whatsapp_reply' || t.event_type === 'whatsapp_failed' || content.includes("whatsapp");
+      }).slice().reverse();
+
+      if (threadEvents.length === 0) {
+        waContainer.innerHTML = '<p style="color: #94a3b8; font-size: 0.75rem;">No WhatsApp messages sent or received yet.</p>';
+      } else {
+        waContainer.innerHTML = threadEvents.map(t => {
+          const isClient = t.created_by === 'client' || t.event_type === 'whatsapp_reply';
+          let isoStr = t.created_at || "";
+          if (isoStr && !isoStr.endsWith("Z") && !isoStr.includes("+")) isoStr = isoStr.replace(" ", "T") + "Z";
+          const timeStr = isoStr ? new Date(isoStr).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : "";
+
+          if (isClient) {
+            return `
+              <div style="margin-bottom: 6px; text-align: left;">
+                <div style="font-size: 0.65rem; color: #64748b; font-weight: 600;">Client • ${timeStr}</div>
+                <div style="display: inline-block; background: #f1f5f9; color: #0f172a; padding: 6px 10px; border-radius: 8px; font-size: 0.75rem; max-width: 90%;">
+                  ${escapeHtml((t.content || "").replace(/^Client WhatsApp Reply:\s*/i, ''))}
+                </div>
+              </div>
+            `;
+          } else {
+            return `
+              <div style="margin-bottom: 6px; text-align: right;">
+                <div style="font-size: 0.65rem; color: #166534; font-weight: 600;">Agent • ${timeStr}</div>
+                <div style="display: inline-block; background: #dcfce7; color: #14532D; padding: 6px 10px; border-radius: 8px; font-size: 0.75rem; max-width: 90%;">
+                  ${escapeHtml(t.content)}
+                </div>
+              </div>
+            `;
+          }
+        }).join("");
+      }
+    }
+
     if (timeline.length === 0) {
       container.innerHTML = '<p style="color: #94a3b8; font-size: 0.75rem;">No timeline activity recorded yet.</p>';
       return;
     }
 
-    container.innerHTML = timeline.map(t => {
+    container.innerHTML = timeline.map((t, idx) => {
       let isoStr = t.created_at || "";
       if (isoStr && !isoStr.endsWith("Z") && !isoStr.includes("+")) {
         isoStr = isoStr.replace(" ", "T") + "Z";
@@ -671,15 +989,106 @@ async function fetchAndRenderTimeline(caseId) {
         hour12: true
       }) : "";
 
+      const contentLower = (t.content || "").toLowerCase();
+      const isWhatsAppEvent = t.event_type === 'whatsapp_sent' || t.event_type === 'whatsapp_failed' || contentLower.includes("whatsapp");
+      const isWhatsAppFailure = t.event_type === 'whatsapp_failed' || (contentLower.includes("whatsapp") && (contentLower.includes("fail") || contentLower.includes("error")));
+
+      let itemMeta = null;
+      try {
+        if (t.metadata) itemMeta = typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata;
+      } catch(e) {}
+
+      const isFailed = (globalWaStatus === 'failed') || isWhatsAppFailure || (itemMeta && itemMeta.whatsapp_status === 'failed');
+      const itemWaStatus = (itemMeta && itemMeta.whatsapp_status) ? itemMeta.whatsapp_status : (isWhatsAppEvent ? (isWhatsAppFailure ? 'failed' : 'sent') : globalWaStatus);
+
+      let waBadgeHtml = "";
+      if (itemWaStatus === 'sent' || t.event_type === 'whatsapp_sent') {
+        waBadgeHtml = `<span style="font-size: 0.65rem; background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">WhatsApp: Sent</span>`;
+      } else if (itemWaStatus === 'failed' || isFailed) {
+        waBadgeHtml = `<span style="font-size: 0.65rem; background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; font-weight: 600; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">WhatsApp: Failed</span>`;
+      } else if (itemWaStatus === 'sending' || itemWaStatus === 'pending') {
+        waBadgeHtml = `<span style="font-size: 0.65rem; background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-weight: 600; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">WhatsApp: Sending</span>`;
+      }
+
+      let errorBannerHtml = "";
+      if (isFailed && (idx === 0 || isWhatsAppFailure || t.event_type === 'case_created')) {
+        const errorText = globalWaError || (itemMeta && itemMeta.error) || "WhatsApp message delivery failed. Meta Cloud API dispatch unfulfilled.";
+        errorBannerHtml = `
+          <div style="margin-top: 6px; padding: 6px 10px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div style="font-size: 0.725rem; color: #991B1B; font-weight: 500; flex: 1;">
+              ⚠️ <strong>Error:</strong> ${escapeHtml(errorText)}
+            </div>
+            <button type="button" onclick="handleDrawerRetryWhatsApp('${caseId}')" style="background: #DC2626; color: #ffffff; border: none; font-size: 0.6875rem; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap;">
+              🔄 Retry WhatsApp
+            </button>
+          </div>
+        `;
+      }
+
       return `
-        <div class="timeline-mini-item">
-          <div>${escapeHtml(t.content)}</div>
-          <div class="timeline-mini-time">${formattedTime}</div>
+        <div class="timeline-mini-item" style="display: block;">
+          <div>${escapeHtml(t.content)} ${waBadgeHtml}</div>
+          <div class="timeline-mini-time">${formattedTime} ${t.created_by ? `· by ${escapeHtml(t.created_by)}` : ''}</div>
+          ${errorBannerHtml}
         </div>
       `;
     }).join("");
   } catch (err) {
     container.innerHTML = '<p style="color: #ef4444; font-size: 0.75rem;">Could not load timeline history.</p>';
+  }
+}
+
+async function handleDrawerRetryWhatsApp(caseId) {
+  if (!caseId) return;
+  const confirmRetry = await UI.confirm({
+    title: "Retry WhatsApp Message",
+    message: "Retry sending WhatsApp message to client?",
+    confirmText: "Retry WhatsApp",
+    isDanger: false
+  });
+  if (!confirmRetry) return;
+
+  try {
+    const res = await authFetch(`/api/cases/${caseId}/retry-whatsapp`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      UI.toast(data.message || "WhatsApp message sent successfully!", "success");
+    } else {
+      UI.toast(data.error || "Failed to send WhatsApp message.", "error");
+    }
+  } catch (e) {
+    UI.toast(`Error sending WhatsApp message: ${e.message}`, "error");
+  } finally {
+    await load();
+    fetchAndRenderTimeline(caseId);
+  }
+}
+
+async function handleDrawerDirectWhatsAppSend(e, caseId) {
+  if (e) e.preventDefault();
+  const input = document.getElementById(`drawer-wa-input-${caseId}`);
+  if (!input || !input.value.trim()) return;
+
+  const msg = input.value.trim();
+  input.value = "";
+
+  try {
+    const res = await authFetch(`/api/cases/${caseId}/send-whatsapp-text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      UI.toast("WhatsApp message sent!", "success");
+    } else {
+      UI.toast(data.error || "Failed to send WhatsApp message.", "error");
+    }
+  } catch (err) {
+    UI.toast("Error sending message: " + err.message, "error");
+  } finally {
+    await load();
+    fetchAndRenderTimeline(caseId);
   }
 }
 
@@ -750,19 +1159,54 @@ function escapeHtml(str) {
 }
 
 function updateSummary(summary) {
-  const tot = el("statTotal"); if (tot) tot.textContent = summary.total || 0;
-  const pen = el("statPending"); if (pen) pen.textContent = summary.documentsPending || 0;
-  const rev = el("statReview"); if (rev) rev.textContent = summary.readyForReview || 0;
-  const sub = el("statSubmitted"); if (sub) sub.textContent = summary.submitted || 0;
-  const dis = el("statDisbursed"); if (dis) dis.textContent = summary.disbursed || 0;
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const personaCases = (allCases || []).filter(c => isCaseForPersona(c, persona));
+
+  const total = summary && summary.total !== undefined ? summary.total : personaCases.length;
+  const docsPending = summary && summary.documentsPending !== undefined ? summary.documentsPending : personaCases.filter(c => c.status === 'documents_pending' || c.status === 'lead').length;
+  const readyForReview = summary && summary.readyForReview !== undefined ? summary.readyForReview : personaCases.filter(c => c.status === 'ready_for_review').length;
+  const submitted = summary && summary.submitted !== undefined ? summary.submitted : personaCases.filter(c => c.status === 'submitted').length;
+  const disbursed = summary && summary.disbursed !== undefined ? summary.disbursed : personaCases.filter(c => c.status === 'disbursed').length;
+
+  const tot = el("statTotal"); if (tot) tot.textContent = total;
+  const pen = el("statPending"); if (pen) pen.textContent = docsPending;
+  const rev = el("statReview"); if (rev) rev.textContent = readyForReview;
+  const sub = el("statSubmitted"); if (sub) sub.textContent = submitted;
+  const dis = el("statDisbursed"); if (dis) dis.textContent = disbursed;
 }
 
 async function loadLoanProducts() {
   try {
     const res = await authFetch("/api/loan-products");
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return;
-    loanProductsList = data.loanProducts || [];
+    const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+    
+    if (persona === 'direct_outreach') {
+      loanProductsList = [
+        { id: 'announcement', label: 'General Announcement (hello_world)' },
+        { id: 'notice', label: 'Client Update Notice (new_convo_1)' },
+        { id: 'custom_outreach', label: 'Custom Outreach' }
+      ];
+    } else if (persona === 'ca') {
+      loanProductsList = [
+        { id: 'gst_monthly', label: 'GST — Monthly (GSTR-1 & 3B)' },
+        { id: 'gst_annual', label: 'GST — Annual Return (GSTR-9 & 9C)' },
+        { id: 'gst_reg', label: 'GST — Registration Intake' },
+        { id: 'itr_salaried', label: 'ITR — Salaried (ITR-1 / 2)' },
+        { id: 'itr_business', label: 'ITR — Business (ITR-3 / 4)' },
+        { id: 'itr_nri', label: 'ITR — Capital Gains & NRI' },
+        { id: 'itr_audit', label: 'ITR — Tax Audit (Form 3CD)' }
+      ];
+    } else {
+      loanProductsList = (data.loanProducts && data.loanProducts.length > 0)
+        ? data.loanProducts
+        : [
+            { id: 'home_loan', label: 'Home Loan Pack' },
+            { id: 'lap', label: 'LAP (Property Loan)' },
+            { id: 'business_loan', label: 'Business Loan' },
+            { id: 'personal_loan', label: 'Personal Loan Pack' }
+          ];
+    }
     renderLoanProductSelect();
   } catch (e) {
     console.error("Failed loading loan products", e);
@@ -788,10 +1232,13 @@ function setWizardScreen(screenName) {
 }
 
 let loanProductMappings = {
-  "Working Capital Loan": ["pan", "aadhaar", "bank_statement", "gst_returns"],
-  "Machinery Loan": ["pan", "aadhaar", "bank_statement", "gst_returns", "quotation"],
-  "Property Loan / LAP": ["pan", "aadhaar", "bank_statement", "property_docs", "itr"],
-  "Unsecured Business Loan": ["pan", "aadhaar", "bank_statement", "gst_returns"]
+  "GST — Monthly (GSTR-1 & 3B)": ["pan", "bank_statement", "gst_returns", "invoices"],
+  "GST — Annual Return (GSTR-9 & 9C)": ["pan", "bank_statement", "gst_returns", "itr"],
+  "GST — Registration Intake": ["pan", "aadhaar", "bank_statement", "property_docs"],
+  "ITR — Salaried (ITR-1 / 2)": ["pan", "aadhaar", "bank_statement", "itr"],
+  "ITR — Business (ITR-3 / 4)": ["pan", "aadhaar", "bank_statement", "gst_returns", "itr"],
+  "ITR — Capital Gains & NRI": ["pan", "aadhaar", "bank_statement", "property_docs", "itr"],
+  "ITR — Tax Audit (Form 3CD)": ["pan", "aadhaar", "bank_statement", "gst_returns", "itr", "property_docs"]
 };
 
 async function loadProductMappings() {
@@ -821,14 +1268,7 @@ function getRecommendedDocsForProduct(prodLabel) {
     return documentCatalog.filter(d => recSet.has(d.id));
   }
 
-  const p = (prodLabel || "").toLowerCase();
-  if (p.includes("machinery") || p.includes("equipment")) {
-    return documentCatalog.filter(d => ['pan', 'aadhaar', 'bank_statement', 'gst_returns', 'quotation'].includes(d.id));
-  }
-  if (p.includes("property") || p.includes("lap")) {
-    return documentCatalog.filter(d => ['pan', 'aadhaar', 'bank_statement', 'property_docs', 'itr'].includes(d.id));
-  }
-  return documentCatalog.filter(d => ['pan', 'aadhaar', 'bank_statement', 'gst_returns'].includes(d.id));
+  return documentCatalog.filter(d => ['pan', 'aadhaar', 'bank_statement', 'gst_returns', 'itr'].includes(d.id));
 }
 
 function updateLiveDocPreview() {
@@ -919,7 +1359,10 @@ function renderScreen2DocChecklists() {
 
 function renderLoanProductSelect() {
   const select = el("loanProductSelect");
-  select.innerHTML = '<option value="" disabled selected>Select Loan Type...</option>';
+  if (!select) return;
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const placeholderText = persona === 'ca' ? "Select Filing..." : "Select Collection Type...";
+  select.innerHTML = `<option value="" disabled selected>${placeholderText}</option>`;
 
   loanProductsList.forEach(prod => {
     const opt = document.createElement("option");
@@ -934,23 +1377,32 @@ function renderLoanProductSelect() {
   select.appendChild(customOpt);
 }
 
-el("loanProductSelect").addEventListener("change", (e) => {
-  const customGroup = el("customProductGroup");
-  if (e.target.value === "__custom__") {
-    customGroup.hidden = false;
-    el("customProductInput").focus();
-  } else {
-    customGroup.hidden = true;
-  }
-  updateLiveDocPreview();
-});
+const loanSelectElem = el("loanProductSelect");
+if (loanSelectElem) {
+  loanSelectElem.addEventListener("change", (e) => {
+    const customGroup = el("customProductGroup");
+    if (e.target.value === "__custom__") {
+      if (customGroup) customGroup.hidden = false;
+      if (el("customProductInput")) el("customProductInput").focus();
+    } else {
+      if (customGroup) customGroup.hidden = true;
+    }
+    updateLiveDocPreview();
+  });
+}
 
 async function loadDocumentCatalog() {
   try {
-    const res = await authFetch("/api/document-catalog");
+    const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+    const res = await authFetch(`/api/document-catalog?variant=${persona}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return;
-    documentCatalog = data.documentCatalog || [];
+    let catalog = data.documentCatalog || [];
+    if (persona === 'ca') {
+      const excluded = new Set(['gst_returns', 'quotation', 'property_docs', 'invoices']);
+      catalog = catalog.filter(d => !excluded.has(d.id));
+    }
+    documentCatalog = catalog;
     renderRequiredDocsCheckboxes();
   } catch (e) {
     console.error("Failed catalog load", e);
@@ -958,7 +1410,8 @@ async function loadDocumentCatalog() {
 }
 
 function renderRequiredDocsCheckboxes() {
-  const container = el("requiredDocsFields");
+  const container = el("requiredDocsFields") || el("recommendedDocsFields");
+  if (!container) return;
   container.innerHTML = "";
   documentCatalog.forEach(doc => {
     const label = document.createElement("label");
@@ -970,13 +1423,13 @@ function renderRequiredDocsCheckboxes() {
 
 async function load() {
   const dashErr = el("dashboardError");
-  if (dashErr) dashErr.hidden = true;
+  if (dashErr) dashErr.style.display = 'none';
 
   try {
-    await Promise.all([loadLoanProducts(), loadDocumentCatalog(), loadProductMappings()]);
+    await Promise.all([loadLoanProducts(), loadDocumentCatalog(), loadProductMappings(), fetchTemplates()]);
     const res = await authFetch("/api/cases");
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Unable to retrieve loan cases from server. Please refresh.");
+    if (!res.ok) throw new Error(data.error || "Unable to retrieve cases from server. Please refresh.");
 
     allCases = data.cases || [];
     updateSummary(data.summary || {});
@@ -991,13 +1444,34 @@ async function load() {
       }
     });
   } catch (e) {
+    console.error("Dashboard Load Failure:", e);
+    const errMsg = e.message || "Unable to connect to server. Please verify network or authentication.";
     if (dashErr) {
-      dashErr.textContent = "Dashboard Load Error: " + e.message;
-      dashErr.hidden = false;
+      const msgEl = el("dashboardErrorMessage");
+      if (msgEl) msgEl.textContent = errMsg;
+      dashErr.style.display = 'flex';
+    }
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast(errMsg, "error");
     }
     const tbody = el("tbody");
     if (tbody) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #b91c1c;">${escapeHtml(e.message)}</td></tr>`;
+      const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+      const colSpan = (persona === 'ca') ? 7 : 8;
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="${colSpan}">
+            <div class="empty-state-card" style="border-color: #fca5a5; background: #fff5f5;">
+              <div class="empty-state-icon">⚠️</div>
+              <div class="empty-state-title" style="color: #991b1b;">Dashboard Load Error</div>
+              <div class="empty-state-sub" style="color: #7f1d1d;">${escapeHtml(errMsg)}</div>
+              <button type="button" onclick="load()" class="btn btn-primary" style="margin-top: 1rem; background: #991b1b; border: none; cursor: pointer;">
+                🔄 Retry Loading
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
     }
   }
 }
@@ -1068,8 +1542,7 @@ if (loanProdSel) {
 const openAddBtn = el("openAdd");
 if (openAddBtn) {
   openAddBtn.addEventListener("click", () => {
-    const detailsForm = el("detailsForm");
-    if (detailsForm) detailsForm.reset();
+    if (el("detailsForm")) detailsForm.reset();
     if (el("phone")) el("phone").classList.remove("input-error");
     if (el("contactPerson")) el("contactPerson").classList.remove("input-error");
     if (el("amountRequired")) el("amountRequired").classList.remove("input-error");
@@ -1077,13 +1550,216 @@ if (openAddBtn) {
     if (el("liveDocPreviewContainer")) el("liveDocPreviewContainer").hidden = true;
     if (el("modalErrorStep1")) el("modalErrorStep1").hidden = true;
     if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
+
+    const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+    const amountGroup = el("amountRequiredGroup");
+    const amountInput = el("amountRequired");
+    const loanGroup = el("loanProductGroup");
+    const outreachGroup = el("outreachTemplateGroup");
+    const continueBtn = el("btnDetailsContinue");
+
+    const loanSelect = el("loanProductSelect");
+
+    if (persona === 'direct_outreach') {
+      if (amountGroup) {
+        amountGroup.hidden = true;
+        amountGroup.style.setProperty('display', 'none', 'important');
+      }
+      if (amountInput) amountInput.removeAttribute("required");
+      if (loanGroup) {
+        loanGroup.hidden = true;
+        loanGroup.style.setProperty('display', 'none', 'important');
+      }
+      if (loanSelect) loanSelect.removeAttribute("required");
+      if (outreachGroup) {
+        outreachGroup.hidden = false;
+        outreachGroup.style.setProperty('display', 'flex', 'important');
+      }
+      if (continueBtn) continueBtn.textContent = "Send Message →";
+      populateOutreachTemplateDropdown();
+      renderOutreachDynamicParams();
+    } else if (persona === 'ca') {
+      if (amountGroup) {
+        amountGroup.hidden = true;
+        amountGroup.style.setProperty('display', 'none', 'important');
+      }
+      if (amountInput) amountInput.removeAttribute("required");
+      if (loanGroup) {
+        loanGroup.hidden = false;
+        loanGroup.style.removeProperty('display');
+      }
+      if (loanSelect) loanSelect.setAttribute("required", "");
+      if (outreachGroup) {
+        outreachGroup.hidden = true;
+        outreachGroup.style.setProperty('display', 'none', 'important');
+      }
+      if (continueBtn) continueBtn.textContent = "Continue →";
+    } else {
+      if (amountGroup) {
+        amountGroup.hidden = false;
+        amountGroup.style.removeProperty('display');
+      }
+      if (amountInput) amountInput.setAttribute("required", "");
+      if (loanGroup) {
+        loanGroup.hidden = false;
+        loanGroup.style.removeProperty('display');
+      }
+      if (loanSelect) loanSelect.setAttribute("required", "");
+      if (outreachGroup) {
+        outreachGroup.hidden = true;
+        outreachGroup.style.setProperty('display', 'none', 'important');
+      }
+      if (continueBtn) continueBtn.textContent = "Continue →";
+    }
+
     setWizardScreen('details');
     if (el("modalBackdrop")) el("modalBackdrop").hidden = false;
   });
 }
 
+async function populateOutreachTemplateDropdown() {
+  const select = el("outreachTemplateSelect");
+  if (!select) return;
+
+  if (!cachedTemplates || cachedTemplates.length === 0) {
+    await fetchTemplates();
+  }
+
+  select.innerHTML = `
+    <option value="onboarding_first_message">onboarding_first_message (ITR Intake / Utility)</option>
+    <option value="loan_agent_first_outreach">loan_agent_first_outreach (Loan Agent / Utility)</option>
+    <option value="do_ca">do_ca (Direct Outreach / en_IN)</option>
+  `;
+  if (Array.isArray(cachedTemplates) && cachedTemplates.length > 0) {
+    cachedTemplates.forEach(t => {
+      if (t.name !== "onboarding_first_message" && t.name !== "loan_agent_first_outreach" && t.name !== "do_ca" && t.name !== "new_convo_1" && t.name !== "hello_world") {
+        const opt = document.createElement("option");
+        opt.value = t.name;
+        opt.textContent = `${t.name} (${t.category || 'Custom'})`;
+        select.appendChild(opt);
+      }
+    });
+  }
+
+  if (typeof UI !== 'undefined' && UI.replaceSelect) {
+    UI.replaceSelect(select);
+  }
+
+  renderOutreachDynamicParams();
+}
+
+function renderOutreachDynamicParams() {
+  const container = el("outreachDynamicParamsContainer");
+  const templateSelect = el("outreachTemplateSelect");
+  if (!container || !templateSelect) return;
+  container.innerHTML = "";
+
+  const selectedName = templateSelect.value;
+  if (selectedName === "onboarding_first_message") {
+    const title = document.createElement("div");
+    title.style.fontSize = "12px";
+    title.style.fontWeight = "600";
+    title.style.color = "#0F172A";
+    title.style.marginBottom = "4px";
+    title.textContent = "Template Variables";
+    container.appendChild(title);
+
+    const div = document.createElement("div");
+    div.className = "field";
+    div.style.marginBottom = "4px";
+    div.innerHTML = `
+      <label for="outreach_param_caname" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 2px;">
+        CA / Firm Name <span style="font-size: 10px; color: #94A3B8;">({{caname}})</span>
+      </label>
+      <input type="text" id="outreach_param_caname" class="form-input outreach-dynamic-param" value="Aaryan Shah & Co" placeholder="Enter your CA firm name..." style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px;" />
+    `;
+    container.appendChild(div);
+    return;
+  }
+
+  if (selectedName === "loan_agent_first_outreach") {
+    const title = document.createElement("div");
+    title.style.fontSize = "12px";
+    title.style.fontWeight = "600";
+    title.style.color = "#0F172A";
+    title.style.marginBottom = "4px";
+    title.textContent = "Template Variables";
+    container.appendChild(title);
+
+    const div1 = document.createElement("div");
+    div1.className = "field";
+    div1.style.marginBottom = "6px";
+    div1.innerHTML = `
+      <label for="outreach_param_username" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 2px;">
+        Agent / Sender Name <span style="font-size: 10px; color: #94A3B8;">({{username}})</span>
+      </label>
+      <input type="text" id="outreach_param_username" class="form-input outreach-dynamic-param" value="Aaryan" placeholder="Enter agent name..." style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px;" />
+    `;
+    container.appendChild(div1);
+
+    const div2 = document.createElement("div");
+    div2.className = "field";
+    div2.style.marginBottom = "4px";
+    div2.innerHTML = `
+      <label for="outreach_param_contact" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 2px;">
+        Contact Person / Phone <span style="font-size: 10px; color: #94A3B8;">({{user_name}})</span>
+      </label>
+      <input type="text" id="outreach_param_contact" class="form-input outreach-dynamic-param" value="Aaryan" placeholder="Enter contact info..." style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px;" />
+    `;
+    container.appendChild(div2);
+    return;
+  }
+  const tpl = (cachedTemplates || []).find(t => t.name === selectedName);
+  if (!tpl) return;
+
+  const bodyText = tpl.body_text || "";
+  const mappings = tpl.param_mappings || {};
+  const tokens = [];
+
+  const bMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+  bMatches.forEach((tok, idx) => {
+    if (idx > 0) {
+      const label = (mappings.body && mappings.body[idx]) 
+        ? mappings.body[idx].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) 
+        : `Parameter ${idx + 1}`;
+      tokens.push({ token: tok, index: idx + 1, label, id: `outreach_param_${idx + 1}` });
+    }
+  });
+
+  if (tokens.length > 0) {
+    const title = document.createElement("div");
+    title.style.fontSize = "12px";
+    title.style.fontWeight = "600";
+    title.style.color = "#0F172A";
+    title.style.marginBottom = "4px";
+    title.textContent = "Template Variables";
+    container.appendChild(title);
+  }
+
+  tokens.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "field";
+    div.style.marginBottom = "4px";
+    div.innerHTML = `
+      <label for="${item.id}" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 2px;">
+        ${escapeHtml(item.label)} <span style="font-size: 10px; color: #94A3B8;">(${item.token})</span>
+      </label>
+      <input type="text" id="${item.id}" class="form-input outreach-dynamic-param" data-param-index="${item.index}" placeholder="Enter ${escapeHtml(item.label.toLowerCase())}..." style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px;" />
+    `;
+    container.appendChild(div);
+  });
+}
+
+const outreachTemplateSelectEl = el("outreachTemplateSelect");
+if (outreachTemplateSelectEl) {
+  outreachTemplateSelectEl.addEventListener("change", renderOutreachDynamicParams);
+}
+
 const closeModalBtn = el("closeModal");
 if (closeModalBtn) closeModalBtn.addEventListener("click", () => { if (el("modalBackdrop")) el("modalBackdrop").hidden = true; });
+
+const cancelAddBtn = el("cancelAdd");
+if (cancelAddBtn) cancelAddBtn.addEventListener("click", () => { if (el("modalBackdrop")) el("modalBackdrop").hidden = true; });
 
 const cpInput = el("contactPerson");
 if (cpInput) {
@@ -1105,10 +1781,12 @@ if (btnDetailsContinue) {
     const phoneInput = el("phone");
     const amountInput = el("amountRequired");
 
+    const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
     const contactPerson = contactPersonInput ? contactPersonInput.value.trim() : "";
     if (!contactPerson) {
       if (contactPersonInput) contactPersonInput.classList.add("input-error");
-      showActionableError("Please enter the borrower's full name.", "modalErrorStep1");
+      const errMsg = persona === 'direct_outreach' ? "Please enter the target's full name." : (persona === 'ca' ? "Please enter the client's full name." : "Please enter the borrower's full name.");
+      showActionableError(errMsg, "modalErrorStep1");
       if (contactPersonInput) contactPersonInput.focus();
       return;
     }
@@ -1127,17 +1805,67 @@ if (btnDetailsContinue) {
       return;
     }
 
-    let selectedProduct = el("loanProductSelect").value;
+    // Direct Outreach Mode: Validate template, collect dynamic parameters, and Submit Immediately
+    if (persona === 'direct_outreach') {
+      const templateSelect = el("outreachTemplateSelect");
+      const selectedTemplate = templateSelect ? templateSelect.value : "";
+      if (!selectedTemplate) {
+        showActionableError("Please select a WhatsApp message template from the dropdown list.", "modalErrorStep1");
+        if (templateSelect) templateSelect.focus();
+        return;
+      }
+
+      const submitBtn = el("btnDetailsContinue");
+      if (submitBtn) submitBtn.disabled = true;
+
+      const dynamicInputs = Array.from(document.querySelectorAll(".outreach-dynamic-param"));
+      const dynamicParams = [contactPerson, ...dynamicInputs.map(i => i.value.trim())];
+
+      try {
+        const res = await authFetch("/api/cases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactPerson,
+            phone: rawPhone,
+            loanProduct: selectedTemplate,
+            templateName: selectedTemplate,
+            templateParams: dynamicParams,
+            amountRequired: null,
+            noDocsRequired: true,
+            requiredDocIds: []
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to dispatch direct message.");
+
+        if (el("modalBackdrop")) el("modalBackdrop").hidden = true;
+        if (typeof UI !== 'undefined' && UI.toast) {
+          UI.toast(`Direct message dispatched to ${contactPerson}!`, "success");
+        }
+        await load();
+      } catch (err) {
+        showActionableError(`Dispatch Error: ${err.message}`, "modalErrorStep1");
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+      return;
+    }
+
+    let selectedProduct = el("loanProductSelect") ? el("loanProductSelect").value : "";
     if (!selectedProduct) {
-      showActionableError("Please select a loan type from the dropdown list.", "modalErrorStep1");
-      el("loanProductSelect").focus();
+      const errMsg = (persona === 'ca' ? "Please select a category from the dropdown list." : "Please select a loan type from the dropdown list.");
+      showActionableError(errMsg, "modalErrorStep1");
+      if (el("loanProductSelect")) el("loanProductSelect").focus();
       return;
     }
 
     if (selectedProduct === "__custom__") {
       const customLabel = el("customProductInput").value.trim();
       if (!customLabel) {
-        showActionableError("Please enter a name for your custom loan type.", "modalErrorStep1");
+        const errMsg = persona === 'ca' ? "Please enter a name for your custom category." : "Please enter a name for your custom loan type.";
+        showActionableError(errMsg, "modalErrorStep1");
         el("customProductInput").focus();
         return;
       }
@@ -1149,26 +1877,31 @@ if (btnDetailsContinue) {
           body: JSON.stringify({ label: customLabel })
         });
         const prodData = await prodRes.json();
-        if (!prodRes.ok) throw new Error(prodData.error || "Could not save custom loan product.");
+        if (!prodRes.ok) throw new Error(prodData.error || (persona === 'ca' ? "Could not save custom category." : "Could not save custom collection product."));
         selectedProduct = customLabel;
       } catch (prodErr) {
-        showActionableError(`Failed to save new product: ${prodErr.message}`, "modalErrorStep1");
+        showActionableError(`Failed to save new category: ${prodErr.message}`, "modalErrorStep1");
         return;
       }
     }
 
-    let amountRequired = null;
-    const rawAmount = el("amountRequired").value.trim();
-    if (!rawAmount) {
-      showActionableError("Please enter the Amount Required in Lacs / ₹ Lakhs.", "modalErrorStep1");
-      el("amountRequired").focus();
-      return;
-    }
-    amountRequired = parseFloat(rawAmount);
-    if (isNaN(amountRequired) || amountRequired <= 0) {
-      showActionableError("Please enter a valid positive number for Amount Required in Lacs (e.g. 25).", "modalErrorStep1");
-      el("amountRequired").focus();
-      return;
+    let amountRequired = 0;
+    if (persona === 'loan_agent') {
+      const rawAmount = el("amountRequired").value.trim();
+      if (!rawAmount) {
+        showActionableError("Please enter the Amount Required in Lacs / ₹ Lakhs.", "modalErrorStep1");
+        el("amountRequired").focus();
+        return;
+      }
+      amountRequired = parseFloat(rawAmount);
+      if (isNaN(amountRequired) || amountRequired <= 0) {
+        showActionableError("Please enter a valid positive number for Amount Required in Lacs (e.g. 25).", "modalErrorStep1");
+        el("amountRequired").focus();
+        return;
+      }
+    } else {
+      const rawAmount = el("amountRequired") ? el("amountRequired").value.trim() : "";
+      amountRequired = (rawAmount && !isNaN(parseFloat(rawAmount)) && parseFloat(rawAmount) > 0) ? parseFloat(rawAmount) : null;
     }
 
     // Save to State Machine
@@ -1191,9 +1924,11 @@ if (btnDocsCreate) {
     if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
     const submitBtn = el("btnDocsCreate");
 
+    const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
     const selectedDocs = Array.from(document.querySelectorAll("input[data-doc]:checked")).map(cb => cb.value);
     if (selectedDocs.length === 0) {
-      showActionableError("Please select at least one document requirement for this loan case.", "modalErrorStep2");
+      const errMsg = persona === 'ca' ? "Please select at least one document requirement for this client intake." : "Please select at least one document requirement for this loan case.";
+      showActionableError(errMsg, "modalErrorStep2");
       return;
     }
 
@@ -1204,9 +1939,10 @@ if (btnDocsCreate) {
     submitBtn.disabled = true;
     submitBtn.style.opacity = "0.7";
     submitBtn.style.cursor = "not-allowed";
+    const spinnerText = persona === 'ca' ? "Creating Request..." : "Creating Loan Case...";
     submitBtn.innerHTML = `
       <span class="upload-progress-ring" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 0.5rem; border-color: rgba(255,255,255,0.3); border-top-color: #ffffff;"></span>
-      Creating Loan Case...
+      ${spinnerText}
     `;
 
     try {
@@ -1225,7 +1961,7 @@ if (btnDocsCreate) {
       });
       
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create loan case.");
+      if (!res.ok) throw new Error(data.error || (persona === 'ca' ? "Failed to create client intake." : "Failed to create collection."));
 
       wizardState.generatedCase = { id: data.caseId, token: data.token };
 
@@ -1238,7 +1974,8 @@ if (btnDocsCreate) {
 
       const waBtn = el("btnShareWhatsApp");
       if (waBtn) {
-        const waText = encodeURIComponent(`Hello ${wizardState.customer.contactPerson}, please upload your loan documents for ${wizardState.loan.product} here: ${shareUrl}`);
+        const msgPrefix = persona === 'ca' ? `Hello ${wizardState.customer.contactPerson}, please upload your documents for ${wizardState.loan.product} here:` : `Hello ${wizardState.customer.contactPerson}, please upload your loan documents for ${wizardState.loan.product} here:`;
+        const waText = encodeURIComponent(`${msgPrefix} ${shareUrl}`);
         waBtn.href = `https://wa.me/91${wizardState.customer.phone}?text=${waText}`;
       }
 
@@ -1290,6 +2027,7 @@ if (btnSuccessCreateAnother) {
     if (el("liveDocPreviewContainer")) el("liveDocPreviewContainer").hidden = true;
     if (el("modalErrorStep1")) el("modalErrorStep1").hidden = true;
     if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
+    setWizardScreen('details');
   });
 }
 
@@ -1322,15 +2060,17 @@ function setupSidebarToggle() {
 
 function getUserFromToken() {
   const tokenHeader = localStorage.getItem('collectrr_auth');
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (!tokenHeader && isDev) return { username: 'DevAgent', role: 'admin' };
   if (!tokenHeader) return null;
   try {
     const rawToken = tokenHeader.replace(/^Bearer\s+/i, '').trim();
     const parts = rawToken.split('.');
-    if (parts.length !== 3) return null;
+    if (parts.length !== 3) return isDev ? { username: 'DevAgent', role: 'admin' } : null;
     const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(payloadJson);
   } catch (e) {
-    return null;
+    return isDev ? { username: 'DevAgent', role: 'admin' } : null;
   }
 }
 
@@ -1376,6 +2116,21 @@ function updateUserProfileUI() {
     btnDocMapping.style.display = isAdmin ? '' : 'none';
   }
 
+  const btnTemplate = el("btnOpenTemplateModal");
+  if (btnTemplate) {
+    btnTemplate.style.display = isAdmin ? '' : 'none';
+  }
+
+  const isDevHost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const outreachToggleBtn = document.getElementById("personaToggleOutreach");
+  if (outreachToggleBtn) {
+    outreachToggleBtn.style.display = (isAdmin || isDevHost) ? '' : 'none';
+  }
+
+  if (!isAdmin && !isDevHost && typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach') {
+    if (typeof window.setVariantKey === 'function') window.setVariantKey('ca');
+  }
+
   const userContainers = document.querySelectorAll('.sidebar-user');
   userContainers.forEach(container => {
     container.style.cursor = 'pointer';
@@ -1405,8 +2160,15 @@ function renderMappingConfiguratorMatrix() {
   const tbody = el("mappingMatrixTableBody");
   if (!headerRow || !tbody) return;
 
-  headerRow.innerHTML = "<th>Loan Product</th>";
-  documentCatalog.forEach(doc => {
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const categoryTitle = persona === 'ca' ? "Filing" : "Loan Product";
+  headerRow.innerHTML = `<th>${categoryTitle}</th>`;
+
+  const activeCatalog = (persona === 'ca')
+    ? documentCatalog.filter(doc => !['gst_returns', 'quotation', 'property_docs', 'invoices'].includes(doc.id))
+    : documentCatalog;
+
+  activeCatalog.forEach(doc => {
     const th = document.createElement("th");
     th.style.textAlign = "center";
     th.textContent = doc.label;
@@ -1415,9 +2177,19 @@ function renderMappingConfiguratorMatrix() {
 
   tbody.innerHTML = "";
   
-  const products = (loanProductsList && loanProductsList.length > 0) 
-    ? loanProductsList.map(p => p.label) 
-    : ["Working Capital", "Term Loan", "Machinery Loan", "Loan Against Property (LAP)"];
+  const products = (persona === "ca")
+    ? [
+        "GST — Monthly (GSTR-1 & 3B)",
+        "GST — Annual Return (GSTR-9 & 9C)",
+        "GST — Registration Intake",
+        "ITR — Salaried (ITR-1 / 2)",
+        "ITR — Business (ITR-3 / 4)",
+        "ITR — Capital Gains & NRI",
+        "ITR — Tax Audit (Form 3CD)"
+      ]
+    : ((loanProductsList && loanProductsList.length > 0)
+      ? loanProductsList.map(p => p.label)
+      : ["Home Loan Pack", "LAP (Property Loan)", "Business Loan", "Personal Loan Pack"]);
 
   products.forEach(pLabel => {
     const tr = document.createElement("tr");
@@ -1495,3 +2267,823 @@ if (btnSaveDocMappings) {
     }
   });
 }
+
+// ==========================================
+// WhatsApp Message Templates UI Engine
+// ==========================================
+
+let activeTemplateTab = "list";
+let cachedTemplates = [];
+
+function openTemplateModal() {
+  const backdrop = el("templateModalBackdrop");
+  if (!backdrop) return;
+  backdrop.hidden = false;
+  switchTemplateTab("list");
+  loadTemplatesList();
+}
+
+function closeTemplateModal() {
+  const backdrop = el("templateModalBackdrop");
+  if (backdrop) backdrop.hidden = true;
+}
+
+function switchTemplateTab(tab) {
+  activeTemplateTab = tab;
+  const tabList = el("tabTplList");
+  const tabCreate = el("tabTplCreate");
+  const listView = el("tplListView");
+  const createView = el("tplCreateView");
+  const saveBtn = el("btnSaveTemplate");
+
+  if (tab === "list") {
+    if (tabList) tabList.classList.add("active");
+    if (tabCreate) tabCreate.classList.remove("active");
+    if (listView) listView.hidden = false;
+    if (createView) createView.hidden = true;
+    if (saveBtn) saveBtn.style.display = "none";
+    loadTemplatesList();
+  } else {
+    if (tabList) tabList.classList.remove("active");
+    if (tabCreate) tabCreate.classList.add("active");
+    if (listView) listView.hidden = true;
+    if (createView) createView.hidden = false;
+    if (saveBtn) saveBtn.style.display = "";
+    updateTemplateLivePreview();
+  }
+}
+
+async function fetchTemplates() {
+  try {
+    const res = await authFetch("/api/templates");
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.templates) {
+      cachedTemplates = data.templates;
+      return cachedTemplates;
+    }
+  } catch (e) {
+    console.warn("Failed fetching templates", e);
+  }
+  return [];
+}
+
+async function loadTemplatesList() {
+  const container = el("tplListContainer");
+  const loading = el("tplListLoading");
+  if (loading) loading.hidden = false;
+  if (container) container.hidden = true;
+
+  try {
+    const tpls = await fetchTemplates();
+    renderTemplatesList(tpls.length > 0 ? tpls : cachedTemplates);
+  } catch (err) {
+    if (loading) {
+      loading.textContent = "Failed to load templates: " + err.message;
+      loading.hidden = false;
+    }
+  }
+}
+
+function renderTemplatesList(templates) {
+  const container = el("tplListContainer");
+  const loading = el("tplListLoading");
+  if (loading) loading.hidden = true;
+  if (!container) return;
+
+  container.innerHTML = "";
+  if (!templates || templates.length === 0) {
+    container.innerHTML = `<div style="text-align: center; color: #64748B; padding: 20px;">No templates found.</div>`;
+    container.hidden = false;
+    return;
+  }
+
+  templates.forEach(tpl => {
+    const card = document.createElement("div");
+    card.className = "tpl-card";
+
+    const isSystem = Boolean(tpl.is_system);
+    const badgeClass = isSystem ? "tpl-badge-system" : "tpl-badge-custom";
+    const badgeText = isSystem ? "System Default" : "Custom Template";
+
+    card.innerHTML = `
+      <div style="flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+          <span style="font-weight: 700; font-size: 14px; color: #0F172A;">${escapeHtml(tpl.name)}</span>
+          <span class="${badgeClass}">${badgeText}</span>
+          <span style="background: #F1F5F9; color: #475569; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px;">🌐 ${escapeHtml(tpl.language || 'en')}</span>
+          <span style="background: #F8FAFC; border: 1px solid #E2E8F0; color: #64748B; font-size: 11px; padding: 2px 6px; border-radius: 4px;">${escapeHtml(tpl.category || 'UTILITY')}</span>
+        </div>
+        ${tpl.header_text ? `<div style="font-weight: 700; font-size: 13px; color: #1E293B; margin-bottom: 2px;">📌 ${escapeHtml(tpl.header_text)}</div>` : ''}
+        <div style="font-size: 13px; color: #334155; line-height: 1.4; margin-top: 4px; white-space: pre-wrap;">${escapeHtml(tpl.body_text || tpl.description || '')}</div>
+        ${tpl.footer_text ? `<div style="font-size: 11px; color: #64748B; margin-top: 4px;">ℹ️ ${escapeHtml(tpl.footer_text)}</div>` : ''}
+        ${tpl.button_type && tpl.button_type !== 'none' ? `<div style="margin-top: 6px; font-size: 12px; color: #00A884; font-weight: 600;">🔗 Button: ${escapeHtml(tpl.button_text || 'Upload Documents')} (${escapeHtml(tpl.button_type)})</div>` : ''}
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A;" onclick="editCustomTemplate('${escapeHtml(tpl.name)}')">
+          ✏️ Edit
+        </button>
+        ${!isSystem ? `
+          <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px; color: #DC2626; border: 1px solid #FECACA; background: #FEF2F2;" onclick="deleteCustomTemplate('${escapeHtml(tpl.id || tpl.name)}')">
+            Delete
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+
+  container.hidden = false;
+}
+
+function insertTemplateToken(token) {
+  const textarea = el("tplBodyInput");
+  if (!textarea) return;
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const text = textarea.value;
+  textarea.value = text.substring(0, start) + token + text.substring(end);
+  textarea.focus();
+  textarea.selectionStart = textarea.selectionEnd = start + token.length;
+  updateTemplateLivePreview();
+}
+
+function updateTemplateLivePreview() {
+  const headerTypeSelect = el("tplHeaderTypeSelect");
+  const headerInput = el("tplHeaderInput");
+  const headerGroup = el("tplHeaderGroup");
+  const bodyInput = el("tplBodyInput");
+  const footerInput = el("tplFooterInput");
+  const buttonTypeSelect = el("tplButtonTypeSelect");
+  const buttonTextInput = el("tplButtonTextInput");
+  const buttonTextGroup = el("tplButtonTextGroup");
+
+  const liveHeader = el("tplLiveHeader");
+  const liveText = el("tplLivePreviewText");
+  const liveFooter = el("tplLiveFooter");
+  const liveBtnContainer = el("tplLiveButtonContainer");
+  const liveBtnText = el("tplLiveButtonText");
+
+  // 1. Header Handling
+  const headerType = headerTypeSelect ? headerTypeSelect.value : "NONE";
+  if (headerGroup) {
+    headerGroup.style.display = (headerType === "TEXT") ? "" : "none";
+  }
+  if (liveHeader) {
+    if (headerType === "TEXT" && headerInput && headerInput.value.trim()) {
+      liveHeader.textContent = headerInput.value.trim().replace(/\{\{1\}\}/g, "Aryan Shah");
+      liveHeader.style.display = "";
+    } else {
+      liveHeader.style.display = "none";
+    }
+  }
+
+  // 2. Body Handling
+  const rawBody = bodyInput && bodyInput.value ? bodyInput.value : "Hi {{1}}, please upload your pending documents using the secure link: {{2}}";
+  const renderedBody = rawBody
+    .replace(/\{\{1\}\}/g, "Aryan Shah")
+    .replace(/\{\{2\}\}/g, "https://collectrr-v2.collectr.workers.dev/upload.html?t=secure_token")
+    .replace(/\{\{3\}\}/g, "ITR Filing")
+    .replace(/\{\{4\}\}/g, "₹5,00,000")
+    .replace(/\{\{5\}\}/g, "CASE-9021");
+
+  if (liveText) {
+    liveText.textContent = renderedBody;
+  }
+
+  // 3. Footer Handling
+  if (liveFooter) {
+    if (footerInput && footerInput.value.trim()) {
+      liveFooter.textContent = footerInput.value.trim();
+      liveFooter.style.display = "";
+    } else {
+      liveFooter.style.display = "none";
+    }
+  }
+
+  // 4. Button Handling
+  const btnType = buttonTypeSelect ? buttonTypeSelect.value : "url";
+  const btnLabel = buttonTextInput && buttonTextInput.value.trim() ? buttonTextInput.value.trim() : "Upload Documents";
+
+  if (buttonTextGroup) {
+    buttonTextGroup.style.display = (btnType === "none") ? "none" : "";
+  }
+
+  if (liveBtnContainer) {
+    if (btnType !== "none") {
+      liveBtnContainer.style.display = "";
+      if (liveBtnText) {
+        const icon = (btnType === "quick_reply") ? "💬" : "🔗";
+        liveBtnText.innerHTML = `<span>${icon}</span> ${escapeHtml(btnLabel)}`;
+      }
+    } else {
+      liveBtnContainer.style.display = "none";
+    }
+  }
+
+  const timeEl = el("tplLivePreviewTime");
+  if (timeEl) {
+    const now = new Date();
+    timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+}
+
+async function saveCustomTemplate() {
+  const nameInput = el("tplNameInput");
+  const categorySelect = el("tplCategorySelect");
+  const langSelect = el("tplLangSelect");
+  const headerTypeSelect = el("tplHeaderTypeSelect");
+  const headerInput = el("tplHeaderInput");
+  const bodyInput = el("tplBodyInput");
+  const footerInput = el("tplFooterInput");
+  const buttonTypeSelect = el("tplButtonTypeSelect");
+  const buttonTextInput = el("tplButtonTextInput");
+  const errBox = el("tplCreateError");
+  const submitBtn = el("btnSaveTemplate");
+
+  if (errBox) errBox.hidden = true;
+
+  const rawName = nameInput ? nameInput.value.trim().toLowerCase() : "";
+  const name = rawName.replace(/[^a-z0-9_]/g, "_");
+  const category = categorySelect ? categorySelect.value : "UTILITY";
+  const language = langSelect ? langSelect.value : "en";
+  const headerType = headerTypeSelect ? headerTypeSelect.value : "NONE";
+  const headerText = headerInput ? headerInput.value.trim() : "";
+  const bodyText = bodyInput ? bodyInput.value.trim() : "";
+  const footerText = footerInput ? footerInput.value.trim() : "";
+  const buttonType = buttonTypeSelect ? buttonTypeSelect.value : "url";
+  const buttonText = buttonTextInput ? buttonTextInput.value.trim() : "Upload Documents";
+
+  if (!name || name.length < 2) {
+    if (errBox) {
+      errBox.textContent = "Please enter a valid template identifier (at least 2 lowercase letters, numbers, or underscores).";
+      errBox.hidden = false;
+    }
+    return;
+  }
+
+  if (!language) {
+    if (errBox) {
+      errBox.textContent = "Please select a language code for Meta template registration.";
+      errBox.hidden = false;
+    }
+    return;
+  }
+
+  if (!bodyText) {
+    if (errBox) {
+      errBox.textContent = "Please enter message body text.";
+      errBox.hidden = false;
+    }
+    return;
+  }
+
+  // Parse token parameters in body
+  const bodyTokens = (bodyText.match(/\{\{(\d+)\}\}/g) || []).map((_, idx) => {
+    if (idx === 0) return "contact_person";
+    if (idx === 1) return "upload_link";
+    if (idx === 2) return "loan_product";
+    if (idx === 3) return "amount_required";
+    return "case_id";
+  });
+
+  const paramMappings = {
+    body: bodyTokens,
+    header: headerType === "TEXT" && headerText.includes("{{1}}") ? ["contact_person"] : [],
+    button: buttonType === "dynamic_url" ? ["raw_token"] : []
+  };
+
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const res = await authFetch("/api/admin/templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        category,
+        language,
+        header_type: headerType,
+        header_text: headerText,
+        body_text: bodyText,
+        footer_text: footerText,
+        button_type: buttonType,
+        button_text: buttonText,
+        param_mappings: paramMappings
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Failed to create template.");
+
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast(`Template "${name}" created successfully!`, "success");
+    }
+
+    if (nameInput) nameInput.value = "";
+    if (bodyInput) bodyInput.value = "";
+    if (headerInput) headerInput.value = "";
+    if (footerInput) footerInput.value = "";
+    switchTemplateTab("list");
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = err.message;
+      errBox.hidden = false;
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+async function deleteCustomTemplate(id) {
+  const ok = await UI.confirm({
+    title: "Delete Template",
+    message: `Are you sure you want to delete template "${id}"?`,
+    confirmText: "Delete",
+    isDanger: true
+  });
+  if (!ok) return;
+
+  try {
+    const res = await authFetch(`/api/admin/templates/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Failed to delete template.");
+
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast("Template deleted.", "success");
+    }
+    loadTemplatesList();
+  } catch (err) {
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast("Error: " + err.message, "error");
+    }
+  }
+}
+
+function editCustomTemplate(name) {
+  const tpl = cachedTemplates.find(t => t.name === name);
+  if (!tpl) return;
+
+  const nameInput = el("tplNameInput");
+  const categorySelect = el("tplCategorySelect");
+  const langSelect = el("tplLangSelect");
+  const headerTypeSelect = el("tplHeaderTypeSelect");
+  const headerInput = el("tplHeaderInput");
+  const bodyInput = el("tplBodyInput");
+  const footerInput = el("tplFooterInput");
+  const buttonTypeSelect = el("tplButtonTypeSelect");
+  const buttonTextInput = el("tplButtonTextInput");
+
+  if (nameInput) nameInput.value = tpl.name || "";
+  if (categorySelect) categorySelect.value = tpl.category || "UTILITY";
+  if (langSelect) langSelect.value = tpl.language || "en";
+  if (headerTypeSelect) headerTypeSelect.value = tpl.header_type || "NONE";
+  if (headerInput) headerInput.value = tpl.header_text || "";
+  if (bodyInput) bodyInput.value = tpl.body_text || "";
+  if (footerInput) footerInput.value = tpl.footer_text || "";
+  if (buttonTypeSelect) buttonTypeSelect.value = tpl.button_type || "url";
+  if (buttonTextInput) buttonTextInput.value = tpl.button_text || "Upload Documents";
+
+  switchTemplateTab("create");
+}
+
+// Wire template modal trigger buttons and preview event listeners
+const btnOpenTemplateModal = el("btnOpenTemplateModal");
+if (btnOpenTemplateModal) {
+  btnOpenTemplateModal.addEventListener("click", openTemplateModal);
+}
+
+const closeTemplateModalBtn = el("closeTemplateModal");
+if (closeTemplateModalBtn) {
+  closeTemplateModalBtn.addEventListener("click", closeTemplateModal);
+}
+
+const cancelTemplateModalBtn = el("cancelTemplateModal");
+if (cancelTemplateModalBtn) {
+  cancelTemplateModalBtn.addEventListener("click", closeTemplateModal);
+}
+
+const tplHeaderTypeSelect = el("tplHeaderTypeSelect");
+if (tplHeaderTypeSelect) {
+  tplHeaderTypeSelect.addEventListener("change", updateTemplateLivePreview);
+}
+
+const tplHeaderInput = el("tplHeaderInput");
+if (tplHeaderInput) {
+  tplHeaderInput.addEventListener("input", updateTemplateLivePreview);
+}
+
+const tplBodyInput = el("tplBodyInput");
+if (tplBodyInput) {
+  tplBodyInput.addEventListener("input", updateTemplateLivePreview);
+}
+
+const tplFooterInput = el("tplFooterInput");
+if (tplFooterInput) {
+  tplFooterInput.addEventListener("input", updateTemplateLivePreview);
+}
+
+const tplButtonTypeSelect = el("tplButtonTypeSelect");
+if (tplButtonTypeSelect) {
+  tplButtonTypeSelect.addEventListener("change", updateTemplateLivePreview);
+}
+
+const tplButtonTextInput = el("tplButtonTextInput");
+if (tplButtonTextInput) {
+  tplButtonTextInput.addEventListener("input", updateTemplateLivePreview);
+}
+
+// ==========================================
+// Bulk Client List Import Engine
+// ==========================================
+
+let parsedBulkClients = [];
+
+function openBulkImportModal() {
+  const backdrop = el("bulkImportModalBackdrop");
+  if (!backdrop) return;
+  backdrop.hidden = false;
+  parsedBulkClients = [];
+  populateBulkTemplateDropdown();
+  populateBulkCategoryDropdown();
+  updateBulkSampleFormat();
+  renderBulkImportPreview([]);
+  const err = el("bulkImportError");
+  if (err) err.hidden = true;
+  const fileInput = el("bulkFileInput");
+  if (fileInput) fileInput.value = "";
+}
+
+function updateBulkSampleFormat() {
+  const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
+  const sampleEl = el("bulkSampleFormatContent");
+  const templateSelect = el("bulkTemplateSelect");
+  const categoryGroup = el("bulkCategoryGroup");
+
+  if (categoryGroup) {
+    categoryGroup.style.display = isDirectOutreach ? "none" : "";
+  }
+
+  if (!sampleEl) return;
+
+  const tplName = templateSelect ? templateSelect.value : "new_convo_1";
+  const tpl = (cachedTemplates || []).find(t => t.name === tplName);
+
+  if (isDirectOutreach) {
+    const bodyText = tpl?.body_text || "";
+    const bMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+    if (bMatches.length > 1) {
+      sampleEl.innerHTML = `
+        <div style="color: #64748B; font-weight: 600;">Name, Phone, Param2, Param3</div>
+        <div>Aryan Shah, 9137839907, Notice_123, 24-Aug-2026</div>
+        <div>Priya Patel, 9876543210, Notice_124, 25-Aug-2026</div>
+      `;
+    } else {
+      sampleEl.innerHTML = `
+        <div style="color: #64748B; font-weight: 600;">Name, Phone</div>
+        <div>Aryan Shah, 9137839907</div>
+        <div>Priya Patel, 9876543210</div>
+      `;
+    }
+  } else {
+    sampleEl.innerHTML = `
+      <div style="color: #64748B; font-weight: 600;">Name, Phone, Category, Amount</div>
+      <div>Aryan Shah, 9137839907, Direct Intake, 500000</div>
+      <div>Priya Patel, 9876543210, ITR Filing, 250000</div>
+    `;
+  }
+}
+
+function closeBulkImportModal() {
+  const backdrop = el("bulkImportModalBackdrop");
+  if (backdrop) backdrop.hidden = true;
+}
+
+function populateBulkTemplateDropdown() {
+  const select = el("bulkTemplateSelect");
+  if (!select) return;
+  select.innerHTML = `
+    <option value="new_convo_1">new_convo_1 (Onboarding Intake)</option>
+    <option value="hello_world">hello_world (Meta Default)</option>
+  `;
+  if (Array.isArray(cachedTemplates) && cachedTemplates.length > 0) {
+    cachedTemplates.forEach(t => {
+      if (t.name !== "new_convo_1" && t.name !== "hello_world") {
+        const opt = document.createElement("option");
+        opt.value = t.name;
+        opt.textContent = `${t.name} (${t.category || 'Custom'})`;
+        select.appendChild(opt);
+      }
+    });
+  }
+}
+
+function populateBulkCategoryDropdown() {
+  const select = el("bulkCategorySelect");
+  if (!select) return;
+  const isCa = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'ca');
+  if (isCa) {
+    select.innerHTML = `
+      <option value="Direct Intake">Direct Intake</option>
+      <option value="ITR Filing">ITR Filing</option>
+      <option value="GST Registration">GST Registration</option>
+      <option value="Audit & Compliance">Audit & Compliance</option>
+    `;
+  } else {
+    select.innerHTML = `
+      <option value="Home Loan">Home Loan</option>
+      <option value="Personal Loan">Personal Loan</option>
+      <option value="Business Loan">Business Loan</option>
+      <option value="Direct Outreach">Direct Outreach</option>
+    `;
+  }
+}
+
+function parseCsvOrTextContent(content) {
+  if (!content || !content.trim()) return [];
+  const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const rows = [];
+  const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Skip common header rows
+    if (i === 0 && (line.toLowerCase().includes("name") && (line.toLowerCase().includes("phone") || line.toLowerCase().includes("mobile")))) {
+      continue;
+    }
+
+    let delimiter = ",";
+    if (line.includes("\t")) delimiter = "\t";
+    else if (line.includes(";")) delimiter = ";";
+
+    const parts = line.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
+    if (parts.length === 0 || (parts.length === 1 && !parts[0])) continue;
+
+    let contactPerson = parts[0] || "";
+    let rawPhone = parts[1] || "";
+    let category = parts[2] || "";
+    let amount = parts[3] || "";
+
+    if (/^\+?\d{10,14}$/.test(contactPerson.replace(/\D/g, '')) && !/^\d+$/.test(rawPhone)) {
+      const temp = contactPerson;
+      contactPerson = rawPhone;
+      rawPhone = temp;
+    }
+
+    const digits = rawPhone.replace(/\D/g, "");
+    const isValidPhone = digits.length === 10 || (digits.length === 12 && digits.startsWith("91"));
+    const extraParams = isDirectOutreach ? [contactPerson, ...parts.slice(2)] : [];
+
+    rows.push({
+      contactPerson: contactPerson || `Client ${digits.slice(-4) || i + 1}`,
+      rawPhone,
+      digits,
+      category: isDirectOutreach ? "Direct Outreach" : (category || el("bulkCategorySelect")?.value || "Direct Intake"),
+      amountRequired: isDirectOutreach ? null : amount,
+      templateParams: extraParams,
+      isValid: isValidPhone
+    });
+  }
+
+  return rows;
+}
+
+function renderBulkImportPreview(rows) {
+  parsedBulkClients = rows;
+  const tbody = el("bulkPreviewTableBody");
+  const badge = el("bulkParsedBadge");
+  const submitBtn = el("btnExecuteBulkImport");
+  const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
+
+  const validCount = rows.filter(r => r.isValid).length;
+  const invalidCount = rows.length - validCount;
+
+  if (badge) {
+    badge.textContent = `${validCount} valid (${invalidCount} invalid)`;
+    badge.style.color = validCount > 0 ? "#166534" : "#64748B";
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = (validCount === 0);
+    submitBtn.textContent = `Import ${validCount} Client${validCount === 1 ? '' : 's'}`;
+  }
+
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94A3B8; padding: 20px;">No client records loaded yet. Upload a CSV file above.</td></tr>`;
+    return;
+  }
+
+  rows.slice(0, 100).forEach(r => {
+    const tr = document.createElement("tr");
+    if (isDirectOutreach) {
+      const paramText = (r.templateParams && r.templateParams.length > 1) 
+        ? r.templateParams.slice(1).join(", ") 
+        : "—";
+      tr.innerHTML = `
+        <td>
+          <span class="row-status-pill ${r.isValid ? 'valid' : 'invalid'}">
+            ${r.isValid ? '✓ Valid' : '✕ Invalid'}
+          </span>
+        </td>
+        <td style="font-weight: 500;">${escapeHtml(r.contactPerson)}</td>
+        <td><code style="font-size: 12px; background: #F1F5F9; padding: 2px 6px; border-radius: 4px;">${escapeHtml(r.rawPhone || 'Missing')}</code></td>
+        <td colspan="2"><span style="color: #64748B; font-size: 12px;">Params: ${escapeHtml(paramText)}</span></td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>
+          <span class="row-status-pill ${r.isValid ? 'valid' : 'invalid'}">
+            ${r.isValid ? '✓ Valid' : '✕ Invalid'}
+          </span>
+        </td>
+        <td style="font-weight: 500;">${escapeHtml(r.contactPerson)}</td>
+        <td><code style="font-size: 12px; background: #F1F5F9; padding: 2px 6px; border-radius: 4px;">${escapeHtml(r.rawPhone || 'Missing')}</code></td>
+        <td>${escapeHtml(r.category || '—')}</td>
+        <td>${r.amountRequired ? escapeHtml(r.amountRequired) : '—'}</td>
+      `;
+    }
+    tbody.appendChild(tr);
+  });
+
+  if (rows.length > 100) {
+    const moreTr = document.createElement("tr");
+    moreTr.innerHTML = `<td colspan="5" style="text-align: center; font-weight: 600; color: #64748B; padding: 8px;">+ ${rows.length - 100} more rows loaded</td>`;
+    tbody.appendChild(moreTr);
+  }
+}
+
+function handleBulkFileSelected(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target?.result || "";
+    const rows = parseCsvOrTextContent(text);
+    renderBulkImportPreview(rows);
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast(`Parsed ${rows.length} rows from ${file.name}`, "info");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function downloadSampleCsv() {
+  const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
+  let csvContent = "";
+  if (isDirectOutreach) {
+    csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(
+      "Name,Phone,Param2,Param3\n" +
+      "Aryan Shah,9137839907,Notice_123,24-Aug-2026\n" +
+      "Priya Patel,9876543210,Notice_124,25-Aug-2026\n"
+    );
+  } else {
+    csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(
+      "Name,Phone,Category,Amount\n" +
+      "Aryan Shah,9137839907,Direct Intake,500000\n" +
+      "Priya Patel,9876543210,ITR Filing,250000\n" +
+      "Rahul Sharma,9823456789,GST Registration,\n"
+    );
+  }
+  const link = document.createElement("a");
+  link.setAttribute("href", csvContent);
+  link.setAttribute("download", isDirectOutreach ? "direct_outreach_targets_sample.csv" : "collectrr_clients_sample.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+async function executeBulkImport() {
+  const validRows = parsedBulkClients.filter(r => r.isValid);
+  if (validRows.length === 0) return;
+
+  const submitBtn = el("btnExecuteBulkImport");
+  const errBox = el("bulkImportError");
+  if (errBox) errBox.hidden = true;
+
+  const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
+  const defaultCategory = isDirectOutreach ? "Direct Outreach" : (el("bulkCategorySelect")?.value || "Direct Intake");
+  const templateName = el("bulkTemplateSelect")?.value || "new_convo_1";
+  const sendWhatsApp = el("bulkSendWhatsAppCheck")?.checked !== false;
+
+  const payload = {
+    clients: validRows.map(r => ({
+      contactPerson: r.contactPerson,
+      phoneNumber: r.digits || r.rawPhone,
+      loanProduct: r.category || defaultCategory,
+      amountRequired: isDirectOutreach ? null : r.amountRequired,
+      templateParams: r.templateParams || []
+    })),
+    defaultLoanProduct: defaultCategory,
+    templateName: templateName,
+    sendWhatsApp: sendWhatsApp,
+    noDocsRequired: isDirectOutreach
+  };
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = `Importing ${validRows.length} clients...`;
+  }
+
+  try {
+    const res = await authFetch("/api/cases/bulk-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Failed to import client batch.");
+
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast(`Successfully imported ${data.importedCount} clients!`, "success");
+    }
+
+    closeBulkImportModal();
+    if (typeof load === 'function') load();
+    if (typeof fetchUserCredits === 'function') fetchUserCredits();
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = err.message;
+      errBox.hidden = false;
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = `Import ${validRows.length} Clients`;
+    }
+  }
+}
+
+const bulkTemplateSelectEl = el("bulkTemplateSelect");
+if (bulkTemplateSelectEl) {
+  bulkTemplateSelectEl.addEventListener("change", updateBulkSampleFormat);
+}
+
+// Wire Bulk Import trigger buttons and dropzone events
+const btnOpenBulkImportModal = el("btnOpenBulkImportModal");
+if (btnOpenBulkImportModal) {
+  btnOpenBulkImportModal.addEventListener("click", openBulkImportModal);
+}
+
+const closeBulkImportModalBtn = el("closeBulkImportModal");
+if (closeBulkImportModalBtn) {
+  closeBulkImportModalBtn.addEventListener("click", closeBulkImportModal);
+}
+
+const cancelBulkImportModalBtn = el("cancelBulkImportModal");
+if (cancelBulkImportModalBtn) {
+  cancelBulkImportModalBtn.addEventListener("click", closeBulkImportModal);
+}
+
+const bulkFileInput = el("bulkFileInput");
+if (bulkFileInput) {
+  bulkFileInput.addEventListener("change", (e) => {
+    const file = e.target?.files?.[0];
+    if (file) handleBulkFileSelected(file);
+  });
+}
+
+const bulkDropzone = el("bulkDropzone");
+if (bulkDropzone) {
+  bulkDropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    bulkDropzone.classList.add("dragover");
+  });
+  bulkDropzone.addEventListener("dragleave", () => {
+    bulkDropzone.classList.remove("dragover");
+  });
+  bulkDropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    bulkDropzone.classList.remove("dragover");
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleBulkFileSelected(file);
+  });
+}
+
+// Make functions globally available
+window.openTemplateModal = openTemplateModal;
+window.closeTemplateModal = closeTemplateModal;
+window.switchTemplateTab = switchTemplateTab;
+window.insertTemplateToken = insertTemplateToken;
+window.saveCustomTemplate = saveCustomTemplate;
+window.deleteCustomTemplate = deleteCustomTemplate;
+window.editCustomTemplate = editCustomTemplate;
+
+window.openBulkImportModal = openBulkImportModal;
+window.closeBulkImportModal = closeBulkImportModal;
+window.downloadSampleCsv = downloadSampleCsv;
+window.executeBulkImport = executeBulkImport;
+window.parseCsvOrTextContent = parseCsvOrTextContent;
+
+if (window.applyVariantToDOM) {
+  window.applyVariantToDOM();
+}
+
+// Auto-fetch user credits on initialization
+document.addEventListener("DOMContentLoaded", () => {
+  fetchUserCredits().catch(() => {});
+});
+

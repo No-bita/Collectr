@@ -7,7 +7,7 @@ const rootDir = path.resolve(process.cwd());
 
 test('3-Screen Creation Wizard UI & Architecture Tests', async (t) => {
   await t.test('1. HTML Markup Structure Verification', () => {
-    const htmlPath = path.join(rootDir, 'public', 'index.html');
+    const htmlPath = path.join(rootDir, 'public', 'dashboard.html');
     const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
     assert.ok(htmlContent.includes('id="wizardModal"'), 'wizardModal element must exist');
@@ -70,7 +70,7 @@ test('3-Screen Creation Wizard UI & Architecture Tests', async (t) => {
   });
 
   await t.test('6. Admin-Only Visibility for Analytics and Observability Tabs', () => {
-    const htmlPath = path.join(rootDir, 'public', 'index.html');
+    const htmlPath = path.join(rootDir, 'public', 'dashboard.html');
     const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
     assert.ok(htmlContent.includes('id="navAnalytics" style="display: none;"'), 'navAnalytics must be hidden by default in HTML');
@@ -84,7 +84,7 @@ test('3-Screen Creation Wizard UI & Architecture Tests', async (t) => {
   });
 
   await t.test('7. Manually Configurable Document Mapping Matrix Architecture', () => {
-    const htmlPath = path.join(rootDir, 'public', 'index.html');
+    const htmlPath = path.join(rootDir, 'public', 'dashboard.html');
     const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
     assert.ok(htmlContent.includes('id="docMappingModalBackdrop"'), 'docMappingModalBackdrop modal element must exist');

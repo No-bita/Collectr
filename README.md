@@ -1,86 +1,117 @@
-# Lekho CRM + WhatsApp Automation
+# Collectrr V2 — Automated Client Intake & Document Collection Platform
 
-Lekho tracks document collection for leads in Google Sheets and automates client communication over WhatsApp. The API powers a dashboard for operations teams and a webhook flow that processes incoming media uploads. Document status, follow-up due state, and collection sequencing are handled consistently through backend services.
+Collectrr is a serverless, edge-native CRM and automated document collection engine for MSME financial services. Built on **Cloudflare Workers**, **Hono**, **Cloudflare D1** (SQLite), and **Cloudflare R2** (object storage), it automates client document intake via WhatsApp, presigned R2 uploads, and AI-driven OCR extraction.
 
-## Core concepts
+---
 
-- **Lead**: one sheet row with profile, required docs, and workflow status.
-- **Document state**: JSON map (`pending|received|failed`) stored in the sheet.
-- **Follow-up due**: computed from pending docs + inactivity window.
-- **Webhook ingestion**: WhatsApp media -> Drive link -> sheet state update.
-- **OCR validation pipeline**: Aadhaar/PAN rule-based verification with `PASS|FAIL|MANUAL_REVIEW`.
-  - Supports direct image/PDF upload endpoint with OCR adapter integration.
+## Core Features
 
-## System flow
+- **Public Marketing Landing Page**: High-converting landing page integrated directly at root (`/`) with client sign-in (`/login.html`) and registration (`/register.html`) flows.
+- **Operations Dashboard** (`/dashboard.html` or `/app`): Multi-tenant workspace for agents and administrators to manage loan cases, filter by product/status/amount, track document progress, and trigger follow-ups.
+- **3-Screen Case Creation Wizard**:
+  - *Screen 1 (Intake)*: Borrower details, 10-digit mobile number validation, loan product selection, and required loan amount.
+  - *Screen 2 (Document Matrix)*: Dynamic document checklist recommended based on loan product rules.
+  - *Screen 3 (WhatsApp Dispatch)*: Meta Cloud API template dispatch and unique token link generation.
+- **Client Document Portal** (`/upload.html?t=<token>`): Mobile-first upload portal for end-clients accessing their secure, time-limited token link with presigned R2 upload URLs and direct upload support.
+- **AI-Powered OCR Verification**: Asynchronous Gemini 2.5 Flash OCR extraction parsing key fields (PAN, Aadhaar, GST Returns, Bank Statements), detecting anomalies, logging failure diagnostics, and auto-advancing case status.
+- **Admin Observability & Matrix Rules**: Configurable loan product document requirement matrix and system failure logs.
 
-1. Dashboard creates/edits leads through `/api/leads`.
-2. Backend writes normalized state to Google Sheets.
-3. WhatsApp webhook receives customer messages/files at `/webhook`.
-4. Uploaded media is stored in Drive and linked back to lead state.
-5. Follow-up routes send reminders/templates and refresh activity timestamps.
-6. OCR validation APIs score Aadhaar/PAN evidence and route ambiguous cases to review.
-7. Optional WhatsApp OCR enrichment runs after Drive save and shows extracted fields in the dashboard.
+---
 
-## OCR upload setup (image + PDF)
+## System Architecture
 
-1. Install Python OCR dependency:
-   - `pip install paddleocr`
-2. Configure env:
-   - `OCR_PIPELINE_COMMAND=python3`
-   - `OCR_PIPELINE_ARGS=["scripts/paddle_ocr_extract.py","--file","{file}"]`
-   - `PADDLE_OCR_LANG=en` (set `hi` for Hindi-first)
-3. Call `POST /api/document-validations/validate-upload` using multipart form:
-   - fields: `expectedDocumentType`, `file`
+```
+[ End-Client ] ───────> Upload Portal (/upload.html?t=token)
+                              │
+                              ▼
+                        [ Cloudflare R2 ] (Document Storage)
+                              │
+                              ▼
+                       [ Gemini 2.5 OCR ] (Async Background Worker)
+                              │
+                              ▼
+ [ Agent/Admin ] ─────> [ Hono Edge API ] <─────> [ Cloudflare D1 ]
+                           (Workers)                (SQLite Database)
+                              │
+                              ▼
+                  [ WhatsApp Meta Cloud API ]
+```
 
-### Try Sarvam OCR pipeline (parallel to Paddle)
+---
 
-Paddle remains the default. To test Sarvam on the same upload endpoint, switch only the OCR script args:
+## Folder Structure
 
-- Install SDK first: `pip install sarvamai`
-- `OCR_PIPELINE_COMMAND=python3`
-- `OCR_PIPELINE_ARGS=["scripts/sarvam_ocr_extract.py","--file","{file}"]`
-- `SARVAM_API_SUBSCRIPTION_KEY=<your key>`
-- Optional tuning:
-  - `SARVAM_DOC_LANGUAGE=en-IN`
-  - `SARVAM_DOC_OUTPUT_FORMAT=md` (allowed: `md`, `html`)
-  - `SARVAM_POLL_INTERVAL_SECONDS=2`
-  - `SARVAM_POLL_TIMEOUT_SECONDS=120`
+```
+v2/
+├── migrations/         # D1 Database SQL migrations (0001, 0002, 0003)
+├── public/             # Static Assets served by Cloudflare Workers [assets]
+│   ├── index.html      # Landing Page (Root /)
+│   ├── dashboard.html  # Operations Dashboard (/dashboard.html or /app)
+│   ├── login.html      # Agent & Admin Sign In
+│   ├── register.html   # Account Creation
+│   ├── case.html       # Case Detail Workspace
+│   ├── upload.html     # Public Client Upload Portal
+│   ├── js/             # Modular JS (app.js, case-detail.js, ui-components.js, icons.js)
+│   ├── css/            # Dashboard Stylesheet (dashboard.css)
+│   └── assets/         # Tailwind CSS & bundle assets
+├── src/
+│   ├── index.js        # Hono router entrypoint, CORS, JWT auth & asset fallbacks
+│   ├── api/            # Route handlers (cases, auth, upload, ocr, webhook, admin, session)
+│   └── db/             # D1 client adapter, baseline schema, and seed SQL
+└── tests/              # TAP Integration Test Suite (node --test)
+```
 
-Sarvam flow implemented in `scripts/sarvam_ocr_extract.py` follows their async SDK job flow:
-create job → upload file → start job → poll/wait for status → download ZIP output.
+---
 
-Current script output is **raw provider output mode** for evaluation (not normalized):
-- top-level includes `job_id`, `status`, and `output_files`
-- each `output_files` item includes file name, type, size, and decoded content when text/JSON
+## Local Development & Testing
 
-### WhatsApp upload OCR enrichment
+### 1. Install Dependencies & Start Dev Server
 
-You can configure OCR extraction to run automatically for incoming WhatsApp media after it is saved on Drive. You can use either Gemini API or Sarvam AI. If both are enabled, Gemini will take precedence.
+```bash
+cd v2
+npm install
+npx wrangler dev
+```
 
-**Which documents are processed?**
-By default, the system will only run OCR on `pan` and `aadhaar` documents. You can customize this by setting a comma-separated list of document IDs in your environment:
-- `OCR_DOCUMENTS="pan,aadhaar,form16"`
+The local dev server runs on **`http://localhost:8788`**:
+- **Landing Page**: `http://localhost:8788/`
+- **Dashboard**: `http://localhost:8788/dashboard.html` (or `http://localhost:8788/app`)
+- **Sign In**: `http://localhost:8788/login.html`
+- **Register**: `http://localhost:8788/register.html`
 
-**Option 1: Gemini OCR (Recommended)**
-- `GEMINI_OCR_ENABLED=true`
-- `GEMINI_API_KEY=<your gemini api key>`
+*Note: In development (`localhost`), API authentication automatically grants dev bypass privileges as `DevAgent (admin)`.*
 
-**Option 2: Sarvam OCR**
-- `SARVAM_OCR_ENABLED=true`
-- `SARVAM_OCR_COMMAND=.venv/bin/python`
-- `SARVAM_OCR_ARGS=["scripts/sarvam_ocr_extract.py","--file","{file}"]`
+### 2. Run Integration Test Suite
 
-When enabled and the uploaded document type is in `OCR_DOCUMENTS`, the document in `documentsState` gets an `ocr` object (provider, job status/id, extracted `name`/`dob`/`idNumber`/`vid`, and preview text), and the dashboard shows this under the document row.
+```bash
+npm test
+```
 
-## Folder structure
+Executes all 13 TAP unit and integration tests covering WhatsApp template failover logic, 3-Screen Wizard state machines, mobile validation, and admin matrix rules.
 
-- `src/api`: Hono edge controllers for APIs, webhooks, and OCR execution.
-- `src/db`: Database client configuration.
-- `docs`: architecture, data flow, contracts, and decisions.
+---
 
-## Where to start reading
+## Environment Variables Configuration
 
-1. `src/index.js`
-2. `src/api/leads.js`
-3. `src/api/webhook.js`
-4. `src/api/ocr.js`
+Configure bindings in `v2/wrangler.toml` or secret values in `v2/.dev.vars`:
+
+```toml
+[vars]
+ENVIRONMENT = "production"
+FRONTEND_URL = "https://collectrr-v2.collectr.workers.dev"
+WHATSAPP_PROD_PHONE_ID = "1073272059211357"
+WHATSAPP_VERIFY_TOKEN = "CollectrWhatsappTokenAuth2026"
+WHATSAPP_NEW_LEAD_TEMPLATE = "new_convo_1"
+WHATSAPP_TEMPLATE_LANG = "en"
+```
+
+---
+
+## Deploying to Production
+
+When local development and testing are complete:
+
+```bash
+cd v2
+npx wrangler deploy
+```

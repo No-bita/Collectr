@@ -27,8 +27,15 @@ import {
   handleAgentUploadUrl,
   handleAgentUploadComplete,
   handleRetryWhatsApp,
-  handleAddDocumentRequirement
+  handleAddDocumentRequirement,
+  handleSendWhatsAppText,
+  handleBulkImportCases
 } from "./api/cases.js";
+import {
+  handleGetCredits,
+  handleRechargeCredits,
+  handleAdminAdjustCredits
+} from "./api/credits.js";
 
 import { 
   handleGetAdminDashboard, 
@@ -38,6 +45,11 @@ import {
   handleGetAdminAnalyticsData,
   handleGetAdminAnalyticsDashboard
 } from "./api/admin.js";
+import {
+  handleGetTemplates,
+  handleCreateTemplate,
+  handleDeleteTemplate
+} from "./api/templates.js";
 
 const app = new Hono();
 
@@ -80,8 +92,45 @@ const adminOnlyMiddleware = async (c, next) => {
 app.post("/api/auth/login", handleLogin);
 app.post("/api/auth/register", handleRegister);
 
-// Health Check
-app.get("/", (c) => c.text("Collectrr v2 API Running"));
+// Application Redirects
+app.get("/app", (c) => c.redirect("/dashboard.html"));
+app.get("/dashboard", (c) => c.redirect("/dashboard.html"));
+app.get("/early-access", (c) => c.redirect("/register.html"));
+app.get("/loan-agent", (c) => c.redirect("/index.html?variant=loan_agent"));
+app.get("/ca", (c) => c.redirect("/index.html?variant=ca"));
+
+// Health Check & Analytics Tracking API
+app.get("/api/health", (c) => c.text("Collectrr v2 API Running"));
+app.post("/api/events/track", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const eventName = body.event || "unknown_event";
+    const userAgent = c.req.header("user-agent") || "";
+    const ip = c.req.header("cf-connecting-ip") || "127.0.0.1";
+    console.log(`[FAKE DOOR TRACK] Event: ${eventName} | IP: ${ip} | UA: ${userAgent}`);
+
+    if (c.env.DB) {
+      await c.env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS analytics_events (
+          id TEXT PRIMARY KEY,
+          event_name TEXT NOT NULL,
+          ip_address TEXT,
+          user_agent TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run().catch(() => {});
+
+      await c.env.DB.prepare(`
+        INSERT INTO analytics_events (id, event_name, ip_address, user_agent)
+        VALUES (?, ?, ?, ?)
+      `).bind(`evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, eventName, ip, userAgent).run().catch(() => {});
+    }
+
+    return c.json({ success: true, message: "Interest recorded" });
+  } catch (err) {
+    return c.json({ success: true, message: "Interest recorded" });
+  }
+});
 
 // Public Client Upload Flow
 app.get("/api/session/:token", handleSessionRequest);
@@ -104,6 +153,7 @@ app.use("/api/reject-upload", authMiddleware);
 app.get("/api/cases", handleGetCases);
 app.get("/api/cases/:id", handleGetSingleCase);
 app.post("/api/cases", handleCreateCase);
+app.post("/api/cases/bulk-import", handleBulkImportCases);
 app.patch("/api/cases/:id", handleEditCase);
 app.delete("/api/cases/:id", handleDeleteCase);
 app.patch("/api/cases/:id/status", handleUpdateStatus);
@@ -114,6 +164,7 @@ app.post("/api/cases/:id/agent-upload-url", handleAgentUploadUrl);
 app.post("/api/cases/:id/agent-upload-complete", handleAgentUploadComplete);
 app.post("/api/cases/:id/generate-report", handleGenerateReport);
 app.post("/api/cases/:id/retry-whatsapp", handleRetryWhatsApp);
+app.post("/api/cases/:id/send-whatsapp-text", handleSendWhatsAppText);
 app.post("/api/cases/:id/add-requirement", handleAddDocumentRequirement);
 
 app.get("/api/loan-products", handleGetLoanProducts);
@@ -123,6 +174,16 @@ app.post("/api/admin/loan-product-mappings", authMiddleware, handleSaveProductMa
 app.put("/api/admin/loan-product-mappings", authMiddleware, handleSaveProductMappings);
 app.get("/api/document-catalog", handleDocumentCatalog);
 app.post("/api/reject-upload", handleRejectUpload);
+
+// Freemium Credits & Wallet Endpoints
+app.get("/api/user/credits", authMiddleware, handleGetCredits);
+app.post("/api/user/recharge", authMiddleware, handleRechargeCredits);
+app.post("/api/admin/credits/adjust", authMiddleware, handleAdminAdjustCredits);
+
+// Message Templates Endpoints
+app.get("/api/templates", authMiddleware, handleGetTemplates);
+app.post("/api/admin/templates", authMiddleware, adminOnlyMiddleware, handleCreateTemplate);
+app.delete("/api/admin/templates/:id", authMiddleware, adminOnlyMiddleware, handleDeleteTemplate);
 
 // Document Proxy
 app.get("/api/documents/*", authMiddleware, async (c) => {

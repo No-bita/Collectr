@@ -111,11 +111,14 @@
   </head>
   <body>
     <div class="login-card">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <a href="/" style="font-size: 13px; color: var(--muted); text-decoration: none;">← Back to Home</a>
+      </div>
       <div class="brand-header">
         <div class="brand-icon">C</div>
         <div class="brand-title">
           <h1>Collectrr</h1>
-          <p>MSME Loan Operations Platform</p>
+          <p>Start collecting</p>
         </div>
       </div>
 
@@ -177,7 +180,7 @@
           localStorage.setItem('collectrr_auth', data.authHeader);
           
           const params = new URLSearchParams(window.location.search);
-          const redirectUrl = params.get('redirect') || '/index.html';
+          const redirectUrl = params.get('redirect') || '/dashboard.html';
           window.location.href = redirectUrl;
         } catch (err) {
           errBox.textContent = err.message;

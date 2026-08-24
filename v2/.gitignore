@@ -3,4 +3,6 @@ node_modules/
 .wrangler/
 dist/
 .DS_Store
-wrangler.toml
+__pycache__/
+*.log
+
