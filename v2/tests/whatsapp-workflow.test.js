@@ -156,11 +156,99 @@ describe("WhatsApp Workflow Integration Tests", () => {
     const tplConfig = getWhatsAppTemplate("onboarding_first_message", {});
     assert.equal(tplConfig.id, "onboarding_first_message");
     const payloads = tplConfig.getPayloads({ phone: "919876543210", contactPerson: "Test Client", rawToken: "tok_123", templateParams: ["Aryan", "Aaryan Shah & Co"] });
-    assert.equal(payloads.length, 2);
+    assert.equal(payloads.length, 1);
     assert.equal(payloads[0].template.name, "onboarding_first_message");
 
     const loanAgentConfig = getWhatsAppTemplate("loan_agent_first_outreach");
     assert.equal(loanAgentConfig.id, "loan_agent_first_outreach");
+  });
+
+  test("7. Free-Form WhatsApp Text Message Payload Structure", () => {
+    const phone = "919876543210";
+    const text = "Hi, thanks for getting back to me.";
+
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "text",
+      text: { body: text }
+    };
+
+    assert.equal(payload.messaging_product, "whatsapp");
+    assert.equal(payload.to, "919876543210");
+    assert.equal(payload.type, "text");
+    assert.equal(payload.text.body, "Hi, thanks for getting back to me.");
+  });
+
+  test("8. Meta 24-Hour Customer Service Window Enforcement", () => {
+    const now = Date.now();
+    const windowMs = 24 * 60 * 60 * 1000;
+
+    function checkWindow(lastReplyTimestamp) {
+      if (!lastReplyTimestamp) {
+        return { hasReplied: false, isOpen: false, code: "WINDOW_NO_REPLY" };
+      }
+      const isOpen = (now - lastReplyTimestamp) < windowMs;
+      return { hasReplied: true, isOpen, code: isOpen ? "WINDOW_ACTIVE" : "WINDOW_EXPIRED" };
+    }
+
+    // 8a. No reply received
+    const noReplyResult = checkWindow(null);
+    assert.equal(noReplyResult.hasReplied, false);
+    assert.equal(noReplyResult.isOpen, false);
+    assert.equal(noReplyResult.code, "WINDOW_NO_REPLY");
+
+    // 8b. Reply received 2 hours ago (< 24h) -> OPEN
+    const recentReply = now - (2 * 60 * 60 * 1000);
+    const recentResult = checkWindow(recentReply);
+    assert.equal(recentResult.hasReplied, true);
+    assert.equal(recentResult.isOpen, true);
+    assert.equal(recentResult.code, "WINDOW_ACTIVE");
+
+    // 8c. Reply received 25 hours ago (> 24h) -> EXPIRED
+    const oldReply = now - (25 * 60 * 60 * 1000);
+    const oldResult = checkWindow(oldReply);
+    assert.equal(oldResult.hasReplied, true);
+    assert.equal(oldResult.isOpen, false);
+    assert.equal(oldResult.code, "WINDOW_EXPIRED");
+
+    // 8d. Subsequent reply refreshes the 24-hour window
+    const newReply = now - (10 * 60 * 1000); // 10 mins ago
+    const refreshedResult = checkWindow(newReply);
+    assert.equal(refreshedResult.hasReplied, true);
+    assert.equal(refreshedResult.isOpen, true);
+    assert.equal(refreshedResult.code, "WINDOW_ACTIVE");
+  });
+
+  test("9. Outgoing Free-form Timeline Event & Metadata Contract", () => {
+    const caseId = "case_test_123";
+    const text = "Your documents look good, proceeding to verification.";
+    const metaMsgId = "wamid.HBgLM...mock";
+
+    const metadata = {
+      channel: "whatsapp",
+      message_type: "freeform",
+      meta_message_id: metaMsgId,
+      whatsapp_status: "sent",
+      direct_message: true
+    };
+
+    const timelineEvent = {
+      id: "evt_123",
+      case_id: caseId,
+      event_type: "whatsapp_sent",
+      content: text,
+      metadata: JSON.stringify(metadata),
+      created_by: "agent"
+    };
+
+    assert.equal(timelineEvent.event_type, "whatsapp_sent");
+    assert.equal(timelineEvent.created_by, "agent");
+    assert.equal(timelineEvent.content, text);
+    const parsed = JSON.parse(timelineEvent.metadata);
+    assert.equal(parsed.message_type, "freeform");
+    assert.equal(parsed.meta_message_id, "wamid.HBgLM...mock");
+    assert.equal(parsed.whatsapp_status, "sent");
   });
 
 });

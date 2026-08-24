@@ -358,6 +358,45 @@ function formatCleanDeliveryError(msg) {
   return msg.replace(/^WhatsApp message delivery failed:\s*/i, "");
 }
 
+function getActualTemplateMessageText(c) {
+  const tplName = (c?.messageTemplate || c?.template_name || "onboarding_first_message").toLowerCase();
+  const contactName = c?.contactPerson || "Client";
+
+  if (tplName.includes("loan_agent") || tplName === "loan_agent_first_outreach") {
+    return `Namaste ${contactName},\n\nLoan application has been initiated using Collectrr.\n\nPlease upload the requested documents using the secure link below.\n\nIf you have any questions, please contact us.`;
+  }
+  if (tplName === "do_ca") {
+    return `Kem cho?\n\nI came across your firm on Google and noticed you don't have a website.\n\nI made a sample for you to show how you can present your services, build trust online and make it easier for new clients to find you.\n\nWhat do you think?`;
+  }
+  return `Hi ${contactName},\n\nThank you for trusting Collectrr.\n\nTo get started with your ITR filing, please upload the required documents using the button below.\n\nReply here if you need any help.`;
+}
+
+function isSystemNotificationContent(content) {
+  if (!content) return true;
+  const lower = content.toLowerCase();
+  return (
+    lower.includes("whatsapp onboarding message sent") ||
+    lower.includes("whatsapp onboarding message dispatched") ||
+    lower.includes("direct outreach message dispatched") ||
+    lower.includes("whatsapp upload link sent") ||
+    lower.includes("retried whatsapp message delivery") ||
+    lower.includes("whatsapp reminder sent") ||
+    lower.includes("whatsapp message delivered to handset") ||
+    lower.includes("whatsapp message read by recipient")
+  );
+}
+
+function formatEventTime(isoStr) {
+  if (!isoStr) return "";
+  let cleanIso = isoStr;
+  if (!cleanIso.endsWith("Z") && !cleanIso.includes("+")) cleanIso = cleanIso.replace(" ", "T") + "Z";
+  try {
+    return new Date(cleanIso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  } catch (_) {
+    return "";
+  }
+}
+
 function renderWhatsAppConversationCard(c, timeline) {
   const panel = el("docsCardPanel");
   if (!panel || !c) return;
@@ -367,60 +406,85 @@ function renderWhatsAppConversationCard(c, timeline) {
   let badgeLabel = "WhatsApp";
   if (waStatus === 'sent') {
     badgeStyle = "background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0;";
-    badgeLabel = "Sent";
+    badgeLabel = "WhatsApp: Sent";
   } else if (waStatus === 'replied') {
     badgeStyle = "background: #DBEAFE; color: #1D4ED8; border: 1px solid #BFDBFE;";
-    badgeLabel = "Replied by Client";
+    badgeLabel = "WhatsApp: Replied";
   } else if (waStatus === 'failed') {
     badgeStyle = "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;";
-    badgeLabel = "Delivery Failed";
+    badgeLabel = "WhatsApp: Failed";
   }
 
-  const threadEvents = (timeline || []).filter(t => {
-    const content = (t.content || "").toLowerCase();
-    return t.event_type === 'whatsapp_sent' || t.event_type === 'whatsapp_reply' || t.event_type === 'whatsapp_failed' || content.includes("whatsapp");
+  const events = timeline || [];
+  const readEvt = events.find(e => e.event_type === 'whatsapp_read');
+  const delivEvt = events.find(e => e.event_type === 'whatsapp_delivered');
+  const failedEvt = events.find(e => e.event_type === 'whatsapp_failed');
+
+  // Filter for actual conversational messages only (incoming client replies & outgoing agent messages)
+  const conversationEvents = events.filter(t => {
+    return t.event_type === 'whatsapp_sent' || t.event_type === 'whatsapp_reply';
   }).slice().reverse();
 
-  let chatHtml = "";
-  if (threadEvents.length === 0) {
-    chatHtml = '<p style="color: #64748b; font-size: 0.8125rem; text-align: center; margin: 1.5rem 0;">No WhatsApp conversation history yet. Send a message below to start.</p>';
-  } else {
-    chatHtml = threadEvents.map(t => {
-      const isClient = t.created_by === 'client' || t.event_type === 'whatsapp_reply';
-      const isFailed = t.event_type === 'whatsapp_failed' || (t.metadata && t.metadata.whatsapp_status === 'failed');
+  // If no explicit sent/reply event exists but case failed or was created, check if we should render initial outreach
+  if (conversationEvents.length === 0 && (waStatus === 'sent' || waStatus === 'delivered' || waStatus === 'read' || waStatus === 'replied' || waStatus === 'failed' || failedEvt)) {
+    conversationEvents.push({
+      event_type: 'whatsapp_sent',
+      content: getActualTemplateMessageText(c),
+      created_at: (failedEvt && failedEvt.created_at) || c.createdAt || c.created_at || new Date().toISOString(),
+      created_by: 'system'
+    });
+  }
 
-      let isoStr = t.created_at || "";
-      if (isoStr && !isoStr.endsWith("Z") && !isoStr.includes("+")) isoStr = isoStr.replace(" ", "T") + "Z";
-      const timeStr = isoStr ? new Date(isoStr).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : "";
+  let chatHtml = "";
+  if (conversationEvents.length === 0) {
+    chatHtml = '<p style="color: #64748b; font-size: 0.8125rem; text-align: center; margin: 2rem 0;">No messages yet. Use the input below to start the conversation.</p>';
+  } else {
+    chatHtml = conversationEvents.map(t => {
+      const isClient = t.created_by === 'client' || t.event_type === 'whatsapp_reply';
+      const timeStr = formatEventTime(t.created_at);
 
       if (isClient) {
+        const clientMsg = (t.content || "").replace(/^Client WhatsApp Reply:\s*/i, '').trim();
         return `
-          <div style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 10px;">
-            <div style="font-size: 0.6875rem; color: #64748b; margin-bottom: 3px; font-weight: 600;">${escapeHtml(c.contactPerson || 'Client')} • ${timeStr}</div>
-            <div style="background: #F1F5F9; color: #0F172A; border: 1px solid #E2E8F0; padding: 10px 14px; border-radius: 14px 14px 14px 2px; max-width: 85%; font-size: 0.875rem; line-height: 1.4; word-break: break-word;">
-              ${escapeHtml((t.content || "").replace(/^Client WhatsApp Reply:\s*/i, ''))}
-            </div>
-          </div>
-        `;
-      } else if (isFailed) {
-        const cleanContent = formatCleanDeliveryError(t.content);
-        return `
-          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-bottom: 10px;">
-            <div style="font-size: 0.6875rem; color: #DC2626; margin-bottom: 3px; font-weight: 600;">Delivery Issue • ${timeStr}</div>
-            <div style="background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 85%; font-size: 0.875rem; line-height: 1.4; word-break: break-word;">
-              ${escapeHtml(cleanContent)}
-              <div style="margin-top: 6px; text-align: right;">
-                <button type="button" onclick="handleTimelineRetryWhatsApp('${c.id}')" style="background: #DC2626; color: #ffffff; border: none; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">🔄 Retry WhatsApp</button>
-              </div>
-            </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 12px; height: auto; min-height: 0;">
+            <div style="background: #F1F5F9; color: #0F172A; border: 1px solid #E2E8F0; padding: 10px 14px; border-radius: 14px 14px 14px 2px; max-width: 85%; width: fit-content; height: auto; min-height: 0; font-size: 0.875rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; box-sizing: border-box; margin: 0;">${escapeHtml(clientMsg)}</div>
+            <div style="font-size: 0.6875rem; color: #64748b; margin-top: 4px; font-weight: 500;">${escapeHtml(c.contactPerson || 'Client')} • ${timeStr}</div>
           </div>
         `;
       } else {
+        // Outgoing Agent Message
+        let messageText = t.content || "";
+        if (isSystemNotificationContent(messageText)) {
+          messageText = getActualTemplateMessageText(c);
+        }
+
+        // Derive subtle delivery status attached to this message
+        let statusHtml = "";
+        if (failedEvt || waStatus === 'failed') {
+          const cleanErr = formatCleanDeliveryError((failedEvt && failedEvt.content) || c.whatsappErrorDetails || "Message delivery failed.");
+          statusHtml = `
+            <div style="margin-top: 4px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+              <span style="font-size: 0.75rem; color: #DC2626; font-weight: 600;">⚠ Failed to deliver: ${escapeHtml(cleanErr)} • ${timeStr}</span>
+              <button type="button" onclick="handleTimelineRetryWhatsApp('${c.id}')" style="background: #DC2626; color: #ffffff; border: none; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">🔄 Retry WhatsApp</button>
+            </div>
+          `;
+        } else if (readEvt) {
+          statusHtml = `<span style="font-size: 0.75rem; color: #2563EB; font-weight: 500;">✓✓ Read • ${formatEventTime(readEvt.created_at)}</span>`;
+        } else if (waStatus === 'read' || waStatus === 'replied') {
+          statusHtml = `<span style="font-size: 0.75rem; color: #2563EB; font-weight: 500;">✓✓ Read</span>`;
+        } else if (delivEvt) {
+          statusHtml = `<span style="font-size: 0.75rem; color: #64748B; font-weight: 500;">✓✓ Delivered • ${formatEventTime(delivEvt.created_at)}</span>`;
+        } else if (waStatus === 'delivered') {
+          statusHtml = `<span style="font-size: 0.75rem; color: #64748B; font-weight: 500;">✓✓ Delivered</span>`;
+        } else {
+          statusHtml = `<span style="font-size: 0.75rem; color: #64748B; font-weight: 500;">✓ Sent • ${timeStr}</span>`;
+        }
+
         return `
-          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-bottom: 10px;">
-            <div style="font-size: 0.6875rem; color: #166534; margin-bottom: 3px; font-weight: 600;">Agent • ${timeStr}</div>
-            <div style="background: #DCFCE7; color: #14532D; border: 1px solid #BBF7D0; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 85%; font-size: 0.875rem; line-height: 1.4; word-break: break-word;">
-              ${escapeHtml(t.content)}
+          <div style="display: flex; flex-direction: column; align-items: flex-end; margin-bottom: 12px; height: auto; min-height: 0;">
+            <div style="background: #DCFCE7; color: #14532D; border: 1px solid #BBF7D0; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 85%; width: fit-content; height: auto; min-height: 0; font-size: 0.875rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; text-align: left; box-sizing: border-box; margin: 0;">${escapeHtml(messageText)}</div>
+            <div style="margin-top: 4px;">
+              ${statusHtml}
             </div>
           </div>
         `;
@@ -428,62 +492,102 @@ function renderWhatsAppConversationCard(c, timeline) {
     }).join("");
   }
 
-  panel.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #ECE8DF; padding-bottom: 0.875rem;">
-      <div>
-        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: #171717; display: flex; align-items: center; gap: 8px;">
-          💬 WhatsApp Outreach Conversation
-        </h3>
-        <p style="margin: 3px 0 0 0; font-size: 0.8125rem; color: #6E6A62;">Live target messages & incoming WhatsApp replies</p>
-      </div>
-      <span class="badge" style="${badgeStyle} font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;">WhatsApp: ${badgeLabel}</span>
-    </div>
+    // Determine 24-hour customer service window status based on latest inbound client message
+    let hasClientReply = false;
+    let isWindowOpen = false;
+    let latestReplyTime = 0;
 
-    <div id="waThreadFeed" style="min-height: 240px; max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; padding: 14px; border: 1px solid #ECE8DF; border-radius: 12px; background: #FCFBF8; margin-bottom: 1rem;">
-      ${chatHtml}
-    </div>
-
-    <form id="waDirectSendForm" style="display: flex; gap: 8px; align-items: center;" onsubmit="handleDirectWhatsAppSend(event, '${c.id}')">
-      <input type="text" id="waDirectSendInput" placeholder="Type WhatsApp message to send..." style="flex: 1; height: 42px; padding: 0 1rem; background: #ffffff; border: 1px solid #ECE8DF; border-radius: 10px; font-size: 14px; color: #171717; outline: none;" required />
-      <button type="submit" class="btn btn-primary" id="waDirectSendBtn" style="height: 42px; padding: 0 1.25rem; font-weight: 600; white-space: nowrap; border-radius: 10px;">
-        Send WhatsApp ➔
-      </button>
-    </form>
-  `;
-
-  const chatFeed = el("waThreadFeed");
-  if (chatFeed) chatFeed.scrollTop = chatFeed.scrollHeight;
-}
-
-async function handleDirectWhatsAppSend(e, caseId) {
-  if (e) e.preventDefault();
-  const input = el("waDirectSendInput");
-  const btn = el("waDirectSendBtn");
-  if (!input || !input.value.trim()) return;
-
-  const msg = input.value.trim();
-  input.value = "";
-  if (btn) btn.disabled = true;
-
-  try {
-    const res = await authFetch(`/api/cases/${caseId}/send-whatsapp-text`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: msg })
-    });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      UI.toast("WhatsApp message sent!", "success");
-    } else {
-      UI.toast(data.error || "Failed to send WhatsApp message.", "error");
+    for (const t of events) {
+      if (t.event_type === 'whatsapp_reply' || t.created_by === 'client') {
+        hasClientReply = true;
+        let replyIso = t.created_at || "";
+        if (replyIso && !replyIso.endsWith("Z") && !replyIso.includes("+")) replyIso = replyIso.replace(" ", "T") + "Z";
+        const ts = new Date(replyIso).getTime();
+        if (ts > latestReplyTime) {
+          latestReplyTime = ts;
+        }
+      }
     }
-  } catch (err) {
-    UI.toast("Error sending message: " + err.message, "error");
-  } finally {
-    if (btn) btn.disabled = false;
-    loadTimeline(caseId);
+
+    if (hasClientReply && latestReplyTime > 0) {
+      const windowMs = 24 * 60 * 60 * 1000;
+      isWindowOpen = (Date.now() - latestReplyTime) < windowMs;
+    }
+
+    let composerHtml = "";
+    if (isWindowOpen) {
+      composerHtml = `
+        <form id="waDirectSendForm" style="display: flex; gap: 8px; align-items: center;" onsubmit="handleDirectWhatsAppSend(event, '${c.id}')">
+          <input type="text" id="waDirectSendInput" placeholder="Type WhatsApp message to send..." style="flex: 1; height: 42px; padding: 0 1rem; background: #ffffff; border: 1px solid #ECE8DF; border-radius: 10px; font-size: 14px; color: #171717; outline: none;" required />
+          <button type="submit" class="btn btn-primary" id="waDirectSendBtn" style="height: 42px; padding: 0 1.25rem; font-weight: 600; white-space: nowrap; border-radius: 10px;">
+            Send WhatsApp ➔
+          </button>
+        </form>
+      `;
+    } else if (hasClientReply) {
+      composerHtml = `
+        <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 12px 16px; font-size: 0.8125rem; color: #92400E; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <div>
+            <strong>24-hour service window closed:</strong> Meta requires the client to send a new message before free-form messages can be sent.
+          </div>
+        </div>
+      `;
+    } else {
+      composerHtml = `
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 16px; font-size: 0.8125rem; color: #64748B;">
+          Waiting for client reply to enable free-form WhatsApp messaging.
+        </div>
+      `;
+    }
+
+    panel.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #ECE8DF; padding-bottom: 0.875rem;">
+        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: #171717; display: flex; align-items: center; gap: 8px;">
+          💬 WhatsApp Conversation
+        </h3>
+        <span class="badge" style="${badgeStyle} font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;">${badgeLabel}</span>
+      </div>
+
+      <div id="waThreadFeed" style="min-height: 240px; max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; padding: 14px; border: 1px solid #ECE8DF; border-radius: 12px; background: #FCFBF8; margin-bottom: 1rem;">
+        ${chatHtml}
+      </div>
+
+      ${composerHtml}
+    `;
+
+    const chatFeed = el("waThreadFeed");
+    if (chatFeed) chatFeed.scrollTop = chatFeed.scrollHeight;
   }
-}
+
+  async function handleDirectWhatsAppSend(e, caseId) {
+    if (e) e.preventDefault();
+    const input = el("waDirectSendInput");
+    const btn = el("waDirectSendBtn");
+    if (!input || !input.value.trim()) return;
+
+    const msg = input.value.trim();
+    input.value = "";
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await authFetch(`/api/cases/${caseId}/whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        UI.toast("WhatsApp message sent!", "success");
+      } else {
+        UI.toast(data.error || "Failed to send WhatsApp message.", "error");
+      }
+    } catch (err) {
+      UI.toast("Error sending message: " + err.message, "error");
+    } finally {
+      if (btn) btn.disabled = false;
+      loadTimeline(caseId);
+    }
+  }
 
 async function loadTimeline(caseId) {
   const container = el("timelineFeed");
@@ -506,7 +610,7 @@ async function loadTimeline(caseId) {
     }
 
     if (timeline.length === 0) {
-      container.innerHTML = '<p style="color: #64748b; font-size: 0.875rem;">No timeline activity recorded yet.</p>';
+      container.innerHTML = '<p style="color: #64748b; font-size: 0.8125rem; padding: 0.5rem 0;">No activity recorded yet.</p>';
       return;
     }
 
@@ -515,80 +619,49 @@ async function loadTimeline(caseId) {
       const item = document.createElement("div");
       item.className = "timeline-feed-item";
 
-      let isoStr = t.created_at || "";
-      if (isoStr && !isoStr.endsWith("Z") && !isoStr.includes("+")) {
-        isoStr = isoStr.replace(" ", "T") + "Z";
-      }
-      const formattedTime = isoStr ? new Date(isoStr).toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true
-      }) : "";
+      const formattedTime = formatEventTime(t.created_at);
 
-      let displayContent = t.content || "";
-      if (displayContent.includes(". Product:")) {
-        displayContent = displayContent.split(". Product:")[0];
-      }
-      displayContent = displayContent.replace(/^Loan Case created for /i, "Filing request created for ");
-      displayContent = displayContent.replace(/^Case created for /i, "Filing request created for ");
-
-      const contentLower = displayContent.toLowerCase();
-      const isWhatsAppEvent = t.event_type === 'whatsapp_sent' || t.event_type === 'whatsapp_failed' || contentLower.includes("whatsapp");
-      const isWhatsAppFailure = t.event_type === 'whatsapp_failed' || t.type === 'whatsapp_delivery' || t.type === 'system_failure' ||
-        (contentLower.includes("whatsapp") && (contentLower.includes("fail") || contentLower.includes("error")));
-
-      let itemMeta = null;
-      try {
-        if (t.metadata) itemMeta = typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata;
-      } catch(e) {}
-
-      const isFailed = (globalWaStatus === 'failed') || isWhatsAppFailure || (itemMeta && itemMeta.whatsapp_status === 'failed');
-      const itemWaStatus = (itemMeta && itemMeta.whatsapp_status) ? itemMeta.whatsapp_status : (isWhatsAppEvent ? (isWhatsAppFailure ? 'failed' : 'sent') : globalWaStatus);
-
-      let waBadgeHtml = "";
-      if (itemWaStatus === 'sent' || t.event_type === 'whatsapp_sent') {
-        waBadgeHtml = `<span class="badge" style="background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0; font-size: 0.6875rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; margin-left: 6px;">WhatsApp: Sent</span>`;
-      } else if (itemWaStatus === 'failed' || isFailed) {
-        waBadgeHtml = `<span class="badge" style="background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; font-size: 0.6875rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; margin-left: 6px;">WhatsApp: Failed</span>`;
-      } else if (itemWaStatus === 'sending' || itemWaStatus === 'pending') {
-        waBadgeHtml = `<span class="badge" style="background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.6875rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; margin-left: 6px;">WhatsApp: Sending</span>`;
-      }
-
-      // Render Error Box & Retry Button if WhatsApp failed (render only once on most recent failure)
-      let errorBannerHtml = "";
-      if (isFailed && idx === 0) {
-        const errorText = formatCleanDeliveryError(globalWaError || (itemMeta && itemMeta.error) || "WhatsApp message delivery failed.");
-        errorBannerHtml = `
-          <div style="margin-top: 10px; padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <div style="font-size: 0.8125rem; color: #991B1B; font-weight: 500; flex: 1;">
-              ⚠️ <strong style="font-weight: 600;">Delivery Issue:</strong> ${escapeHtml(errorText)}
-            </div>
-            <button type="button" onclick="handleTimelineRetryWhatsApp('${caseId}')" style="background: #DC2626; color: #ffffff; border: none; font-size: 0.75rem; font-weight: 600; padding: 6px 14px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background 150ms ease; display: inline-flex; align-items: center; gap: 4px;">
-              🔄 Retry WhatsApp
-            </button>
-          </div>
-        `;
+      let contentHtml = "";
+      if (t.event_type === 'whatsapp_reply') {
+        contentHtml = `Client replied on WhatsApp`;
+      } else if (t.event_type === 'whatsapp_read') {
+        contentHtml = `WhatsApp message read`;
+      } else if (t.event_type === 'whatsapp_delivered') {
+        contentHtml = `WhatsApp message delivered`;
+      } else if (t.event_type === 'whatsapp_sent') {
+        if (isSystemNotificationContent(t.content)) {
+          const tplName = (currentCase && (currentCase.messageTemplate || currentCase.template_name)) || 'onboarding_first_message';
+          contentHtml = `WhatsApp onboarding message sent <span style="font-size: 0.75rem; color: #64748b;">(Template: ${escapeHtml(tplName)})</span>`;
+        } else {
+          contentHtml = `Direct WhatsApp message sent${t.created_by ? ` by ${escapeHtml(t.created_by)}` : ''}`;
+        }
+      } else if (t.event_type === 'whatsapp_failed') {
+        const cleanErr = formatCleanDeliveryError(t.content);
+        contentHtml = `<span style="color: #DC2626; font-weight: 500;">WhatsApp delivery failed: ${escapeHtml(cleanErr)}</span>`;
+      } else if (t.event_type === 'note_added' || (t.created_by === 'agent' && !t.event_type?.startsWith('whatsapp_'))) {
+        contentHtml = `<span style="background: #FEF3C7; color: #92400E; font-size: 0.6875rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; margin-right: 4px;">Note</span> <strong>${escapeHtml(t.content)}</strong> <span style="font-size: 0.75rem; color: #64748b;">· by ${escapeHtml(t.created_by || 'agent')}</span>`;
+      } else if (t.event_type === 'doc_uploaded') {
+        contentHtml = `Document uploaded: <strong>${escapeHtml(t.content)}</strong>`;
+      } else {
+        let displayContent = t.content || "";
+        if (displayContent.includes(". Product:")) {
+          displayContent = displayContent.split(". Product:")[0];
+        }
+        displayContent = displayContent.replace(/^Loan Case created for /i, "Filing request created for ");
+        displayContent = displayContent.replace(/^Case created for /i, "Filing request created for ");
+        contentHtml = escapeHtml(displayContent);
       }
 
       item.innerHTML = `
-        <div class="timeline-content" style="width: 100%;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-            <div style="flex: 1;">
-              <div class="timeline-text" style="${isFailed ? 'color: #1E293B; font-weight: 500;' : ''}">${escapeHtml(displayContent)} ${waBadgeHtml}</div>
-              <div class="timeline-meta hover-only" style="margin-top: 2px;">${formattedTime} ${t.created_by ? `· by ${escapeHtml(t.created_by)}` : ''}</div>
-            </div>
-          </div>
-          ${errorBannerHtml}
+        <div style="display: flex; gap: 10px; align-items: baseline; font-size: 0.8125rem; line-height: 1.45; padding: 6px 0; border-bottom: 1px solid #F1F5F9; width: 100%;">
+          <span style="font-size: 0.75rem; color: #94A3B8; font-weight: 500; min-width: 62px; flex-shrink: 0;">${formattedTime}</span>
+          <span style="color: #334155; flex: 1; word-break: break-word;">${contentHtml}</span>
         </div>
       `;
       container.appendChild(item);
     });
   } catch (err) {
-    container.innerHTML = '<p style="color: #ef4444; font-size: 0.875rem;">Failed to load timeline history.</p>';
+    container.innerHTML = '<p style="color: #ef4444; font-size: 0.875rem;">Failed to load activity history.</p>';
   }
 }
 

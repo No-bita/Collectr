@@ -195,6 +195,38 @@ function formatStatus(status) {
   return map[status] || status;
 }
 
+function formatWhatsAppDeliveryStatus(status) {
+  const map = {
+    sent: "Sent",
+    delivered: "Delivered",
+    read: "Read",
+    replied: "Replied",
+    failed: "Failed",
+    pending: "Pending",
+    none: "—"
+  };
+  const key = String(status || "").toLowerCase().trim();
+  return map[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : "—");
+}
+
+function getWhatsAppDeliveryBadgeHtml(status) {
+  const st = String(status || "").toLowerCase().trim();
+  let badgeStyle = "background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0;";
+  if (st === 'sent') {
+    badgeStyle = "background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0;";
+  } else if (st === 'delivered') {
+    badgeStyle = "background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0;";
+  } else if (st === 'read') {
+    badgeStyle = "background: #DBEAFE; color: #1D4ED8; border: 1px solid #BFDBFE;";
+  } else if (st === 'replied') {
+    badgeStyle = "background: #E0E7FF; color: #3730A3; border: 1px solid #C7D2FE;";
+  } else if (st === 'failed') {
+    badgeStyle = "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;";
+  }
+  const label = formatWhatsAppDeliveryStatus(st);
+  return `<span class="badge" style="${badgeStyle} font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;">${escapeHtml(label)}</span>`;
+}
+
 function getInitials(name) {
   if (!name) return "—";
   const parts = name.trim().split(/\s+/);
@@ -570,13 +602,51 @@ function render() {
   renderPaginationControls(totalItems);
 
   const isCa = (persona === 'ca');
-  if (el("thAmount")) el("thAmount").hidden = isCa;
+  const isDirectOutreach = (persona === 'direct_outreach');
+
+  const thIndex = el("thIndex");
+  const thCustomer = el("thCustomer");
+  const thCategory = el("thCategory");
+  const thAmount = el("thAmount");
+  const thDocProgress = el("thDocProgress");
+  const thNextAction = el("thNextAction");
+  const thStatus = el("thStatus");
+  const thAction = el("thAction");
+
+  if (isDirectOutreach) {
+    if (thIndex) { thIndex.hidden = false; thIndex.style.display = ""; thIndex.style.width = "6%"; }
+    if (thCustomer) { thCustomer.hidden = false; thCustomer.style.display = ""; thCustomer.style.width = "44%"; }
+    if (thCategory) { thCategory.hidden = false; thCategory.style.display = ""; thCategory.style.width = "32%"; }
+    if (thStatus) { thStatus.hidden = false; thStatus.style.display = ""; thStatus.style.width = "18%"; }
+    if (thAmount) { thAmount.hidden = true; thAmount.style.display = "none"; }
+    if (thDocProgress) { thDocProgress.hidden = true; thDocProgress.style.display = "none"; }
+    if (thNextAction) { thNextAction.hidden = true; thNextAction.style.display = "none"; }
+    if (thAction) { thAction.hidden = true; thAction.style.display = "none"; }
+  } else if (isCa) {
+    if (thIndex) { thIndex.hidden = false; thIndex.style.display = ""; thIndex.style.width = "4%"; }
+    if (thCustomer) { thCustomer.hidden = false; thCustomer.style.display = ""; thCustomer.style.width = "24%"; }
+    if (thCategory) { thCategory.hidden = false; thCategory.style.display = ""; thCategory.style.width = "18%"; }
+    if (thAmount) { thAmount.hidden = true; thAmount.style.display = "none"; }
+    if (thDocProgress) { thDocProgress.hidden = false; thDocProgress.style.display = ""; thDocProgress.style.width = "18%"; }
+    if (thNextAction) { thNextAction.hidden = false; thNextAction.style.display = ""; thNextAction.style.width = "18%"; }
+    if (thStatus) { thStatus.hidden = false; thStatus.style.display = ""; thStatus.style.width = "14%"; }
+    if (thAction) { thAction.hidden = false; thAction.style.display = ""; thAction.style.width = "4%"; }
+  } else {
+    if (thIndex) { thIndex.hidden = false; thIndex.style.display = ""; thIndex.style.width = "4%"; }
+    if (thCustomer) { thCustomer.hidden = false; thCustomer.style.display = ""; thCustomer.style.width = "22%"; }
+    if (thCategory) { thCategory.hidden = false; thCategory.style.display = ""; thCategory.style.width = "18%"; }
+    if (thAmount) { thAmount.hidden = false; thAmount.style.display = ""; thAmount.style.width = "14%"; }
+    if (thDocProgress) { thDocProgress.hidden = false; thDocProgress.style.display = ""; thDocProgress.style.width = "18%"; }
+    if (thNextAction) { thNextAction.hidden = false; thNextAction.style.display = ""; thNextAction.style.width = "18%"; }
+    if (thStatus) { thStatus.hidden = false; thStatus.style.display = ""; thStatus.style.width = "10%"; }
+    if (thAction) { thAction.hidden = false; thAction.style.display = ""; thAction.style.width = "4%"; }
+  }
 
   const amtSelect = el("amountFilter");
   if (amtSelect) {
-    amtSelect.hidden = isCa;
+    amtSelect.hidden = isCa || isDirectOutreach;
     const wrapper = amtSelect.closest(".ui-select-wrapper");
-    if (wrapper) wrapper.style.display = isCa ? "none" : "";
+    if (wrapper) wrapper.style.display = (isDirectOutreach || isCa) ? "none" : (isCa ? "none" : "");
   }
 
   const typeSelect = el("loanTypeFilter");
@@ -595,8 +665,15 @@ function render() {
 
   tbody.innerHTML = "";
   if (filtered.length === 0) {
-    const emptyTitle = isCa ? "No matching client files found" : "No matching loan cases found";
-    const colSpan = isCa ? 7 : 8;
+    let emptyTitle = "No matching loan cases found";
+    let colSpan = 8;
+    if (isDirectOutreach) {
+      emptyTitle = "No matching direct outreach targets found";
+      colSpan = 4;
+    } else if (isCa) {
+      emptyTitle = "No matching client files found";
+      colSpan = 7;
+    }
     tbody.innerHTML = `
       <tr>
         <td colspan="${colSpan}">
@@ -625,67 +702,96 @@ function render() {
     const avatarStyle = getAvatarStyle(c.contactPerson);
     const absoluteIdx = (currentPage - 1) * pageSize + idx + 1;
 
-    const amountTd = isCa ? '' : `
-      <td>
-        <div class="amount-val">${formatAmountDisplay(c.amountRequired)}</div>
-      </td>
-    `;
-
-    tr.innerHTML = `
-      <td style="color: #94a3b8; font-weight: 500; font-size: 0.8125rem; text-align: center;">${absoluteIdx}</td>
-      <td>
-        <div class="customer-cell">
-          <div class="avatar-wrapper">
-            <div class="avatar-circle-sm" style="${avatarStyle}">
-              ${initials}
-            </div>
-          </div>
-          <div>
-            <div class="customer-info-name">
-              ${escapeHtml(c.contactPerson || '—')}
-              ${c.isDemo ? '<span class="tag" style="font-size: 0.65rem; background: #e0e7ff; color: #3730a3; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px;">Demo</span>' : ''}
-            </div>
-            <div class="customer-info-sub">${escapeHtml(maskPhone(c.phone))}</div>
-          </div>
-        </div>
-      </td>
-      <td>
-        <div class="loan-type-main">${escapeHtml(c.loanProduct || 'Unspecified')}</div>
-      </td>
-      ${amountTd}
-      <td>
-        ${prog.total > 0 ? `
-          <div class="doc-prog-wrapper">
-            <div style="flex: 1;">
-              <div class="doc-prog-track">
-                <div class="doc-prog-fill" style="width: ${pct}%; background-color: ${progressColor};"></div>
+    if (isDirectOutreach) {
+      const waDeliveryStatus = c.whatsappDeliveryStatus || c.whatsapp_delivery_status || 'sent';
+      tr.innerHTML = `
+        <td style="color: #94a3b8; font-weight: 500; font-size: 0.8125rem; text-align: center;">${absoluteIdx}</td>
+        <td>
+          <div class="customer-cell">
+            <div class="avatar-wrapper">
+              <div class="avatar-circle-sm" style="${avatarStyle}">
+                ${initials}
               </div>
-              <div class="doc-prog-sub">${prog.fulfilled} / ${prog.total} docs</div>
             </div>
-            <div class="doc-prog-text">${pct}%</div>
+            <div>
+              <div class="customer-info-name">
+                ${escapeHtml(c.contactPerson || '—')}
+                ${c.isDemo ? '<span class="tag" style="font-size: 0.65rem; background: #e0e7ff; color: #3730a3; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px;">Demo</span>' : ''}
+              </div>
+              <div class="customer-info-sub">${escapeHtml(maskPhone(c.phone))}</div>
+            </div>
           </div>
-        ` : `
-          <span class="badge" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0;">No Docs Required</span>
-        `}
-      </td>
-      <td>
-        <div class="next-action-main" style="color: ${nextAction.color};">
-          ${escapeHtml(nextAction.main)}
-        </div>
-      </td>
-      <td>
-        <span class="badge badge-${c.status}">${formatStatus(c.status)}</span>
-      </td>
-      <td style="text-align: center;" onclick="event.stopPropagation();">
-        ${prog.total > 0 ? `
-          <button type="button" class="row-copy-btn" title="Copy Client Upload Link" onclick="copyCaseUploadLink('${c.token}', this)">
-            📋 Copy Link
-          </button>
-        ` : `
-          <span style="font-size: 0.8125rem; color: #64748b;">${escapeHtml(maskPhone(c.phone))}</span>
-        `}
-      </td>
-    `;
+        </td>
+        <td>
+          <div class="loan-type-main">${escapeHtml(c.loanProduct || c.messageTemplate || 'Unspecified')}</div>
+        </td>
+        <td>
+          ${getWhatsAppDeliveryBadgeHtml(waDeliveryStatus)}
+        </td>
+      `;
+    } else {
+      const amountTd = isCa ? '' : `
+        <td>
+          <div class="amount-val">${formatAmountDisplay(c.amountRequired)}</div>
+        </td>
+      `;
+
+      tr.innerHTML = `
+        <td style="color: #94a3b8; font-weight: 500; font-size: 0.8125rem; text-align: center;">${absoluteIdx}</td>
+        <td>
+          <div class="customer-cell">
+            <div class="avatar-wrapper">
+              <div class="avatar-circle-sm" style="${avatarStyle}">
+                ${initials}
+              </div>
+            </div>
+            <div>
+              <div class="customer-info-name">
+                ${escapeHtml(c.contactPerson || '—')}
+                ${c.isDemo ? '<span class="tag" style="font-size: 0.65rem; background: #e0e7ff; color: #3730a3; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px;">Demo</span>' : ''}
+              </div>
+              <div class="customer-info-sub">${escapeHtml(maskPhone(c.phone))}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div class="loan-type-main">${escapeHtml(c.loanProduct || 'Unspecified')}</div>
+        </td>
+        ${amountTd}
+        <td>
+          ${prog.total > 0 ? `
+            <div class="doc-prog-wrapper">
+              <div style="flex: 1;">
+                <div class="doc-prog-track">
+                  <div class="doc-prog-fill" style="width: ${pct}%; background-color: ${progressColor};"></div>
+                </div>
+                <div class="doc-prog-sub">${prog.fulfilled} / ${prog.total} docs</div>
+              </div>
+              <div class="doc-prog-text">${pct}%</div>
+            </div>
+          ` : `
+            <span class="badge" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0;">No Docs Required</span>
+          `}
+        </td>
+        <td>
+          <div class="next-action-main" style="color: ${nextAction.color};">
+            ${escapeHtml(nextAction.main)}
+          </div>
+        </td>
+        <td>
+          <span class="badge badge-${c.status}">${formatStatus(c.status)}</span>
+        </td>
+        <td style="text-align: center;" onclick="event.stopPropagation();">
+          ${prog.total > 0 ? `
+            <button type="button" class="row-copy-btn" title="Copy Client Upload Link" onclick="copyCaseUploadLink('${c.token}', this)">
+              📋 Copy Link
+            </button>
+          ` : `
+            <span style="font-size: 0.8125rem; color: #64748b;">${escapeHtml(maskPhone(c.phone))}</span>
+          `}
+        </td>
+      `;
+    }
 
     tr.addEventListener("click", () => {
       window.location.href = `/case.html?id=${c.id}`;

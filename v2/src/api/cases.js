@@ -353,7 +353,7 @@ export async function handleCreateCase(c) {
           });
           await db.execute({
             sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
-                  VALUES (?, ?, 'whatsapp_sent', 'WhatsApp onboarding message sent to client (-₹0.90 credits)', 'system')`,
+                  VALUES (?, ?, 'whatsapp_sent', 'WhatsApp onboarding message sent to client', 'system')`,
             args: [crypto.randomUUID(), caseId]
           }).catch(e => console.error("Failed writing timeline success:", e));
         } else {
@@ -498,7 +498,7 @@ export async function handleBulkImportCases(c) {
             });
             await db.execute({
               sql: `INSERT INTO case_timeline (id, case_id, event_type, content, created_by)
-                    VALUES (?, ?, 'whatsapp_sent', 'WhatsApp onboarding message dispatched (-₹0.90 credits)', 'system')`,
+                    VALUES (?, ?, 'whatsapp_sent', 'WhatsApp onboarding message dispatched', 'system')`,
               args: [crypto.randomUUID(), caseId]
             }).catch(() => {});
           } else {
@@ -1570,19 +1570,100 @@ export async function handleAddDocumentRequirement(c) {
   }
 }
 
+export async function sendWhatsAppText(phone, message, env) {
+  const phoneIdsToTry = [];
+  if (env.WHATSAPP_PROD_PHONE_ID && env.WHATSAPP_PROD_PHONE_ID.trim()) {
+    phoneIdsToTry.push(env.WHATSAPP_PROD_PHONE_ID.trim());
+  }
+  if (env.WHATSAPP_PHONE_ID && !phoneIdsToTry.includes(env.WHATSAPP_PHONE_ID.trim())) {
+    phoneIdsToTry.push(env.WHATSAPP_PHONE_ID.trim());
+  }
+  if (phoneIdsToTry.length === 0) phoneIdsToTry.push("1073272059211357");
+
+  let lastErrorData = null;
+  const attemptedErrors = [];
+
+  for (const phoneId of phoneIdsToTry) {
+    const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body: message },
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) return data;
+    lastErrorData = data;
+    attemptedErrors.push(`[${phoneId}]: ${data?.error?.message || res.statusText}`);
+  }
+
+  const details = lastErrorData?.error?.error_data?.details || lastErrorData?.error?.message || "";
+  throw new Error(`${details || "Failed to send WhatsApp message"} (Attempts: ${attemptedErrors.join(" | ")})`);
+}
+
+export async function getCustomerReplyWindowStatus(db, caseId) {
+  const replyRes = await db.execute({
+    sql: `SELECT created_at FROM case_timeline 
+          WHERE case_id = ? AND event_type = 'whatsapp_reply' AND created_by = 'client'
+          ORDER BY created_at DESC LIMIT 1`,
+    args: [caseId]
+  });
+
+  if (!replyRes || !replyRes.rows || replyRes.rows.length === 0) {
+    return {
+      hasReplied: false,
+      isOpen: false,
+      lastReplyAt: null,
+      expiresAt: null,
+      reason: "No customer reply has been received for this case. Free-form messaging requires an inbound customer message."
+    };
+  }
+
+  const lastReplyStr = replyRes.rows[0].created_at;
+  let lastReplyTime = new Date(lastReplyStr.includes("T") ? lastReplyStr : lastReplyStr.replace(" ", "T") + "Z").getTime();
+  if (isNaN(lastReplyTime)) {
+    lastReplyTime = new Date(lastReplyStr).getTime();
+  }
+
+  const now = Date.now();
+  const windowMs = 24 * 60 * 60 * 1000;
+  const expiresTime = lastReplyTime + windowMs;
+  const isOpen = (now - lastReplyTime) < windowMs;
+
+  return {
+    hasReplied: true,
+    isOpen,
+    lastReplyAt: new Date(lastReplyTime).toISOString(),
+    expiresAt: new Date(expiresTime).toISOString(),
+    reason: isOpen 
+      ? "24-hour customer service window is active." 
+      : "The 24-hour customer service window has expired. Waiting for customer to reply before sending new free-form messages."
+  };
+}
+
 export async function handleSendWhatsAppText(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
-  const caseId = c.req.param("id");
+  const caseId = c.req.param("id") || c.req.param("caseId");
 
   const { authorized, notFound, caseItem } = await authorizeCaseAccess(db, caseId, user);
   if (notFound) return c.json({ error: "Case not found." }, 404);
   if (!authorized) return c.json({ error: "Access denied." }, 403);
 
   const body = await c.req.json().catch(() => ({}));
-  const text = String(body.message || "").trim();
+  const text = String(body.message || body.text || "").trim();
   if (!text) {
     return c.json({ error: "Please enter a message to send." }, 400);
+  }
+  if (text.length > 4096) {
+    return c.json({ error: "Message exceeds Meta's limit of 4096 characters." }, 400);
   }
 
   const phone = caseItem.phone_number;
@@ -1590,41 +1671,78 @@ export async function handleSendWhatsAppText(c) {
     return c.json({ error: "No mobile number available for this contact." }, 400);
   }
 
+  // Enforce Meta 24-hour Customer Service Window based on latest inbound client reply
+  const serviceWindow = await getCustomerReplyWindowStatus(db, caseId);
+  if (!serviceWindow.hasReplied) {
+    return c.json({
+      error: "Cannot send free-form message: The client has not replied yet. Meta policies require an inbound customer message to initiate free-form messaging.",
+      code: "WINDOW_NO_REPLY",
+      serviceWindow
+    }, 403);
+  }
+
+  if (!serviceWindow.isOpen) {
+    return c.json({
+      error: "Cannot send free-form message: The 24-hour customer service window has expired. You must wait for the client to reply again.",
+      code: "WINDOW_EXPIRED",
+      serviceWindow
+    }, 403);
+  }
+
   try {
-    const url = `https://graph.facebook.com/v17.0/${c.env.WHATSAPP_PHONE_ID}/messages`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${c.env.WHATSAPP_ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: { body: text },
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const details = data.error?.error_data?.details || "";
-      throw new Error(`${data.error?.message || "Failed to send WhatsApp message"}${details ? " | Details: " + details : ""}`);
-    }
+    const metaResult = await sendWhatsAppText(phone, text, c.env);
+    const metaMsgId = metaResult?.messages?.[0]?.id || null;
 
     await db.execute({
       sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'sent', last_updated = datetime('now') WHERE id = ?",
       args: [caseId]
     });
 
+    const metadata = {
+      channel: "whatsapp",
+      message_type: "freeform",
+      meta_message_id: metaMsgId,
+      whatsapp_status: "sent",
+      direct_message: true
+    };
+
     await db.execute({
       sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
             VALUES (?, ?, 'whatsapp_sent', ?, ?, ?)`,
-      args: [crypto.randomUUID(), caseId, text, JSON.stringify({ whatsapp_status: 'sent', direct_message: true }), user ? user.username || user.id : 'agent']
+      args: [
+        crypto.randomUUID(), 
+        caseId, 
+        text, 
+        JSON.stringify(metadata), 
+        user ? (user.username || user.id) : 'agent'
+      ]
     });
 
-    return c.json({ success: true, message: "WhatsApp message sent successfully." });
+    return c.json({ 
+      success: true, 
+      message: "WhatsApp message sent successfully.", 
+      metaMessageId: metaMsgId,
+      serviceWindow
+    });
   } catch (err) {
-    return c.json({ error: err.message || "Failed to send WhatsApp message." }, 500);
+    const errDetails = err.message || "Failed to send WhatsApp message.";
+    await db.execute({
+      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+            VALUES (?, ?, 'whatsapp_failed', ?, ?, 'agent')`,
+      args: [
+        crypto.randomUUID(),
+        caseId,
+        `WhatsApp delivery failed: ${errDetails}`,
+        JSON.stringify({ channel: 'whatsapp', message_type: 'freeform', error: errDetails })
+      ]
+    }).catch(() => {});
+
+    await db.execute({
+      sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'failed', last_updated = datetime('now') WHERE id = ?",
+      args: [caseId]
+    }).catch(() => {});
+
+    return c.json({ error: `Meta WhatsApp API error: ${errDetails}` }, 502);
   }
 }
 
