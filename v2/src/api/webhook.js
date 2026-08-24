@@ -1,35 +1,16 @@
 import { getDbClient } from "../db/client.js";
 import { logSystemFailure } from "./failures.js";
-
-async function sendWhatsAppMessage(phone, text, env) {
-  const url = `https://graph.facebook.com/v17.0/${env.WHATSAPP_PHONE_ID}/messages`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "text",
-      text: { body: text },
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    const details = data.error?.error_data?.details || "";
-    throw new Error(`${data.error?.message || "Failed to send WhatsApp message"}${details ? " | Details: " + details : ""}`);
-  }
-}
+import { sendWhatsAppText } from "../whatsapp/client.js";
+import { verifyWebhookSubscription, parseWebhookPayload } from "../whatsapp/webhook.js";
 
 export async function handleWebhookVerify(c) {
   const mode = c.req.query("hub.mode");
   const token = c.req.query("hub.verify_token");
   const challenge = c.req.query("hub.challenge");
 
-  if (mode === "subscribe" && token === c.env.WHATSAPP_VERIFY_TOKEN) {
-    return c.text(challenge);
+  const verification = verifyWebhookSubscription(mode, token, challenge, c.env.WHATSAPP_VERIFY_TOKEN);
+  if (verification.verified) {
+    return c.text(verification.challenge);
   }
   return c.text("Forbidden", 403);
 }
@@ -44,24 +25,14 @@ export async function handleWebhookEvent(c) {
   const db = getDbClient(env);
 
   try {
-    const entry = body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    const messages = value?.messages;
-    const statuses = value?.statuses;
+    const { statuses, messages } = parseWebhookPayload(body);
 
     // Handle Status Updates (sent, delivered, read, failed)
-    if (statuses && statuses.length > 0) {
-      const statusObj = statuses[0];
-      const recipientId = statusObj.recipient_id;
+    for (const statusObj of statuses) {
+      const recipientId = statusObj.recipientId;
       const status = statusObj.status; // 'sent', 'delivered', 'read', 'failed'
-      const errors = statusObj.errors;
-      const providerMsgId = statusObj.id;
-
-      let errorMsg = null;
-      if (errors && errors.length > 0) {
-        errorMsg = errors.map(e => `${e.title || e.message} (${e.code})`).join("; ");
-      }
+      const providerMsgId = statusObj.providerMsgId;
+      const errorMsg = statusObj.errorMsg;
 
       await db.execute({
         sql: "UPDATE loan_cases SET whatsapp_delivery_status = ? WHERE phone_number = ? OR phone_number = ? OR phone_number = ?",
@@ -111,14 +82,13 @@ export async function handleWebhookEvent(c) {
       }
     }
 
-    if (messages && messages.length > 0) {
-      const message = messages[0];
-      const fromPhone = message.from;
-      const rawDigits = String(fromPhone).replace(/\D/g, "");
-      const shortPhone = rawDigits.startsWith("91") ? rawDigits.slice(2) : rawDigits;
-      const fullPhone = "91" + shortPhone;
-      const clientText = message.text?.body || message.caption || (message.type ? `[${message.type} received]` : 'Client reply received');
-      
+    // Handle Inbound Customer Messages
+    for (const msg of messages) {
+      const fromPhone = msg.fromPhone;
+      const fullPhone = msg.fullPhone;
+      const shortPhone = msg.shortPhone;
+      const clientText = msg.text;
+
       // Look up loan case by phone number
       const caseRes = await db.execute({
         sql: "SELECT id, contact_person FROM loan_cases WHERE phone_number = ? OR phone_number = ? OR phone_number = ? ORDER BY created_at DESC LIMIT 1",
@@ -127,7 +97,7 @@ export async function handleWebhookEvent(c) {
 
       if (caseRes.rows.length > 0) {
         const loanCase = caseRes.rows[0];
-        
+
         // Log incoming client reply event
         await db.execute({
           sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
@@ -150,11 +120,12 @@ export async function handleWebhookEvent(c) {
           const token = tokenRes.rows.length > 0 ? tokenRes.rows[0].token : null;
           if (token) {
             const uploadLink = `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=${token}`;
-            await sendWhatsAppMessage(fromPhone, `Here is your secure document upload link: ${uploadLink}`, env).catch(() => {});
+            await sendWhatsAppText(fromPhone, `Here is your secure document upload link: ${uploadLink}`, env).catch(() => {});
           }
         }
       }
     }
+
     return c.text("EVENT_RECEIVED");
   } catch (err) {
     console.error("Webhook processing error:", err);

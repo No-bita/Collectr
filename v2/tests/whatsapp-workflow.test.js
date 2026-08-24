@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test, describe } from "node:test";
-import { getWhatsAppTemplate } from "../src/config/whatsapp-templates.js";
+import { getWhatsAppTemplate } from "../src/whatsapp/templates.js";
+import { isWithin24HourServiceWindow } from "../src/whatsapp/window.js";
+import { verifyWebhookSubscription, parseWebhookPayload } from "../src/whatsapp/webhook.js";
 
 /**
  * Unit & Integration Test Suite for WhatsApp Workflow
@@ -131,24 +133,17 @@ describe("WhatsApp Workflow Integration Tests", () => {
     assert.ok(parsedMessage.includes("Template name does not exist"));
   });
 
-  test("5. Webhook Subscription Verification", () => {
+  test("5. Webhook Subscription Verification (verifyWebhookSubscription)", () => {
     const expectedVerifyToken = "CollectrWhatsappTokenAuth2026";
-    
-    function handleWebhookVerify(mode, token, challenge) {
-      if (mode === "subscribe" && token === expectedVerifyToken) {
-        return { status: 200, challenge };
-      }
-      return { status: 403, error: "Forbidden" };
-    }
 
     assert.deepEqual(
-      handleWebhookVerify("subscribe", "CollectrWhatsappTokenAuth2026", "11582014"),
-      { status: 200, challenge: "11582014" }
+      verifyWebhookSubscription("subscribe", "CollectrWhatsappTokenAuth2026", "11582014", expectedVerifyToken),
+      { verified: true, challenge: "11582014" }
     );
 
     assert.deepEqual(
-      handleWebhookVerify("subscribe", "wrong_token", "11582014"),
-      { status: 403, error: "Forbidden" }
+      verifyWebhookSubscription("subscribe", "wrong_token", "11582014", expectedVerifyToken),
+      { verified: false, challenge: null }
     );
   });
 
@@ -180,44 +175,23 @@ describe("WhatsApp Workflow Integration Tests", () => {
     assert.equal(payload.text.body, "Hi, thanks for getting back to me.");
   });
 
-  test("8. Meta 24-Hour Customer Service Window Enforcement", () => {
+  test("8. Meta 24-Hour Customer Service Window Enforcement (isWithin24HourServiceWindow)", () => {
     const now = Date.now();
-    const windowMs = 24 * 60 * 60 * 1000;
-
-    function checkWindow(lastReplyTimestamp) {
-      if (!lastReplyTimestamp) {
-        return { hasReplied: false, isOpen: false, code: "WINDOW_NO_REPLY" };
-      }
-      const isOpen = (now - lastReplyTimestamp) < windowMs;
-      return { hasReplied: true, isOpen, code: isOpen ? "WINDOW_ACTIVE" : "WINDOW_EXPIRED" };
-    }
 
     // 8a. No reply received
-    const noReplyResult = checkWindow(null);
-    assert.equal(noReplyResult.hasReplied, false);
-    assert.equal(noReplyResult.isOpen, false);
-    assert.equal(noReplyResult.code, "WINDOW_NO_REPLY");
+    assert.equal(isWithin24HourServiceWindow(null, now), false);
 
     // 8b. Reply received 2 hours ago (< 24h) -> OPEN
     const recentReply = now - (2 * 60 * 60 * 1000);
-    const recentResult = checkWindow(recentReply);
-    assert.equal(recentResult.hasReplied, true);
-    assert.equal(recentResult.isOpen, true);
-    assert.equal(recentResult.code, "WINDOW_ACTIVE");
+    assert.equal(isWithin24HourServiceWindow(recentReply, now), true);
 
     // 8c. Reply received 25 hours ago (> 24h) -> EXPIRED
     const oldReply = now - (25 * 60 * 60 * 1000);
-    const oldResult = checkWindow(oldReply);
-    assert.equal(oldResult.hasReplied, true);
-    assert.equal(oldResult.isOpen, false);
-    assert.equal(oldResult.code, "WINDOW_EXPIRED");
+    assert.equal(isWithin24HourServiceWindow(oldReply, now), false);
 
     // 8d. Subsequent reply refreshes the 24-hour window
     const newReply = now - (10 * 60 * 1000); // 10 mins ago
-    const refreshedResult = checkWindow(newReply);
-    assert.equal(refreshedResult.hasReplied, true);
-    assert.equal(refreshedResult.isOpen, true);
-    assert.equal(refreshedResult.code, "WINDOW_ACTIVE");
+    assert.equal(isWithin24HourServiceWindow(newReply, now), true);
   });
 
   test("9. Outgoing Free-form Timeline Event & Metadata Contract", () => {
@@ -249,6 +223,104 @@ describe("WhatsApp Workflow Integration Tests", () => {
     assert.equal(parsed.message_type, "freeform");
     assert.equal(parsed.meta_message_id, "wamid.HBgLM...mock");
     assert.equal(parsed.whatsapp_status, "sent");
+  });
+
+  test("10. Webhook Payload Normalizer (parseWebhookPayload)", () => {
+    const mockWebhookBody = {
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                statuses: [
+                  {
+                    id: "wamid.HBgLM...1",
+                    recipient_id: "919876543210",
+                    status: "delivered",
+                    timestamp: "1700000000"
+                  }
+                ],
+                messages: [
+                  {
+                    id: "wamid.HBgLM...2",
+                    from: "919876543210",
+                    type: "text",
+                    text: { body: "Here are my docs" },
+                    timestamp: "1700000005"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const parsed = parseWebhookPayload(mockWebhookBody);
+    assert.equal(parsed.statuses.length, 1);
+    assert.equal(parsed.statuses[0].status, "delivered");
+    assert.equal(parsed.statuses[0].recipientId, "919876543210");
+    assert.equal(parsed.statuses[0].providerMsgId, "wamid.HBgLM...1");
+
+    assert.equal(parsed.messages.length, 1);
+    assert.equal(parsed.messages[0].shortPhone, "9876543210");
+    assert.equal(parsed.messages[0].fullPhone, "919876543210");
+    assert.equal(parsed.messages[0].text, "Here are my docs");
+  });
+
+  test("11. Template Sending Independence from 24-Hour Reply Window", () => {
+    // 11a. Free-form requires active 24h window
+    const now = Date.now();
+    const expiredReply = now - (30 * 60 * 60 * 1000);
+    assert.equal(isWithin24HourServiceWindow(expiredReply, now), false);
+
+    // 11b. Template message payload can be generated regardless of customer reply
+    const doCaTpl = getWhatsAppTemplate("do_ca");
+    assert.equal(doCaTpl.id, "do_ca");
+    assert.deepEqual(doCaTpl.parameters, []);
+    const payloads = doCaTpl.getPayloads({ phone: "919876543210" });
+    assert.equal(payloads.length, 1);
+    assert.equal(payloads[0].template.name, "do_ca");
+  });
+
+  test("12. Direct Outreach Scoped Template Metadata", () => {
+    const doCaTpl = getWhatsAppTemplate("do_ca");
+    assert.ok(doCaTpl.context.includes("direct_outreach"), "do_ca must be scoped to direct_outreach");
+
+    const onboardingTpl = getWhatsAppTemplate("onboarding_first_message");
+    assert.ok(onboardingTpl.context.includes("direct_outreach"), "onboarding_first_message must be scoped to direct_outreach");
+    assert.equal(onboardingTpl.parameters.length, 2);
+    assert.equal(onboardingTpl.parameters[0].key, "client_name");
+  });
+
+  test("13. Template Outgoing Timeline Event Contract", () => {
+    const caseId = "case_direct_123";
+    const templateName = "do_ca";
+    const metaMsgId = "wamid.HBgLM...tpl";
+
+    const metadata = {
+      channel: "whatsapp",
+      message_type: "template",
+      template_name: templateName,
+      meta_message_id: metaMsgId,
+      whatsapp_status: "sent",
+      direct_message: true
+    };
+
+    const timelineEvent = {
+      id: "evt_tpl_123",
+      case_id: caseId,
+      event_type: "whatsapp_sent",
+      content: `WhatsApp template sent: ${templateName}`,
+      metadata: JSON.stringify(metadata),
+      created_by: "agent"
+    };
+
+    assert.equal(timelineEvent.event_type, "whatsapp_sent");
+    const parsed = JSON.parse(timelineEvent.metadata);
+    assert.equal(parsed.message_type, "template");
+    assert.equal(parsed.template_name, "do_ca");
+    assert.equal(parsed.meta_message_id, "wamid.HBgLM...tpl");
   });
 
 });

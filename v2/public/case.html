@@ -550,6 +550,33 @@
       </div>
     </div>
 
+    <!-- Send WhatsApp Template Modal -->
+    <div class="modal-overlay" id="waTemplateModalBackdrop" hidden>
+      <div class="modal-container" style="max-width: 480px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Send WhatsApp Template</h3>
+          <button type="button" class="close-btn" id="closeWaTemplateModal">✕</button>
+        </div>
+        <form id="waTemplateModalForm" style="margin-top: 1.25rem;">
+          <div class="field" style="margin-bottom: 1.25rem;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #171717; margin-bottom: 0.4rem;">Select Approved Template</label>
+            <select id="waTemplateSelect" required style="width: 100%; height: 44px; padding: 0 1rem; background: #FCFBF8; border: 1px solid #ECE8DF; border-radius: 10px; font-size: 14px; color: #171717; outline: none;">
+            </select>
+            <div id="waTemplateDescription" style="font-size: 12px; color: #64748B; margin-top: 6px; line-height: 1.4;"></div>
+          </div>
+
+          <div id="waTemplateParamsContainer" style="margin-bottom: 1.25rem;"></div>
+
+          <div id="waTemplateModalError" style="color: #D84A3A; background: #FEE2E2; border: 1px solid #ECE8DF; padding: 0.75rem; border-radius: 8px; font-size: 13px; margin-bottom: 1rem;" hidden></div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn" id="cancelWaTemplateModal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="submitWaTemplateModal">Send Template ➔</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script src="/js/ui-components.js?v=2.8"></script>
     <script src="/js/case-detail.js?v=2.8"></script>
   </body>

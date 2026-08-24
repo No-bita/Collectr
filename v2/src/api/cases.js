@@ -3,7 +3,9 @@ import { logSystemFailure } from "./failures.js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { runGeminiOcr } from "./ocr.js";
-import { getWhatsAppTemplate } from "../config/whatsapp-templates.js";
+import { getWhatsAppTemplate } from "../whatsapp/templates.js";
+import { sendWhatsAppTemplate as clientSendWhatsAppTemplate, sendWhatsAppText } from "../whatsapp/client.js";
+import { getCustomerReplyWindowStatus } from "../whatsapp/window.js";
 
 const VALID_STATUSES = [
   'lead', 'documents_pending', 'ready_for_review', 
@@ -208,42 +210,17 @@ async function sendWhatsAppTemplate(phone, templateName, contactPerson, token, e
   }
 
   const tplConfig = getWhatsAppTemplate(templateName, env, customTpls);
-  const primaryLang = tplConfig.defaultLang || "en";
-  const langCodesToTry = [primaryLang];
-
-  const phoneIdsToTry = [];
-  if (env.WHATSAPP_PROD_PHONE_ID && env.WHATSAPP_PROD_PHONE_ID.trim()) {
-    phoneIdsToTry.push(env.WHATSAPP_PROD_PHONE_ID.trim());
-  }
-  if (env.WHATSAPP_PHONE_ID && !phoneIdsToTry.includes(env.WHATSAPP_PHONE_ID.trim())) {
-    phoneIdsToTry.push(env.WHATSAPP_PHONE_ID.trim());
-  }
-  if (phoneIdsToTry.length === 0) phoneIdsToTry.push("1073272059211357");
-
-  let lastErrorData = null;
-  const attemptedErrors = [];
-
-  for (const phoneId of phoneIdsToTry) {
-    const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
-
-    for (const langCode of langCodesToTry) {
-      const payloads = tplConfig.getPayloads({ phone, contactPerson, rawToken, uploadLink, langCode, templateParams });
-      for (const payload of payloads) {
-        let res = await fetch(url, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        let data = await res.json();
-        if (res.ok) return data;
-        lastErrorData = data;
-        attemptedErrors.push(`[${phoneId}/${langCode}/${payload.template.name}]: ${data?.error?.message || res.statusText}`);
-      }
-    }
-  }
-
-  const details = lastErrorData?.error?.error_data?.details || lastErrorData?.error?.message || "";
-  throw new Error(`${details} (Attempts: ${attemptedErrors.join(" | ")})`);
+  return clientSendWhatsAppTemplate({
+    phone,
+    templateConfig: tplConfig,
+    templateParams: {
+      contactPerson,
+      rawToken,
+      uploadLink,
+      templateParams,
+    },
+    env,
+  });
 }
 
 // 1. Create Case
@@ -1570,83 +1547,7 @@ export async function handleAddDocumentRequirement(c) {
   }
 }
 
-export async function sendWhatsAppText(phone, message, env) {
-  const phoneIdsToTry = [];
-  if (env.WHATSAPP_PROD_PHONE_ID && env.WHATSAPP_PROD_PHONE_ID.trim()) {
-    phoneIdsToTry.push(env.WHATSAPP_PROD_PHONE_ID.trim());
-  }
-  if (env.WHATSAPP_PHONE_ID && !phoneIdsToTry.includes(env.WHATSAPP_PHONE_ID.trim())) {
-    phoneIdsToTry.push(env.WHATSAPP_PHONE_ID.trim());
-  }
-  if (phoneIdsToTry.length === 0) phoneIdsToTry.push("1073272059211357");
-
-  let lastErrorData = null;
-  const attemptedErrors = [];
-
-  for (const phoneId of phoneIdsToTry) {
-    const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: { body: message },
-      }),
-    });
-    const data = await res.json();
-    if (res.ok) return data;
-    lastErrorData = data;
-    attemptedErrors.push(`[${phoneId}]: ${data?.error?.message || res.statusText}`);
-  }
-
-  const details = lastErrorData?.error?.error_data?.details || lastErrorData?.error?.message || "";
-  throw new Error(`${details || "Failed to send WhatsApp message"} (Attempts: ${attemptedErrors.join(" | ")})`);
-}
-
-export async function getCustomerReplyWindowStatus(db, caseId) {
-  const replyRes = await db.execute({
-    sql: `SELECT created_at FROM case_timeline 
-          WHERE case_id = ? AND event_type = 'whatsapp_reply' AND created_by = 'client'
-          ORDER BY created_at DESC LIMIT 1`,
-    args: [caseId]
-  });
-
-  if (!replyRes || !replyRes.rows || replyRes.rows.length === 0) {
-    return {
-      hasReplied: false,
-      isOpen: false,
-      lastReplyAt: null,
-      expiresAt: null,
-      reason: "No customer reply has been received for this case. Free-form messaging requires an inbound customer message."
-    };
-  }
-
-  const lastReplyStr = replyRes.rows[0].created_at;
-  let lastReplyTime = new Date(lastReplyStr.includes("T") ? lastReplyStr : lastReplyStr.replace(" ", "T") + "Z").getTime();
-  if (isNaN(lastReplyTime)) {
-    lastReplyTime = new Date(lastReplyStr).getTime();
-  }
-
-  const now = Date.now();
-  const windowMs = 24 * 60 * 60 * 1000;
-  const expiresTime = lastReplyTime + windowMs;
-  const isOpen = (now - lastReplyTime) < windowMs;
-
-  return {
-    hasReplied: true,
-    isOpen,
-    lastReplyAt: new Date(lastReplyTime).toISOString(),
-    expiresAt: new Date(expiresTime).toISOString(),
-    reason: isOpen 
-      ? "24-hour customer service window is active." 
-      : "The 24-hour customer service window has expired. Waiting for customer to reply before sending new free-form messages."
-  };
-}
+export { sendWhatsAppText, getCustomerReplyWindowStatus };
 
 export async function handleSendWhatsAppText(c) {
   const db = getDbClient(c.env);
@@ -1734,6 +1635,102 @@ export async function handleSendWhatsAppText(c) {
         caseId,
         `WhatsApp delivery failed: ${errDetails}`,
         JSON.stringify({ channel: 'whatsapp', message_type: 'freeform', error: errDetails })
+      ]
+    }).catch(() => {});
+
+    await db.execute({
+      sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'failed', last_updated = datetime('now') WHERE id = ?",
+      args: [caseId]
+    }).catch(() => {});
+
+    return c.json({ error: `Meta WhatsApp API error: ${errDetails}` }, 502);
+  }
+}
+
+export async function handleSendWhatsAppTemplate(c) {
+  const db = getDbClient(c.env);
+  const user = c.get("user");
+  const caseId = c.req.param("id") || c.req.param("caseId");
+
+  const { authorized, notFound, caseItem } = await authorizeCaseAccess(db, caseId, user);
+  if (notFound) return c.json({ error: "Case not found." }, 404);
+  if (!authorized) return c.json({ error: "Access denied." }, 403);
+
+  const body = await c.req.json().catch(() => ({}));
+  const templateName = String(body.templateName || body.template || "").trim();
+  if (!templateName) {
+    return c.json({ error: "Please select a template to send." }, 400);
+  }
+
+  const phone = caseItem.phone_number;
+  if (!phone) {
+    return c.json({ error: "No mobile number available for this contact." }, 400);
+  }
+
+  // Retrieve active token for dynamic URL button if needed
+  const tokenRes = await db.execute({
+    sql: "SELECT token FROM secure_tokens WHERE case_id = ? AND expires_at > datetime('now') ORDER BY expires_at DESC LIMIT 1",
+    args: [caseId]
+  });
+  const token = tokenRes.rows.length > 0 ? tokenRes.rows[0].token : null;
+
+  const templateParams = Array.isArray(body.templateParams)
+    ? body.templateParams
+    : (Array.isArray(body.parameters) ? body.parameters : []);
+
+  try {
+    const metaResult = await sendWhatsAppTemplate(
+      phone,
+      templateName,
+      caseItem.contact_person,
+      token,
+      c.env,
+      templateParams,
+      db
+    );
+    const metaMsgId = metaResult?.messages?.[0]?.id || null;
+
+    await db.execute({
+      sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'sent', last_updated = datetime('now') WHERE id = ?",
+      args: [caseId]
+    });
+
+    const metadata = {
+      channel: "whatsapp",
+      message_type: "template",
+      template_name: templateName,
+      meta_message_id: metaMsgId,
+      whatsapp_status: "sent",
+      direct_message: true
+    };
+
+    await db.execute({
+      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+            VALUES (?, ?, 'whatsapp_sent', ?, ?, ?)`,
+      args: [
+        crypto.randomUUID(),
+        caseId,
+        `WhatsApp template sent: ${templateName}`,
+        JSON.stringify(metadata),
+        user ? (user.username || user.id) : 'agent'
+      ]
+    });
+
+    return c.json({
+      success: true,
+      message: "WhatsApp template sent successfully.",
+      metaMessageId: metaMsgId
+    });
+  } catch (err) {
+    const errDetails = err.message || "Failed to send WhatsApp template.";
+    await db.execute({
+      sql: `INSERT INTO case_timeline (id, case_id, event_type, content, metadata, created_by)
+            VALUES (?, ?, 'whatsapp_failed', ?, ?, 'agent')`,
+      args: [
+        crypto.randomUUID(),
+        caseId,
+        `WhatsApp template delivery failed: ${errDetails}`,
+        JSON.stringify({ channel: 'whatsapp', message_type: 'template', template_name: templateName, error: errDetails })
       ]
     }).catch(() => {});
 

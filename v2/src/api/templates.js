@@ -1,5 +1,5 @@
 import { getDbClient } from "../db/client.js";
-import { WHATSAPP_TEMPLATES } from "../config/whatsapp-templates.js";
+import { WHATSAPP_TEMPLATES } from "../whatsapp/templates.js";
 
 /**
  * Supported Meta Official Language Codes
@@ -69,16 +69,18 @@ export function extractTemplateVariables(
  */
 function buildSystemTemplates() {
   return Object.values(WHATSAPP_TEMPLATES).map((template) => {
-    const bodyText = template.body?.text || "";
-    const bodyParameters = template.body?.parameters || [];
+    const bodyText = template.body_text || template.body?.text || "";
+    const bodyParameters = template.parameters || template.body?.parameters || [];
 
     const button = template.button || null;
 
     return {
       id: template.id,
       name: template.name,
+      displayName: template.displayName || template.name,
       category: template.category || "UTILITY",
       language: template.defaultLang || "en",
+      context: template.context || ["direct_outreach", "ca", "loan_agent"],
 
       header_type: "NONE",
       header_text: "",
@@ -97,6 +99,8 @@ function buildSystemTemplates() {
           ? [button.parameter]
           : [],
       },
+
+      parameters: Array.isArray(template.parameters) ? template.parameters : [],
 
       variables: extractTemplateVariables(
         bodyText,
@@ -126,6 +130,7 @@ function buildSystemTemplates() {
  */
 export async function handleGetTemplates(c) {
   const db = getDbClient(c.env);
+  const contextQuery = c.req.query("context") || "";
 
   const systemTemplates = buildSystemTemplates();
 
@@ -151,6 +156,7 @@ export async function handleGetTemplates(c) {
           is_active,
           created_at
         FROM message_templates
+        WHERE is_active = 1
         ORDER BY created_at DESC
       `,
     });
@@ -171,21 +177,23 @@ export async function handleGetTemplates(c) {
         return {
           id: row.id,
           name: row.name,
+          displayName: row.name,
           category: row.category || "UTILITY",
           language: row.language || "en",
+          context: ["direct_outreach", "ca", "loan_agent"],
 
           header_type: row.header_type || "NONE",
           header_text: row.header_text || "",
 
-          body_text: row.body_text || "",
-
+          body_text: row.body_text,
           footer_text: row.footer_text || "",
 
-          button_type: row.button_type || "url",
-          button_text: row.button_text || "Upload Documents",
+          button_type: row.button_type || "none",
+          button_text: row.button_text || "",
           button_url: row.button_url || "",
 
           param_mappings: mappings,
+          parameters: [],
 
           variables: extractTemplateVariables(
             row.body_text || "",
@@ -201,25 +209,36 @@ export async function handleGetTemplates(c) {
       });
     }
 
+    let allTemplates = [
+      ...systemTemplates,
+      ...customRows,
+    ];
+
+    if (contextQuery) {
+      allTemplates = allTemplates.filter(t => 
+        !t.context || t.context.includes(contextQuery)
+      );
+    }
+
     return c.json({
       success: true,
       languages: SUPPORTED_LANGUAGES,
-      templates: [
-        ...systemTemplates,
-        ...customRows,
-      ],
+      templates: allTemplates,
     });
   } catch (err) {
     console.error("Error fetching message templates:", err);
 
-    /*
-     * If the custom-template table/query fails,
-     * system templates should still be available.
-     */
+    let fallbackTemplates = systemTemplates;
+    if (contextQuery) {
+      fallbackTemplates = fallbackTemplates.filter(t => 
+        !t.context || t.context.includes(contextQuery)
+      );
+    }
+
     return c.json({
       success: true,
       languages: SUPPORTED_LANGUAGES,
-      templates: systemTemplates,
+      templates: fallbackTemplates,
     });
   }
 }

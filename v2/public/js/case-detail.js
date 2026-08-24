@@ -514,28 +514,26 @@ function renderWhatsAppConversationCard(c, timeline) {
       isWindowOpen = (Date.now() - latestReplyTime) < windowMs;
     }
 
-    let composerHtml = "";
+    let freeformComposerHtml = "";
     if (isWindowOpen) {
-      composerHtml = `
-        <form id="waDirectSendForm" style="display: flex; gap: 8px; align-items: center;" onsubmit="handleDirectWhatsAppSend(event, '${c.id}')">
-          <input type="text" id="waDirectSendInput" placeholder="Type WhatsApp message to send..." style="flex: 1; height: 42px; padding: 0 1rem; background: #ffffff; border: 1px solid #ECE8DF; border-radius: 10px; font-size: 14px; color: #171717; outline: none;" required />
-          <button type="submit" class="btn btn-primary" id="waDirectSendBtn" style="height: 42px; padding: 0 1.25rem; font-weight: 600; white-space: nowrap; border-radius: 10px;">
+      freeformComposerHtml = `
+        <form id="waDirectSendForm" style="flex: 1; display: flex; gap: 8px; align-items: center; margin: 0;" onsubmit="handleDirectWhatsAppSend(event, '${c.id}')">
+          <input type="text" id="waDirectSendInput" placeholder="Type WhatsApp message to send..." style="flex: 1; height: 40px; padding: 0 1rem; background: #ffffff; border: 1px solid #ECE8DF; border-radius: 8px; font-size: 14px; color: #171717; outline: none;" required />
+          <button type="submit" class="btn btn-primary" id="waDirectSendBtn" style="height: 40px; padding: 0 1.25rem; font-weight: 600; white-space: nowrap; border-radius: 8px;">
             Send WhatsApp ➔
           </button>
         </form>
       `;
     } else if (hasClientReply) {
-      composerHtml = `
-        <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 12px 16px; font-size: 0.8125rem; color: #92400E; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-          <div>
-            <strong>24-hour service window closed:</strong> Meta requires the client to send a new message before free-form messages can be sent.
-          </div>
+      freeformComposerHtml = `
+        <div style="flex: 1; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; font-size: 0.8125rem; color: #92400E; display: flex; align-items: center; justify-content: space-between;">
+          <span>24h service window closed. Awaiting client reply for free-form messaging.</span>
         </div>
       `;
     } else {
-      composerHtml = `
-        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 16px; font-size: 0.8125rem; color: #64748B;">
-          Waiting for client reply to enable free-form WhatsApp messaging.
+      freeformComposerHtml = `
+        <div style="flex: 1; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 12px; font-size: 0.8125rem; color: #64748B;">
+          Awaiting client reply to enable free-form WhatsApp messaging.
         </div>
       `;
     }
@@ -552,7 +550,12 @@ function renderWhatsAppConversationCard(c, timeline) {
         ${chatHtml}
       </div>
 
-      ${composerHtml}
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button type="button" id="btnOpenWaTemplatePicker" class="btn" style="height: 40px; padding: 0 14px; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; border: 1px solid #D1D5DB; background: #FFFFFF; color: #374151; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;" onclick="openWhatsAppTemplateModal('${c.id}')">
+          <span>📄</span> Template
+        </button>
+        ${freeformComposerHtml}
+      </div>
     `;
 
     const chatFeed = el("waThreadFeed");
@@ -586,6 +589,149 @@ function renderWhatsAppConversationCard(c, timeline) {
     } finally {
       if (btn) btn.disabled = false;
       loadTimeline(caseId);
+    }
+  }
+
+  let cachedWaTemplates = null;
+
+  async function openWhatsAppTemplateModal(caseId) {
+    const backdrop = el("waTemplateModalBackdrop");
+    if (!backdrop) return;
+    const select = el("waTemplateSelect");
+    const errBox = el("waTemplateModalError");
+
+    if (errBox) errBox.hidden = true;
+    backdrop.hidden = false;
+
+    if (!cachedWaTemplates) {
+      try {
+        const res = await authFetch("/api/templates?context=direct_outreach");
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.templates)) {
+          cachedWaTemplates = data.templates;
+        } else {
+          cachedWaTemplates = [];
+        }
+      } catch (err) {
+        console.error("Failed fetching templates for modal:", err);
+        cachedWaTemplates = [];
+      }
+    }
+
+    if (select) {
+      select.innerHTML = cachedWaTemplates.map(t => `
+        <option value="${escapeHtml(t.id || t.name)}">${escapeHtml(t.displayName || t.name)}</option>
+      `).join("");
+
+      select.onchange = () => renderSelectedTemplateParams();
+      renderSelectedTemplateParams();
+    }
+  }
+
+  function renderSelectedTemplateParams() {
+    const select = el("waTemplateSelect");
+    const desc = el("waTemplateDescription");
+    const paramsContainer = el("waTemplateParamsContainer");
+    if (!select || !paramsContainer) return;
+
+    const selectedId = select.value;
+    const template = (cachedWaTemplates || []).find(t => (t.id === selectedId || t.name === selectedId));
+
+    if (!template) {
+      if (desc) desc.textContent = "";
+      paramsContainer.innerHTML = "";
+      return;
+    }
+
+    if (desc) desc.textContent = template.description || "";
+
+    const params = Array.isArray(template.parameters) ? template.parameters : [];
+    if (params.length === 0) {
+      paramsContainer.innerHTML = `
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #64748B;">
+          This template requires no variables and is ready to send.
+        </div>
+      `;
+    } else {
+      paramsContainer.innerHTML = params.map((p, idx) => {
+        let defaultVal = "";
+        if (currentCase) {
+          if (p.defaultField === "contactPerson" || p.key === "name" || p.key === "client_name" || p.key === "borrower_name") {
+            defaultVal = currentCase.contactPerson || "";
+          } else if (p.defaultField === "firmName" || p.key === "caname" || p.key === "ca_name") {
+            defaultVal = "Collectrr";
+          }
+        }
+        return `
+          <div class="field" style="margin-bottom: 0.75rem;">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">
+              ${escapeHtml(p.label || p.key)}
+            </label>
+            <input type="text" class="wa-template-param-input" data-param-idx="${idx}" data-param-key="${escapeHtml(p.key)}" value="${escapeHtml(defaultVal)}" placeholder="Enter ${escapeHtml(p.label || p.key)}..." style="width: 100%; height: 38px; padding: 0 0.75rem; background: #FFFFFF; border: 1px solid #ECE8DF; border-radius: 8px; font-size: 13px; color: #171717; outline: none;" required />
+          </div>
+        `;
+      }).join("");
+    }
+  }
+
+  function closeWhatsAppTemplateModal() {
+    const backdrop = el("waTemplateModalBackdrop");
+    if (backdrop) backdrop.hidden = true;
+    const errBox = el("waTemplateModalError");
+    if (errBox) errBox.hidden = true;
+  }
+
+  async function handleSendTemplateModalSubmit(e) {
+    if (e) e.preventDefault();
+    if (!currentCase) return;
+
+    const select = el("waTemplateSelect");
+    const submitBtn = el("submitWaTemplateModal");
+    const errBox = el("waTemplateModalError");
+
+    if (!select || !select.value) return;
+    const templateName = select.value;
+
+    const paramInputs = document.querySelectorAll(".wa-template-param-input");
+    const templateParams = Array.from(paramInputs).map(inp => inp.value.trim());
+
+    if (errBox) errBox.hidden = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+    }
+
+    try {
+      const res = await authFetch(`/api/cases/${currentCase.id}/send-whatsapp-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateName, templateParams })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        UI.toast("WhatsApp template sent!", "success");
+        closeWhatsAppTemplateModal();
+        loadTimeline(currentCase.id);
+      } else {
+        const errorMsg = data.error || "Failed to send WhatsApp template.";
+        if (errBox) {
+          errBox.textContent = errorMsg;
+          errBox.hidden = false;
+        }
+        UI.toast(errorMsg, "error");
+      }
+    } catch (err) {
+      const errorMsg = err.message || "Failed to send WhatsApp template.";
+      if (errBox) {
+        errBox.textContent = errorMsg;
+        errBox.hidden = false;
+      }
+      UI.toast(errorMsg, "error");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send Template ➔";
+      }
     }
   }
 
@@ -1221,10 +1367,26 @@ function startApp() {
   const closePreviewBtn = el("closeDocPreview");
   if (closePreviewBtn) closePreviewBtn.onclick = closeDocumentPreview;
 
+  const closeWaTplBtn = el("closeWaTemplateModal");
+  if (closeWaTplBtn) closeWaTplBtn.onclick = closeWhatsAppTemplateModal;
+
+  const cancelWaTplBtn = el("cancelWaTemplateModal");
+  if (cancelWaTplBtn) cancelWaTplBtn.onclick = closeWhatsAppTemplateModal;
+
+  const waTplForm = el("waTemplateModalForm");
+  if (waTplForm) waTplForm.onsubmit = handleSendTemplateModalSubmit;
+
   const previewBackdrop = el("docPreviewBackdrop");
   if (previewBackdrop) {
     previewBackdrop.onclick = (e) => {
       if (e.target === previewBackdrop) closeDocumentPreview();
+    };
+  }
+
+  const waTplBackdrop = el("waTemplateModalBackdrop");
+  if (waTplBackdrop) {
+    waTplBackdrop.onclick = (e) => {
+      if (e.target === waTplBackdrop) closeWhatsAppTemplateModal();
     };
   }
 
@@ -1233,6 +1395,7 @@ function startApp() {
       closeDocumentPreview();
       closeAgentUploadModal();
       closeEditCaseModal();
+      closeWhatsAppTemplateModal();
     }
   });
 

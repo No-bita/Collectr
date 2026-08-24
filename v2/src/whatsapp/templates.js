@@ -1,6 +1,6 @@
 /**
  * Central WhatsApp Template Registry & Payload Generator
- * Collectrr v2 - Centralized WhatsApp Messaging Engine
+ * Collectrr v2 - WhatsApp Messaging Module
  */
 
 export const WHATSAPP_TEMPLATES = {
@@ -20,10 +20,16 @@ export const WHATSAPP_TEMPLATES = {
   ONBOARDING_FIRST_MESSAGE: {
     id: "onboarding_first_message",
     name: "onboarding_first_message",
+    displayName: "ITR Onboarding (with Upload Button)",
     defaultLang: "en",
     category: "UTILITY",
+    context: ["direct_outreach", "ca"],
     description:
       "ITR client onboarding message with CA/firm name and document upload button",
+    parameters: [
+      { key: "client_name", label: "Client Name", defaultField: "contactPerson" },
+      { key: "ca_name", label: "CA / Firm Name", defaultField: "firmName" },
+    ],
 
     getPayloads: ({
       phone,
@@ -113,10 +119,17 @@ export const WHATSAPP_TEMPLATES = {
   LOAN_AGENT_FIRST_OUTREACH: {
     id: "loan_agent_first_outreach",
     name: "loan_agent_first_outreach",
+    displayName: "Loan Agent Outreach",
     defaultLang: "en",
     category: "UTILITY",
+    context: ["loan_agent"],
     description:
       "Loan application outreach with borrower name, agent name, and contact details",
+    parameters: [
+      { key: "borrower_name", label: "Borrower Name", defaultField: "contactPerson" },
+      { key: "username", label: "Agent Name", defaultField: "userName" },
+      { key: "user_name", label: "Contact Detail", defaultField: "userPhone" },
+    ],
 
     getPayloads: ({
       phone,
@@ -209,10 +222,13 @@ export const WHATSAPP_TEMPLATES = {
   DO_CA: {
     id: "do_ca",
     name: "do_ca",
+    displayName: "Direct Outreach (CA Default)",
     defaultLang: "en_IN",
     category: "MARKETING",
+    context: ["direct_outreach", "ca"],
     description:
-      "Fixed Direct Outreach template for CAs in English (IND)",
+      "Direct Outreach introductory message for CAs in English (IND)",
+    parameters: [],
 
     getPayloads: ({
       phone,
@@ -235,13 +251,11 @@ export const WHATSAPP_TEMPLATES = {
   },
 };
 
-
 /**
  * Builds payload for a custom user-created WhatsApp template.
  *
  * Kept for future dynamic-template support.
- * The three hardcoded production templates above do not depend
- * on this function.
+ * The three hardcoded production templates above do not depend on this function.
  */
 export function buildCustomTemplatePayload(
   tpl,
@@ -490,7 +504,6 @@ export function buildCustomTemplatePayload(
 
   return [primaryPayload];
 }
-
 
 /**
  * Resolve WhatsApp Template Config by Name

@@ -29,6 +29,7 @@ import {
   handleRetryWhatsApp,
   handleAddDocumentRequirement,
   handleSendWhatsAppText,
+  handleSendWhatsAppTemplate,
   handleBulkImportCases
 } from "./api/cases.js";
 import {
@@ -166,6 +167,7 @@ app.post("/api/cases/:id/generate-report", handleGenerateReport);
 app.post("/api/cases/:id/retry-whatsapp", handleRetryWhatsApp);
 app.post("/api/cases/:id/whatsapp", handleSendWhatsAppText);
 app.post("/api/cases/:id/send-whatsapp-text", handleSendWhatsAppText);
+app.post("/api/cases/:id/send-whatsapp-template", handleSendWhatsAppTemplate);
 app.post("/api/cases/:id/add-requirement", handleAddDocumentRequirement);
 
 app.get("/api/loan-products", handleGetLoanProducts);

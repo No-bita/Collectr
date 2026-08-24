@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getWhatsAppTemplate, buildCustomTemplatePayload, WHATSAPP_TEMPLATES } from '../src/config/whatsapp-templates.js';
+import { getWhatsAppTemplate, buildCustomTemplatePayload, WHATSAPP_TEMPLATES } from '../src/whatsapp/templates.js';
 
 const rootDir = path.resolve(process.cwd());
 
