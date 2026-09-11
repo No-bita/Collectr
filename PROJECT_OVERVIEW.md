@@ -132,6 +132,7 @@ Lekho-Edge/
         ├── credits.test.js            # Paise math & recharge ledger tests
         ├── bulk-import.test.js        # CSV/Excel parsing & auto-mapping tests
         ├── persona-overflow.test.js   # CA vs Loan Agent isolation tests
+        ├── status-filtering.test.js   # Mode-dependent status presentation & filtering tests
         ├── wizard_ui.test.js          # 3-Screen wizard state machine tests
         ├── dom-integration.test.js    # HTML DOM element integrity tests
         ├── contact-model.test.js      # Phone normalization & contact relationship tests
@@ -238,6 +239,23 @@ sequenceDiagram
         Agent->>Agent: Display template body for resolved tplName (avoids fallback to onboarding_first_message)
     end
 ```
+
+### Flow 5: Mode-Dependent Status Architecture (Single Source of Truth)
+```mermaid
+flowchart TD
+    CaseData["Case Object (c)"] --> Helper["getDisplayStatus(c, mode)"]
+    Helper --> |direct_outreach| DeliveryStatus["c.whatsappDeliveryStatus || c.whatsapp_delivery_status || 'pending'"]
+    Helper --> |default (ca / loan_agent)| LifecycleStatus["c.status ('lead', 'documents_pending', ...)"]
+    
+    DeliveryStatus --> Dropdown["populateStatusFilter(): Sorted by WHATSAPP_STATUS_ORDER"]
+    DeliveryStatus --> Filter["render(): selectedStatus !== 'all' && displayStatus !== selectedStatus"]
+    DeliveryStatus --> TableBadge["render(): getWhatsAppDeliveryBadgeHtml(displayStatus)"]
+    
+    LifecycleStatus --> Dropdown
+    LifecycleStatus --> Filter
+    LifecycleStatus --> TableBadge
+```
+*Invariant:* **Whatever status the user sees in the Status column is exactly the status they can filter by.** Dropdown, filter evaluation, and table cell rendering all consume the single `getDisplayStatus(c, mode)` abstraction.
 
 ---
 

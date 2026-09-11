@@ -195,8 +195,19 @@ function formatStatus(status) {
   return map[status] || status;
 }
 
+const WHATSAPP_STATUS_ORDER = [
+  "dispatch_requested",
+  "pending",
+  "sent",
+  "delivered",
+  "read",
+  "replied",
+  "failed"
+];
+
 function formatWhatsAppDeliveryStatus(status) {
   const map = {
+    dispatch_requested: "Dispatch Requested",
     sent: "Sent",
     delivered: "Delivered",
     read: "Read",
@@ -207,6 +218,16 @@ function formatWhatsAppDeliveryStatus(status) {
   };
   const key = String(status || "").toLowerCase().trim();
   return map[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : "—");
+}
+
+function getDisplayStatus(c, mode) {
+  if (!c) return null;
+  if (mode === "direct_outreach") {
+    const raw = c.whatsappDeliveryStatus || c.whatsapp_delivery_status;
+    if (raw && typeof raw === 'string' && raw.trim()) return raw.trim().toLowerCase();
+    return "pending";
+  }
+  return c.status || null;
 }
 
 function getWhatsAppDeliveryBadgeHtml(status) {
@@ -222,6 +243,8 @@ function getWhatsAppDeliveryBadgeHtml(status) {
     badgeStyle = "background: #E0E7FF; color: #3730A3; border: 1px solid #C7D2FE;";
   } else if (st === 'failed') {
     badgeStyle = "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;";
+  } else if (st === 'dispatch_requested' || st === 'pending') {
+    badgeStyle = "background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;";
   }
   const label = formatWhatsAppDeliveryStatus(st);
   return `<span class="badge" style="${badgeStyle} font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;">${escapeHtml(label)}</span>`;
@@ -374,17 +397,43 @@ function populateStatusFilter() {
   if (!filterEl) return;
 
   const currentVal = filterEl.value || statusFilter || "all";
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const isDirectOutreach = (persona === 'direct_outreach');
   const statusSet = new Set();
 
   (allCases || []).forEach(c => {
-    if (c.status) statusSet.add(c.status);
+    if (typeof isCaseForPersona === 'function' && !isCaseForPersona(c, persona)) return;
+    const st = getDisplayStatus(c, persona);
+    if (st) statusSet.add(st);
   });
 
+  let sortedStatuses = Array.from(statusSet);
+  if (isDirectOutreach) {
+    sortedStatuses.sort((a, b) => {
+      const idxA = WHATSAPP_STATUS_ORDER.indexOf(a);
+      const idxB = WHATSAPP_STATUS_ORDER.indexOf(b);
+      const valA = idxA === -1 ? 999 : idxA;
+      const valB = idxB === -1 ? 999 : idxB;
+      return valA - valB || a.localeCompare(b);
+    });
+  } else {
+    const LIFECYCLE_ORDER = ['lead', 'documents_pending', 'ready_for_review', 'submitted', 'approved', 'disbursed', 'closed'];
+    sortedStatuses.sort((a, b) => {
+      const idxA = LIFECYCLE_ORDER.indexOf(a);
+      const idxB = LIFECYCLE_ORDER.indexOf(b);
+      const valA = idxA === -1 ? 999 : idxA;
+      const valB = idxB === -1 ? 999 : idxB;
+      return valA - valB || a.localeCompare(b);
+    });
+  }
+
   filterEl.innerHTML = '<option value="all">All Statuses</option>';
-  statusSet.forEach(st => {
+  sortedStatuses.forEach(st => {
     const opt = document.createElement("option");
     opt.value = st;
-    opt.textContent = formatStatus(st);
+    opt.textContent = isDirectOutreach
+      ? formatWhatsAppDeliveryStatus(st)
+      : formatStatus(st);
     filterEl.appendChild(opt);
   });
 
@@ -392,6 +441,7 @@ function populateStatusFilter() {
     filterEl.value = currentVal;
   } else {
     filterEl.value = "all";
+    statusFilter = "all";
   }
 
   if (typeof UI !== 'undefined' && UI.replaceSelect) {
@@ -560,7 +610,8 @@ function render() {
 
   const filtered = allCases.filter(c => {
     if (!isCaseForPersona(c, persona)) return false;
-    if (selectedStatus !== "all" && c.status !== selectedStatus) return false;
+    const displayStatus = getDisplayStatus(c, persona);
+    if (selectedStatus !== "all" && displayStatus !== selectedStatus) return false;
     if (selectedLoanType !== "all" && (c.loanProduct || "").trim() !== selectedLoanType) return false;
     if (selectedAmount !== "all") {
       const amt = parseFloat(c.amountRequired || 0);
@@ -702,8 +753,10 @@ function render() {
     const avatarStyle = getAvatarStyle(c.contactPerson);
     const absoluteIdx = (currentPage - 1) * pageSize + idx + 1;
 
+    const isDirectOutreach = (persona === 'direct_outreach');
+    const displayStatus = getDisplayStatus(c, persona);
+
     if (isDirectOutreach) {
-      const waDeliveryStatus = c.whatsappDeliveryStatus || c.whatsapp_delivery_status || 'sent';
       tr.innerHTML = `
         <td style="color: #94a3b8; font-weight: 500; font-size: 0.8125rem; text-align: center;">${absoluteIdx}</td>
         <td>
@@ -726,7 +779,7 @@ function render() {
           <div class="loan-type-main">${escapeHtml(c.loanProduct || c.templateName || c.messageTemplate || 'Unspecified')}</div>
         </td>
         <td>
-          ${getWhatsAppDeliveryBadgeHtml(waDeliveryStatus)}
+          ${getWhatsAppDeliveryBadgeHtml(displayStatus)}
         </td>
       `;
     } else {
@@ -779,7 +832,7 @@ function render() {
           </div>
         </td>
         <td>
-          <span class="badge badge-${c.status}">${formatStatus(c.status)}</span>
+          <span class="badge badge-${displayStatus}">${formatStatus(displayStatus)}</span>
         </td>
         <td style="text-align: center;" onclick="event.stopPropagation();">
           ${prog.total > 0 ? `
@@ -3346,6 +3399,20 @@ window.closeBulkImportModal = closeBulkImportModal;
 window.downloadSampleCsv = downloadSampleCsv;
 window.executeBulkImport = executeBulkImport;
 window.parseCsvOrTextContent = parseCsvOrTextContent;
+
+window.getDisplayStatus = getDisplayStatus;
+window.formatWhatsAppDeliveryStatus = formatWhatsAppDeliveryStatus;
+window.formatStatus = formatStatus;
+window.WHATSAPP_STATUS_ORDER = WHATSAPP_STATUS_ORDER;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    getDisplayStatus,
+    formatWhatsAppDeliveryStatus,
+    formatStatus,
+    WHATSAPP_STATUS_ORDER
+  };
+}
 
 if (window.applyVariantToDOM) {
   window.applyVariantToDOM();
