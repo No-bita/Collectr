@@ -126,4 +126,119 @@ test('Message Templates UI & Modal Engine Tests', async (t) => {
     const fallback = getWhatsAppTemplate("onboarding_first_message", {});
     assert.equal(fallback.name, "onboarding_first_message");
   });
+
+  await t.test('6. Template Uniqueness and Protection from duplicate names', async () => {
+    const { handleCreateTemplate, handleGetTemplates } = await import('../src/api/templates.js');
+
+    const createMockContext = ({ body = {}, query = {}, dbRows = [], user = { id: "admin" } } = {}) => {
+      const executed = [];
+      const mockDb = {
+        prepare: (sql) => {
+          let boundArgs = [];
+          return {
+            bind: (...args) => {
+              boundArgs = args;
+              return {
+                all: async () => {
+                  executed.push({ sql, args: boundArgs });
+                  return { results: dbRows };
+                },
+                run: async () => {
+                  executed.push({ sql, args: boundArgs });
+                  return { success: true };
+                }
+              };
+            },
+            all: async () => {
+              executed.push({ sql, args: boundArgs });
+              return { results: dbRows };
+            },
+            run: async () => {
+              executed.push({ sql, args: boundArgs });
+              return { success: true };
+            }
+          };
+        }
+      };
+
+      return {
+        c: {
+          env: { DB: mockDb },
+          get: (k) => (k === "user" ? user : null),
+          req: {
+            query: (k) => query[k] || "",
+            json: async () => body,
+          },
+          json: (data, status = 200) => ({ status, data })
+        },
+        executed
+      };
+    };
+
+    // A. Verify handleCreateTemplate rejects colliding with built-in system template (e.g. do_ca)
+    const { c: cSystemDup } = createMockContext({
+      body: {
+        name: "do_ca",
+        body_text: "Duplicate do_ca template body",
+        language: "en"
+      }
+    });
+    const resSystemDup = await handleCreateTemplate(cSystemDup);
+    assert.equal(resSystemDup.status, 409);
+    assert.ok(resSystemDup.data.error.includes("already exists as a protected system template"));
+
+    // B. Verify handleCreateTemplate rejects colliding with an existing custom template
+    const { c: cCustomDup } = createMockContext({
+      body: {
+        name: "my_custom_reminder",
+        body_text: "Reminder text",
+        language: "en"
+      },
+      dbRows: [{ id: "tpl_existing_123", name: "my_custom_reminder" }]
+    });
+    const resCustomDup = await handleCreateTemplate(cCustomDup);
+    assert.equal(resCustomDup.status, 409);
+    assert.ok(resCustomDup.data.error.includes("Template names must be unique"));
+
+    // C. Verify handleGetTemplates deduplicates templates and purges duplicate do_ca
+    const { c: cGet, executed } = createMockContext({
+      query: { context: "direct_outreach" },
+      dbRows: [
+        // Suppose a duplicate do_ca somehow existed in the DB
+        {
+          id: "tpl_legacy_do_ca",
+          name: "do_ca",
+          body_text: "Legacy duplicate do_ca",
+          language: "en",
+          is_active: 1
+        },
+        // And a valid custom template
+        {
+          id: "tpl_valid_custom",
+          name: "unique_outreach_custom",
+          body_text: "Custom outreach {{1}}",
+          language: "en",
+          is_active: 1
+        }
+      ]
+    });
+
+    const resGet = await handleGetTemplates(cGet);
+    assert.equal(resGet.status, 200);
+    assert.equal(resGet.data.success, true);
+
+    // Verify purge SQL was executed for system template names
+    const purgeQuery = executed.find(e => e.sql.includes("DELETE FROM message_templates WHERE LOWER(name) IN"));
+    assert.ok(purgeQuery, "handleGetTemplates must execute cleanup SQL purging duplicate system templates");
+
+    // Verify template names in returned list are strictly unique
+    const returnedNames = resGet.data.templates.map(t => t.name.toLowerCase());
+    const nameSet = new Set(returnedNames);
+    assert.equal(returnedNames.length, nameSet.size, "Templates returned by handleGetTemplates must never contain duplicate names");
+
+    // Verify do_ca only appears once in the returned templates
+    const doCaCount = returnedNames.filter(n => n === "do_ca").length;
+    assert.equal(doCaCount, 1, "There must be exactly one do_ca template returned");
+  });
 });
+

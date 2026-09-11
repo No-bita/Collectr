@@ -580,3 +580,58 @@ export function getWhatsAppTemplate(
   return WHATSAPP_TEMPLATES
     .ONBOARDING_FIRST_MESSAGE;
 }
+
+/**
+ * Render the exact WhatsApp message body for a given template and parameters.
+ * Guarantees that the exact dispatched body is stored in the database.
+ */
+export function renderTemplateBody(
+  templateName,
+  {
+    contactPerson = "Client",
+    userName = "Loan Team",
+    userPhone = "",
+    rawToken = "",
+    uploadLink = "",
+    templateParams = [],
+    customTemplates = []
+  } = {}
+) {
+  const name = String(templateName || "").trim().toLowerCase();
+
+  if (name === "loan_agent_first_outreach" || name.includes("loan_agent")) {
+    const borrowerName = templateParams?.[0] || contactPerson || "Borrower";
+    const agentName = templateParams?.[1] || userName || "Loan Team";
+    const contactDetail = templateParams?.[2] || userPhone || agentName;
+    return `Namaste ${borrowerName},\n\nLoan application has been initiated by ${agentName}.\n\nPlease upload the requested documents using the secure link below or reach out at ${contactDetail}.\n\nIf you have any questions, please contact us.`;
+  }
+
+  if (name === "do_ca") {
+    return `Kem cho?\n\nI came across your firm on Google and noticed you don't have a website.\n\nI made a sample for you to show how you can present your services, build trust online and make it easier for new clients to find you.\n\nWhat do you think?`;
+  }
+
+  if (Array.isArray(customTemplates) && customTemplates.length > 0) {
+    const custom = customTemplates.find(
+      (t) => (t.name || "").toLowerCase() === name || (t.id || "").toLowerCase() === name
+    );
+    if (custom && custom.body_text) {
+      let rendered = custom.body_text;
+      if (Array.isArray(templateParams) && templateParams.length > 0) {
+        templateParams.forEach((val, idx) => {
+          rendered = rendered.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), String(val));
+        });
+      }
+      rendered = rendered
+        .replace(/\{\{1\}\}/g, contactPerson || "Client")
+        .replace(/\{\{name\}\}/gi, contactPerson || "Client")
+        .replace(/\{\{client_name\}\}/gi, contactPerson || "Client")
+        .replace(/\{\{caname\}\}/gi, userName || "Collectrr");
+      return rendered;
+    }
+  }
+
+  // Default: onboarding_first_message
+  const clientName = templateParams?.[0] || contactPerson || "Client";
+  const caName = templateParams?.[1] || "Collectrr";
+  return `Hi ${clientName},\n\nThank you for trusting ${caName}.\n\nTo get started with your ITR filing, please upload the required documents using the button below.\n\nReply here if you need any help.`;
+}

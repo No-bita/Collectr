@@ -1736,9 +1736,12 @@ async function populateOutreachTemplateDropdown() {
     <option value="loan_agent_first_outreach">loan_agent_first_outreach (Loan Agent / Utility)</option>
     <option value="do_ca">do_ca (Direct Outreach / en_IN)</option>
   `;
+  const seen = new Set(["onboarding_first_message", "loan_agent_first_outreach", "do_ca", "new_convo_1", "hello_world"]);
   if (Array.isArray(cachedTemplates) && cachedTemplates.length > 0) {
     cachedTemplates.forEach(t => {
-      if (t.name !== "onboarding_first_message" && t.name !== "loan_agent_first_outreach" && t.name !== "do_ca" && t.name !== "new_convo_1" && t.name !== "hello_world") {
+      const tName = (t.name || "").toLowerCase();
+      if (!seen.has(tName)) {
+        seen.add(tName);
         const opt = document.createElement("option");
         opt.value = t.name;
         opt.textContent = `${t.name} (${t.category || 'Custom'})`;
@@ -1874,6 +1877,72 @@ if (cpInput) {
   });
 }
 
+// Contact Duplicate Check Helpers
+async function checkContactDuplicate(phone, loanProduct) {
+  try {
+    const res = await authFetch("/api/contacts/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, loanProduct })
+    });
+    if (!res.ok) return { exists: false };
+    return await res.json();
+  } catch (_) {
+    return { exists: false };
+  }
+}
+
+function promptDuplicateContactConfirm({ contact, enteredName, loanProduct, miniTargetsCount, onConfirm, onCancel }) {
+  const modal = el("duplicateConfirmModalBackdrop");
+  if (!modal) {
+    onConfirm();
+    return;
+  }
+
+  const nameEl = el("dupExistingName");
+  const phoneEl = el("dupExistingPhone");
+  const diffNotice = el("dupNameDiffNotice");
+  const enteredNameEl = el("dupEnteredName");
+  const countEl = el("dupTargetCount");
+  const qEl = el("dupConfirmQuestion");
+
+  if (nameEl) nameEl.textContent = contact.contactPerson;
+  if (phoneEl) phoneEl.textContent = contact.phone ? `+${contact.phone}` : "";
+  if (countEl) countEl.textContent = miniTargetsCount || 0;
+
+  if (enteredName && enteredName.trim().toLowerCase() !== contact.contactPerson.trim().toLowerCase()) {
+    if (diffNotice) diffNotice.style.display = "block";
+    if (enteredNameEl) enteredNameEl.textContent = enteredName;
+  } else {
+    if (diffNotice) diffNotice.style.display = "none";
+  }
+
+  if (qEl) {
+    qEl.textContent = `This contact already has ${miniTargetsCount} Mini Target(s). Add new Mini Target "${loanProduct || 'Target'}" under ${contact.contactPerson}?`;
+  }
+
+  const cancelBtn = el("btnCancelDuplicateConfirm");
+  const proceedBtn = el("btnProceedDuplicateConfirm");
+
+  const cleanup = () => {
+    modal.hidden = true;
+    cancelBtn.onclick = null;
+    proceedBtn.onclick = null;
+  };
+
+  cancelBtn.onclick = () => {
+    cleanup();
+    if (onCancel) onCancel();
+  };
+
+  proceedBtn.onclick = () => {
+    cleanup();
+    if (onConfirm) onConfirm();
+  };
+
+  modal.hidden = false;
+}
+
 // Screen 1 Continue Handler
 const btnDetailsContinue = el("btnDetailsContinue");
 if (btnDetailsContinue) {
@@ -1921,40 +1990,61 @@ if (btnDetailsContinue) {
         return;
       }
 
-      const submitBtn = el("btnDetailsContinue");
-      if (submitBtn) submitBtn.disabled = true;
+      // Pre-check Contact duplicate state
+      const checkData = await checkContactDuplicate(rawPhone, selectedTemplate);
+      if (checkData.exists && checkData.isBlocked) {
+        showActionableError(checkData.blockReason || "An active Mini Target for this template already exists under this contact.", "modalErrorStep1");
+        return;
+      }
 
-      const dynamicInputs = Array.from(document.querySelectorAll(".outreach-dynamic-param"));
-      const dynamicParams = [contactPerson, ...dynamicInputs.map(i => i.value.trim())];
+      const executeDirectOutreach = async () => {
+        const submitBtn = el("btnDetailsContinue");
+        if (submitBtn) submitBtn.disabled = true;
 
-      try {
-        const res = await authFetch("/api/cases", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contactPerson,
-            phone: rawPhone,
-            loanProduct: selectedTemplate,
-            templateName: selectedTemplate,
-            templateParams: dynamicParams,
-            amountRequired: null,
-            noDocsRequired: true,
-            requiredDocIds: []
-          })
-        });
+        const dynamicInputs = Array.from(document.querySelectorAll(".outreach-dynamic-param"));
+        const dynamicParams = [contactPerson, ...dynamicInputs.map(i => i.value.trim())];
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to dispatch direct message.");
+        try {
+          const res = await authFetch("/api/cases", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contactPerson,
+              phone: rawPhone,
+              loanProduct: selectedTemplate,
+              templateName: selectedTemplate,
+              templateParams: dynamicParams,
+              amountRequired: null,
+              noDocsRequired: true,
+              requiredDocIds: []
+            })
+          });
 
-        if (el("modalBackdrop")) el("modalBackdrop").hidden = true;
-        if (typeof UI !== 'undefined' && UI.toast) {
-          UI.toast(`Direct message dispatched to ${contactPerson}!`, "success");
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Failed to dispatch direct message.");
+
+          if (el("modalBackdrop")) el("modalBackdrop").hidden = true;
+          if (typeof UI !== 'undefined' && UI.toast) {
+            UI.toast(`Direct message dispatched to ${contactPerson}!`, "success");
+          }
+          await load();
+        } catch (err) {
+          showActionableError(`Dispatch Error: ${err.message}`, "modalErrorStep1");
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
         }
-        await load();
-      } catch (err) {
-        showActionableError(`Dispatch Error: ${err.message}`, "modalErrorStep1");
-      } finally {
-        if (submitBtn) submitBtn.disabled = false;
+      };
+
+      if (checkData.exists) {
+        promptDuplicateContactConfirm({
+          contact: checkData.contact,
+          enteredName: contactPerson,
+          loanProduct: selectedTemplate,
+          miniTargetsCount: checkData.miniTargetsCount,
+          onConfirm: executeDirectOutreach
+        });
+      } else {
+        await executeDirectOutreach();
       }
       return;
     }
@@ -1991,6 +2081,13 @@ if (btnDetailsContinue) {
       }
     }
 
+    // Pre-check Contact duplicate state
+    const checkData = await checkContactDuplicate(rawPhone, selectedProduct);
+    if (checkData.exists && checkData.isBlocked) {
+      showActionableError(checkData.blockReason || `An active Mini Target for "${selectedProduct}" already exists under this contact.`, "modalErrorStep1");
+      return;
+    }
+
     let amountRequired = 0;
     if (persona === 'loan_agent') {
       const rawAmount = el("amountRequired").value.trim();
@@ -2010,12 +2107,26 @@ if (btnDetailsContinue) {
       amountRequired = (rawAmount && !isNaN(parseFloat(rawAmount)) && parseFloat(rawAmount) > 0) ? parseFloat(rawAmount) : null;
     }
 
-    // Save to State Machine
-    wizardState.customer = { contactPerson, phone: rawPhone };
-    wizardState.loan = { product: selectedProduct, amountRequired };
+    const proceedToDocsScreen = () => {
+      // Save to State Machine
+      wizardState.customer = { contactPerson, phone: rawPhone };
+      wizardState.loan = { product: selectedProduct, amountRequired };
 
-    renderScreen2DocChecklists();
-    setWizardScreen('documents');
+      renderScreen2DocChecklists();
+      setWizardScreen('documents');
+    };
+
+    if (checkData.exists) {
+      promptDuplicateContactConfirm({
+        contact: checkData.contact,
+        enteredName: contactPerson,
+        loanProduct: selectedProduct,
+        miniTargetsCount: checkData.miniTargetsCount,
+        onConfirm: proceedToDocsScreen
+      });
+    } else {
+      proceedToDocsScreen();
+    }
   });
 }
 
@@ -2380,18 +2491,22 @@ if (btnSaveDocMappings) {
 
 let activeTemplateTab = "list";
 let cachedTemplates = [];
+let currentEditingTemplateId = null;
 
 function openTemplateModal() {
   const backdrop = el("templateModalBackdrop");
   if (!backdrop) return;
   backdrop.hidden = false;
+  currentEditingTemplateId = null;
   switchTemplateTab("list");
   loadTemplatesList();
 }
 
 function closeTemplateModal() {
   const backdrop = el("templateModalBackdrop");
-  if (backdrop) backdrop.hidden = true;
+  if (!backdrop) return;
+  backdrop.hidden = true;
+  currentEditingTemplateId = null;
 }
 
 function switchTemplateTab(tab) {
@@ -2401,20 +2516,29 @@ function switchTemplateTab(tab) {
   const listView = el("tplListView");
   const createView = el("tplCreateView");
   const saveBtn = el("btnSaveTemplate");
+  const nameInput = el("tplNameInput");
 
   if (tab === "list") {
+    currentEditingTemplateId = null;
     if (tabList) tabList.classList.add("active");
     if (tabCreate) tabCreate.classList.remove("active");
     if (listView) listView.hidden = false;
     if (createView) createView.hidden = true;
     if (saveBtn) saveBtn.style.display = "none";
+    if (nameInput) nameInput.disabled = false;
     loadTemplatesList();
   } else {
     if (tabList) tabList.classList.remove("active");
     if (tabCreate) tabCreate.classList.add("active");
     if (listView) listView.hidden = true;
     if (createView) createView.hidden = false;
-    if (saveBtn) saveBtn.style.display = "";
+    if (saveBtn) {
+      saveBtn.style.display = "";
+      saveBtn.textContent = currentEditingTemplateId ? "Update Template" : "Save Template";
+    }
+    if (nameInput) {
+      nameInput.disabled = Boolean(currentEditingTemplateId);
+    }
     updateTemplateLivePreview();
   }
 }
@@ -2463,7 +2587,14 @@ function renderTemplatesList(templates) {
     return;
   }
 
+  const seenNames = new Set();
   templates.forEach(tpl => {
+    const lowerName = (tpl.name || "").toLowerCase();
+    if (seenNames.has(lowerName)) {
+      return;
+    }
+    seenNames.add(lowerName);
+
     const card = document.createElement("div");
     card.className = "tpl-card";
 
@@ -2644,6 +2775,19 @@ async function saveCustomTemplate() {
     return;
   }
 
+  // Prevent creating duplicate templates with the same name
+  const collision = (cachedTemplates || []).find(t =>
+    (t.name || "").toLowerCase() === name &&
+    (t.id || t.name) !== currentEditingTemplateId
+  );
+  if (collision) {
+    if (errBox) {
+      errBox.textContent = `A template with the name "${name}" already exists. Template names must be unique.`;
+      errBox.hidden = false;
+    }
+    return;
+  }
+
   // Parse token parameters in body
   const bodyTokens = (bodyText.match(/\{\{(\d+)\}\}/g) || []).map((_, idx) => {
     if (idx === 0) return "contact_person";
@@ -2662,10 +2806,12 @@ async function saveCustomTemplate() {
   if (submitBtn) submitBtn.disabled = true;
 
   try {
+    const isEdit = Boolean(currentEditingTemplateId);
     const res = await authFetch("/api/admin/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        id: currentEditingTemplateId || undefined,
         name,
         category,
         language,
@@ -2680,12 +2826,13 @@ async function saveCustomTemplate() {
     });
 
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Failed to create template.");
+    if (!res.ok) throw new Error(data.error || "Failed to save template.");
 
     if (typeof UI !== 'undefined' && UI.toast) {
-      UI.toast(`Template "${name}" created successfully!`, "success");
+      UI.toast(isEdit ? `Template "${name}" updated successfully!` : `Template "${name}" created successfully!`, "success");
     }
 
+    currentEditingTemplateId = null;
     if (nameInput) nameInput.value = "";
     if (bodyInput) bodyInput.value = "";
     if (headerInput) headerInput.value = "";
@@ -2731,6 +2878,8 @@ async function deleteCustomTemplate(id) {
 function editCustomTemplate(name) {
   const tpl = cachedTemplates.find(t => t.name === name);
   if (!tpl) return;
+
+  currentEditingTemplateId = tpl.id || tpl.name;
 
   const nameInput = el("tplNameInput");
   const categorySelect = el("tplCategorySelect");
@@ -2806,12 +2955,16 @@ if (tplButtonTextInput) {
 // ==========================================
 
 let parsedBulkClients = [];
+let lastBulkFileContent = "";
 
 function openBulkImportModal() {
   const backdrop = el("bulkImportModalBackdrop");
   if (!backdrop) return;
   backdrop.hidden = false;
   parsedBulkClients = [];
+  lastBulkFileContent = "";
+  const headerCheck = el("bulkHasHeaderCheck");
+  if (headerCheck) headerCheck.checked = true;
   populateBulkTemplateDropdown();
   populateBulkCategoryDropdown();
   updateBulkSampleFormat();
@@ -2843,21 +2996,21 @@ function updateBulkSampleFormat() {
     if (bMatches.length > 1) {
       sampleEl.innerHTML = `
         <div style="color: #64748B; font-weight: 600;">Name, Phone, Param2, Param3</div>
-        <div>Aryan Shah, 9137839907, Notice_123, 24-Aug-2026</div>
-        <div>Priya Patel, 9876543210, Notice_124, 25-Aug-2026</div>
+        <div>John Doe, 9876543210, Notice_123, 24-Aug-2026</div>
+        <div>Priya Patel, 9876543211, Notice_124, 25-Aug-2026</div>
       `;
     } else {
       sampleEl.innerHTML = `
         <div style="color: #64748B; font-weight: 600;">Name, Phone</div>
-        <div>Aryan Shah, 9137839907</div>
-        <div>Priya Patel, 9876543210</div>
+        <div>John Doe, 9876543210</div>
+        <div>Priya Patel, 9876543211</div>
       `;
     }
   } else {
     sampleEl.innerHTML = `
       <div style="color: #64748B; font-weight: 600;">Name, Phone, Category, Amount</div>
-      <div>Aryan Shah, 9137839907, Direct Intake, 500000</div>
-      <div>Priya Patel, 9876543210, ITR Filing, 250000</div>
+      <div>John Doe, 9876543210, Direct Intake, 500000</div>
+      <div>Priya Patel, 9876543211, ITR Filing, 250000</div>
     `;
   }
 }
@@ -2907,36 +3060,30 @@ function populateBulkCategoryDropdown() {
   }
 }
 
-function parseCsvOrTextContent(content) {
+function parseCsvOrTextContent(content, hasHeader) {
   if (!content || !content.trim()) return [];
   const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const rows = [];
   const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Skip common header rows
-    if (i === 0 && (line.toLowerCase().includes("name") && (line.toLowerCase().includes("phone") || line.toLowerCase().includes("mobile")))) {
-      continue;
-    }
+  const hasHeaderRow = (typeof hasHeader === 'boolean')
+    ? hasHeader
+    : (el("bulkHasHeaderCheck") ? el("bulkHasHeaderCheck").checked : true);
 
-    let delimiter = ",";
-    if (line.includes("\t")) delimiter = "\t";
-    else if (line.includes(";")) delimiter = ";";
+  const startIndex = hasHeaderRow ? 1 : 0;
+
+  for (let i = startIndex; i < lines.length; i++) {
+    const line = lines[i];
+    const delimiter = ",";
 
     const parts = line.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
     if (parts.length === 0 || (parts.length === 1 && !parts[0])) continue;
 
-    let contactPerson = parts[0] || "";
-    let rawPhone = parts[1] || "";
-    let category = parts[2] || "";
-    let amount = parts[3] || "";
-
-    if (/^\+?\d{10,14}$/.test(contactPerson.replace(/\D/g, '')) && !/^\d+$/.test(rawPhone)) {
-      const temp = contactPerson;
-      contactPerson = rawPhone;
-      rawPhone = temp;
-    }
+    // Strict column assignment: column 1 = name, column 2 = phone
+    const contactPerson = parts[0] || "";
+    const rawPhone = parts[1] || "";
+    const category = parts[2] || "";
+    const amount = parts[3] || "";
 
     const digits = rawPhone.replace(/\D/g, "");
     const isValidPhone = digits.length === 10 || (digits.length === 12 && digits.startsWith("91"));
@@ -3028,7 +3175,9 @@ function handleBulkFileSelected(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const text = e.target?.result || "";
-    const rows = parseCsvOrTextContent(text);
+    lastBulkFileContent = text;
+    const hasHeader = el("bulkHasHeaderCheck") ? el("bulkHasHeaderCheck").checked : true;
+    const rows = parseCsvOrTextContent(text, hasHeader);
     renderBulkImportPreview(rows);
     if (typeof UI !== 'undefined' && UI.toast) {
       UI.toast(`Parsed ${rows.length} rows from ${file.name}`, "info");
@@ -3043,14 +3192,14 @@ function downloadSampleCsv() {
   if (isDirectOutreach) {
     csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(
       "Name,Phone,Param2,Param3\n" +
-      "Aryan Shah,9137839907,Notice_123,24-Aug-2026\n" +
-      "Priya Patel,9876543210,Notice_124,25-Aug-2026\n"
+      "John Doe,9876543210,Notice_123,24-Aug-2026\n" +
+      "Priya Patel,9876543211,Notice_124,25-Aug-2026\n"
     );
   } else {
     csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(
       "Name,Phone,Category,Amount\n" +
-      "Aryan Shah,9137839907,Direct Intake,500000\n" +
-      "Priya Patel,9876543210,ITR Filing,250000\n" +
+      "John Doe,9876543210,Direct Intake,500000\n" +
+      "Priya Patel,9876543211,ITR Filing,250000\n" +
       "Rahul Sharma,9823456789,GST Registration,\n"
     );
   }
@@ -3142,6 +3291,16 @@ if (closeBulkImportModalBtn) {
 const cancelBulkImportModalBtn = el("cancelBulkImportModal");
 if (cancelBulkImportModalBtn) {
   cancelBulkImportModalBtn.addEventListener("click", closeBulkImportModal);
+}
+
+const bulkHasHeaderCheck = el("bulkHasHeaderCheck");
+if (bulkHasHeaderCheck) {
+  bulkHasHeaderCheck.addEventListener("change", () => {
+    if (lastBulkFileContent) {
+      const rows = parseCsvOrTextContent(lastBulkFileContent, bulkHasHeaderCheck.checked);
+      renderBulkImportPreview(rows);
+    }
+  });
 }
 
 const bulkFileInput = el("bulkFileInput");

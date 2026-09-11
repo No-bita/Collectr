@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS loan_cases_new (
 );
 
 INSERT INTO loan_cases_new (id, user_id, is_demo, contact_person, phone_number, loan_product, amount_required, status, whatsapp_delivery_status, ai_metadata, created_at, last_updated)
-SELECT id, COALESCE(user_id, 'system'), COALESCE(is_demo, 1), contact_person, phone_number, loan_product, amount_required, status, whatsapp_delivery_status, ai_metadata, created_at, last_updated
+SELECT id, 'system', 1, contact_person, phone_number, loan_product, amount_required, status, whatsapp_delivery_status, ai_metadata, created_at, last_updated
 FROM loan_cases;
 
 DROP TABLE loan_cases;

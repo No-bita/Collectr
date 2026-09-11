@@ -135,6 +135,16 @@ export async function handleGetTemplates(c) {
   const systemTemplates = buildSystemTemplates();
 
   try {
+    // Purge any duplicate system templates that were historically saved into the custom message_templates table
+    const systemNames = Object.values(WHATSAPP_TEMPLATES).map((t) => (t.name || "").toLowerCase());
+    if (systemNames.length > 0) {
+      const placeholders = systemNames.map(() => "?").join(", ");
+      await db.execute({
+        sql: `DELETE FROM message_templates WHERE LOWER(name) IN (${placeholders})`,
+        args: systemNames,
+      }).catch(() => {});
+    }
+
     let customRows = [];
 
     const res = await db.execute({
@@ -161,8 +171,17 @@ export async function handleGetTemplates(c) {
       `,
     });
 
+    const seenNames = new Set(systemTemplates.map((t) => (t.name || "").toLowerCase()));
+
     if (res && res.rows) {
-      customRows = res.rows.map((row) => {
+      for (const row of res.rows) {
+        const rowName = (row.name || "").toLowerCase();
+        // Disallow any custom template that duplicates a system template or another custom template
+        if (seenNames.has(rowName)) {
+          continue;
+        }
+        seenNames.add(rowName);
+
         let mappings = {};
 
         try {
@@ -174,7 +193,7 @@ export async function handleGetTemplates(c) {
           mappings = {};
         }
 
-        return {
+        customRows.push({
           id: row.id,
           name: row.name,
           displayName: row.name,
@@ -205,8 +224,8 @@ export async function handleGetTemplates(c) {
           is_active: row.is_active !== 0,
 
           created_at: row.created_at,
-        };
-      });
+        });
+      }
     }
 
     let allTemplates = [
@@ -247,8 +266,7 @@ export async function handleGetTemplates(c) {
  * POST /api/admin/templates
  *
  * Creates or updates a custom application template.
- *
- * These are separate from the hardcoded system templates.
+ * Never allows two templates with the same name to be created.
  */
 export async function handleCreateTemplate(c) {
   const user = c.get("user");
@@ -347,24 +365,24 @@ export async function handleCreateTemplate(c) {
   }
 
   /*
-   * Prevent custom templates from colliding with
+   * 1. Prevent custom templates from colliding with
    * any hardcoded system template.
    */
   const isSystemTemplate = Object.values(
     WHATSAPP_TEMPLATES
   ).some(
     (template) =>
-      template.id === name ||
-      template.name === name
+      (template.id || "").toLowerCase() === name ||
+      (template.name || "").toLowerCase() === name
   );
 
   if (isSystemTemplate) {
     return c.json(
       {
         error:
-          "Cannot overwrite a protected system template.",
+          `A template with the name "${name}" already exists as a protected system template.`,
       },
-      400
+      409
     );
   }
 
@@ -388,7 +406,32 @@ export async function handleCreateTemplate(c) {
     );
   }
 
+  const db = getDbClient(c.env);
+  const targetId = body.id || body.template_id || null;
+
+  /*
+   * 2. Prevent creating duplicate custom templates with the same name.
+   */
+  const existingRes = await db.execute({
+    sql: "SELECT id, name FROM message_templates WHERE LOWER(name) = LOWER(?)",
+    args: [name],
+  });
+
+  if (existingRes && existingRes.rows && existingRes.rows.length > 0) {
+    const existing = existingRes.rows[0];
+    if (!targetId || targetId !== existing.id) {
+      return c.json(
+        {
+          error:
+            `A template with the name "${name}" already exists. Template names must be unique.`,
+        },
+        409
+      );
+    }
+  }
+
   const id =
+    targetId ||
     "tpl_" +
     crypto.randomUUID().slice(0, 12);
 
@@ -402,79 +445,100 @@ export async function handleCreateTemplate(c) {
       ? paramMappings
       : JSON.stringify(paramMappings);
 
-  const db = getDbClient(c.env);
-
   try {
-    await db.execute({
-      sql: `
-        INSERT INTO message_templates (
+    if (targetId) {
+      // Update existing template
+      await db.execute({
+        sql: `
+          UPDATE message_templates SET
+            category = ?,
+            language = ?,
+            header_type = ?,
+            header_text = ?,
+            body_text = ?,
+            footer_text = ?,
+            button_type = ?,
+            button_text = ?,
+            button_url = ?,
+            param_mappings = ?,
+            is_active = 1
+          WHERE id = ?
+        `,
+        args: [
+          category,
+          language,
+          headerType,
+          headerText,
+          bodyText,
+          footerText,
+          buttonType,
+          buttonText,
+          buttonUrl,
+          mappingsJson,
+          targetId,
+        ],
+      });
+    } else {
+      // Strictly insert new unique template (no ON CONFLICT overwrite)
+      await db.execute({
+        sql: `
+          INSERT INTO message_templates (
+            id,
+            user_id,
+            name,
+            category,
+            language,
+            header_type,
+            header_text,
+            body_text,
+            footer_text,
+            button_type,
+            button_text,
+            button_url,
+            param_mappings,
+            is_active
+          )
+          VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            1
+          )
+        `,
+        args: [
           id,
-          user_id,
+          userId,
           name,
           category,
           language,
-          header_type,
-          header_text,
-          body_text,
-          footer_text,
-          button_type,
-          button_text,
-          button_url,
-          param_mappings,
-          is_active
-        )
-        VALUES (
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          1
-        )
-
-        ON CONFLICT(name) DO UPDATE SET
-          category = excluded.category,
-          language = excluded.language,
-          header_type = excluded.header_type,
-          header_text = excluded.header_text,
-          body_text = excluded.body_text,
-          footer_text = excluded.footer_text,
-          button_type = excluded.button_type,
-          button_text = excluded.button_text,
-          button_url = excluded.button_url,
-          param_mappings = excluded.param_mappings,
-          is_active = 1
-      `,
-      args: [
-        id,
-        userId,
-        name,
-        category,
-        language,
-        headerType,
-        headerText,
-        bodyText,
-        footerText,
-        buttonType,
-        buttonText,
-        buttonUrl,
-        mappingsJson,
-      ],
-    });
+          headerType,
+          headerText,
+          bodyText,
+          footerText,
+          buttonType,
+          buttonText,
+          buttonUrl,
+          mappingsJson,
+        ],
+      });
+    }
 
     return c.json(
       {
         success: true,
-        message:
-          "Template configuration saved successfully",
+        message: targetId
+          ? "Template updated successfully"
+          : "Template configuration saved successfully",
 
         template: {
           id,
@@ -506,6 +570,16 @@ export async function handleCreateTemplate(c) {
       "Error saving template configuration:",
       err
     );
+
+    if (err.message && err.message.includes("UNIQUE constraint failed")) {
+      return c.json(
+        {
+          error:
+            `A template with the name "${name}" already exists. Template names must be unique.`,
+        },
+        409
+      );
+    }
 
     return c.json(
       {

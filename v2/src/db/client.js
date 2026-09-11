@@ -17,9 +17,75 @@ export function getDbClient(env) {
         stmt = stmt.bind(...args);
       }
       const res = await stmt.all();
-      return { rows: res.results };
+      return { rows: res.results || [] };
     } catch (err) {
       const msg = err.message || "";
+
+      if (msg.includes("no such table: contacts")) {
+        try {
+          await db.prepare(`
+            CREATE TABLE IF NOT EXISTS contacts (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              contact_person TEXT NOT NULL,
+              phone_number TEXT NOT NULL,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+              CONSTRAINT unq_user_contact_phone UNIQUE(user_id, phone_number)
+            )
+          `).run();
+          await db.prepare("CREATE INDEX IF NOT EXISTS idx_contacts_user_phone ON contacts(user_id, phone_number)").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+
+      if (msg.includes("has no column named contact_id") || msg.includes("no column named contact_id")) {
+        try {
+          await db.prepare("ALTER TABLE loan_cases ADD COLUMN contact_id TEXT").run();
+          await db.prepare("ALTER TABLE case_timeline ADD COLUMN contact_id TEXT").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+
+      if (msg.includes("has no column named wa_phone_number_id") || msg.includes("no column named wa_phone_number_id")) {
+        try {
+          await db.prepare("ALTER TABLE users ADD COLUMN wa_phone_number_id TEXT").run();
+          await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS unq_users_wa_phone_id ON users(wa_phone_number_id) WHERE wa_phone_number_id IS NOT NULL").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+
+      if (msg.includes("has no column named provider_message_id") || msg.includes("no column named provider_message_id")) {
+        try {
+          await db.prepare("ALTER TABLE case_timeline ADD COLUMN provider_message_id TEXT").run();
+          await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS unq_timeline_provider_msg ON case_timeline(provider_message_id) WHERE provider_message_id IS NOT NULL").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+
+      if (msg.includes("has no column named template_name") || msg.includes("no column named template_name")) {
+        try {
+          await db.prepare("ALTER TABLE loan_cases ADD COLUMN template_name TEXT").run();
+          await db.prepare("ALTER TABLE case_timeline ADD COLUMN template_name TEXT").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+
       if (msg.includes("has no column named user_id") || msg.includes("no column named user_id")) {
         try {
           await db.prepare("ALTER TABLE loan_cases ADD COLUMN user_id TEXT").run();
@@ -29,7 +95,7 @@ export function getDbClient(env) {
           stmt = stmt.bind(...args);
         }
         const res = await stmt.all();
-        return { rows: res.results };
+        return { rows: res.results || [] };
       }
       if (msg.includes("has no column named is_demo") || msg.includes("no column named is_demo")) {
         try {
@@ -40,7 +106,7 @@ export function getDbClient(env) {
           stmt = stmt.bind(...args);
         }
         const res = await stmt.all();
-        return { rows: res.results };
+        return { rows: res.results || [] };
       }
       if (msg.includes("no such table: loan_product_doc_mappings")) {
         try {
@@ -51,7 +117,7 @@ export function getDbClient(env) {
           stmt = stmt.bind(...args);
         }
         const res = await stmt.all();
-        return { rows: res.results };
+        return { rows: res.results || [] };
       }
       if (msg.includes("no such table: message_templates")) {
         try {
@@ -62,7 +128,7 @@ export function getDbClient(env) {
           stmt = stmt.bind(...args);
         }
         const res = await stmt.all();
-        return { rows: res.results };
+        return { rows: res.results || [] };
       }
       throw err;
     }

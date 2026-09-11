@@ -68,22 +68,70 @@ function arrayBufferToBase64(buffer) {
 
 export async function runGeminiOcr(s3Key, uploadId, caseId, env, db) {
   try {
-    // 1. Fetch file from R2
-    const S3 = new S3Client({
-      region: "auto",
-      endpoint: `https://${env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: env.R2_AK_id,
-        secretAccessKey: env.R2_SAK,
-      },
-    });
+    const isMock =
+      env?.MOCK_GEMINI === "true" ||
+      (typeof process !== "undefined" && process.env?.MOCK_GEMINI === "true");
 
-    const getRes = await S3.send(new GetObjectCommand({ Bucket: "lekho-documents", Key: s3Key }));
-    const arrayBuffer = await getRes.Body.transformToByteArray();
-    const base64Data = arrayBufferToBase64(arrayBuffer);
-    const mimeType = getRes.ContentType || "image/jpeg";
+    let rawText = "";
 
-    const promptText = `You are an expert MSME financial document parser. 
+    if (isMock) {
+      const mode = (
+        env?.MOCK_GEMINI_MODE ||
+        (typeof process !== "undefined" && process.env?.MOCK_GEMINI_MODE) ||
+        "success"
+      ).toLowerCase();
+
+      if (mode === "error") {
+        throw new Error("[Mock Gemini] Upstream API unavailable");
+      } else if (mode === "malformed") {
+        rawText = "MALFORMED_NON_JSON_RESPONSE";
+      } else if (mode === "anomaly") {
+        rawText = JSON.stringify({
+          anomaly: true,
+          anomalyReason: "Name mismatch detected across PAN and database records",
+          documentType: "PAN",
+          fields: {
+            pan: "ABCDE1234F",
+            name: "MISMATCHED TEST USER"
+          }
+        });
+      } else if (mode === "unsupported") {
+        rawText = JSON.stringify({
+          anomaly: true,
+          anomalyReason: "Unsupported document format detected",
+          documentType: "UNKNOWN",
+          fields: {}
+        });
+      } else {
+        // Standard synthetic success fixture
+        rawText = JSON.stringify({
+          anomaly: false,
+          anomalyReason: null,
+          documentType: "PAN",
+          fields: {
+            pan: "ABCDE1234F",
+            name: "TEST PERSON",
+            dob: "1990-01-01"
+          }
+        });
+      }
+    } else {
+      // 1. Fetch file from R2
+      const S3 = new S3Client({
+        region: "auto",
+        endpoint: `https://${env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: env.R2_AK_id,
+          secretAccessKey: env.R2_SAK,
+        },
+      });
+
+      const getRes = await S3.send(new GetObjectCommand({ Bucket: "lekho-documents", Key: s3Key }));
+      const arrayBuffer = await getRes.Body.transformToByteArray();
+      const base64Data = arrayBufferToBase64(arrayBuffer);
+      const mimeType = getRes.ContentType || "image/jpeg";
+
+      const promptText = `You are an expert MSME financial document parser. 
 Extract key fields from the uploaded document. 
 Identify the document type (PAN, Aadhaar, GST Return, Bank Statement, ITR, etc.).
 Check for anomalies or mismatches.
@@ -97,31 +145,38 @@ Return a rigid JSON structure EXACTLY like this:
   }
 }`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
-    const geminiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [
-            { inline_data: { data: base64Data, mime_type: mimeType } },
-            { text: promptText }
-          ]
-        }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+      const geminiRes = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { inline_data: { data: base64Data, mime_type: mimeType } },
+              { text: promptText }
+            ]
+          }],
+          generationConfig: { response_mime_type: "application/json" }
+        })
+      });
 
-    if (!geminiRes.ok) throw new Error("Gemini API error");
-    const geminiData = await geminiRes.json();
-    let rawText = geminiData.candidates[0].content.parts[0].text;
-    rawText = rawText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+      if (!geminiRes.ok) throw new Error("Gemini API error");
+      const geminiData = await geminiRes.json();
+      rawText = geminiData.candidates[0].content.parts[0].text;
+      rawText = rawText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
 
     let parsed = {};
-    try { parsed = JSON.parse(rawText); } catch(e) {}
+    let isJsonValid = false;
+    try {
+      parsed = JSON.parse(rawText);
+      isJsonValid = true;
+    } catch (e) {
+      parsed = { anomaly: true, anomalyReason: "Malformed model response: failed to parse JSON", fields: {} };
+    }
     
-    const ocrStatus = parsed.anomaly ? 'flagged' : 'processed';
+    const ocrStatus = (!isJsonValid || parsed.anomaly) ? 'flagged' : 'processed';
 
     // Save OCR payload to uploaded_documents
     await db.execute({

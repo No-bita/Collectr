@@ -5,7 +5,11 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "dev": "wrangler dev",
+    "test": "node --test tests/*.test.js",
+    "test:offline": "NO_EXTERNAL_NETWORK=true node --test tests/*.test.js",
+    "db:init:local": "wrangler d1 execute lekho-db --local --file=src/db/schema.sql",
+    "db:migrate:local": "wrangler d1 migrations apply lekho-db --local"
   },
   "dependencies": {
     "hono": "^4.12.27",

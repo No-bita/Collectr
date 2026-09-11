@@ -30,7 +30,9 @@ import {
   handleAddDocumentRequirement,
   handleSendWhatsAppText,
   handleSendWhatsAppTemplate,
-  handleBulkImportCases
+  handleBulkImportCases,
+  handleCheckContact,
+  handleBulkImportPreview
 } from "./api/cases.js";
 import {
   handleGetCredits,
@@ -52,42 +54,12 @@ import {
   handleDeleteTemplate
 } from "./api/templates.js";
 
+import { authMiddleware, adminOnlyMiddleware } from "./middleware/auth.js";
+import { corsMiddleware } from "./middleware/cors.js";
+
 const app = new Hono();
 
-app.use("*", cors());
-
-// Authentication Middleware (JWT)
-const authMiddleware = async (c, next) => {
-  const isDev = c.env.ENVIRONMENT === "development" || c.req.url.includes("localhost") || c.req.url.includes("127.0.0.1");
-  const authHeader = c.req.header("Authorization");
-
-  if (isDev && (!authHeader || authHeader === "Bearer dev_token" || authHeader === "dev_token")) {
-    c.set("user", { user_id: "dev-user-1", username: "DevAgent", role: "admin" });
-    return next();
-  }
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return c.json({ error: "Unauthorized access. Please log in." }, 401);
-  }
-  const token = authHeader.split(" ")[1];
-  try {
-    const secret = c.env.JWT_SECRET || "default_unsafe_secret_for_dev_only";
-    const payload = await verify(token, secret, "HS256");
-    c.set("user", payload);
-    return next();
-  } catch (err) {
-    return c.json({ error: "Invalid or expired session. Please log in again." }, 401);
-  }
-};
-
-// Admin Only Middleware
-const adminOnlyMiddleware = async (c, next) => {
-  const user = c.get("user");
-  if (!user || user.role !== "admin") {
-    return c.json({ error: "Access denied. Admin role required." }, 403);
-  }
-  return next();
-};
+app.use("*", corsMiddleware);
 
 // Auth API Endpoints
 app.post("/api/auth/login", handleLogin);
@@ -151,10 +123,16 @@ app.use("/api/loan-products", authMiddleware);
 app.use("/api/document-catalog", authMiddleware);
 app.use("/api/reject-upload", authMiddleware);
 
+app.use("/api/contacts", authMiddleware);
+app.use("/api/contacts/*", authMiddleware);
+
+app.post("/api/contacts/check", handleCheckContact);
+app.get("/api/contacts/:id", handleGetSingleCase);
 app.get("/api/cases", handleGetCases);
 app.get("/api/cases/:id", handleGetSingleCase);
 app.post("/api/cases", handleCreateCase);
 app.post("/api/cases/bulk-import", handleBulkImportCases);
+app.post("/api/cases/bulk-import/preview", handleBulkImportPreview);
 app.patch("/api/cases/:id", handleEditCase);
 app.delete("/api/cases/:id", handleDeleteCase);
 app.patch("/api/cases/:id/status", handleUpdateStatus);

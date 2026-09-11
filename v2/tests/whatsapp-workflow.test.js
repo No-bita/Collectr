@@ -11,9 +11,9 @@ import { verifyWebhookSubscription, parseWebhookPayload } from "../src/whatsapp/
 describe("WhatsApp Workflow Integration Tests", () => {
 
   test("1. Primary Template (new_convo_1) Payload Structure", () => {
-    const phone = "919137839907";
+    const phone = "919876543210";
     const templateName = "new_convo_1";
-    const contactPerson = "Aryan Shah";
+    const contactPerson = "Test Borrower";
     const token = "secure_token_123";
     const env = {
       WHATSAPP_PHONE_ID: "1078210008704696",
@@ -47,11 +47,11 @@ describe("WhatsApp Workflow Integration Tests", () => {
     };
 
     assert.equal(payload.messaging_product, "whatsapp");
-    assert.equal(payload.to, "919137839907");
+    assert.equal(payload.to, "919876543210");
     assert.equal(payload.template.name, "new_convo_1");
     assert.equal(payload.template.language.code, "en");
     assert.equal(payload.template.components[0].parameters[0].parameter_name, "name");
-    assert.equal(payload.template.components[0].parameters[0].text, "Aryan Shah");
+    assert.equal(payload.template.components[0].parameters[0].text, "Test Borrower");
     assert.equal(payload.template.components[0].parameters[1].parameter_name, "uploadlink");
     assert.equal(payload.template.components[0].parameters[1].text, "https://collectrr-v2.collectr.workers.dev/upload.html?t=secure_token_123");
   });
@@ -69,7 +69,7 @@ describe("WhatsApp Workflow Integration Tests", () => {
       return { success: true, usedTemplate: "hello_world" };
     }
 
-    const result = await sendWithFallback("new_convo_1", "919137839907");
+    const result = await sendWithFallback("new_convo_1", "919876543210");
     assert.equal(result.success, true);
     assert.equal(result.usedTemplate, "hello_world");
     assert.deepEqual(mockCalls, ["new_convo_1", "hello_world"]);
@@ -150,7 +150,7 @@ describe("WhatsApp Workflow Integration Tests", () => {
   test("6. Central WhatsApp Template Registry (getWhatsAppTemplate)", () => {
     const tplConfig = getWhatsAppTemplate("onboarding_first_message", {});
     assert.equal(tplConfig.id, "onboarding_first_message");
-    const payloads = tplConfig.getPayloads({ phone: "919876543210", contactPerson: "Test Client", rawToken: "tok_123", templateParams: ["Aryan", "Aaryan Shah & Co"] });
+    const payloads = tplConfig.getPayloads({ phone: "919876543210", contactPerson: "Test Client", rawToken: "tok_123", templateParams: ["Borrower", "Acme Advisory"] });
     assert.equal(payloads.length, 1);
     assert.equal(payloads[0].template.name, "onboarding_first_message");
 

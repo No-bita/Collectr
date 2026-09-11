@@ -1,117 +1,174 @@
-# Collectrr V2 — Automated Client Intake & Document Collection Platform
+# Collectrr
 
-Collectrr is a serverless, edge-native CRM and automated document collection engine for MSME financial services. Built on **Cloudflare Workers**, **Hono**, **Cloudflare D1** (SQLite), and **Cloudflare R2** (object storage), it automates client document intake via WhatsApp, presigned R2 uploads, and AI-driven OCR extraction.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-81%20passing-brightgreen.svg)](v2/tests/)
+[![Edge Native](https://img.shields.io/badge/Platform-Cloudflare%20Workers-orange.svg)](https://workers.cloudflare.com/)
+[![Runtime](https://img.shields.io/badge/Runtime-Node%2018%2B%20%7C%20Workers-success.svg)](package.json)
 
----
+Collectrr is an open-source, edge-native client intake and automated document collection platform designed for financial services, loan agents, and chartered accountants. Built on **Cloudflare Workers**, **Hono**, **Cloudflare D1** (serverless SQLite), and **Cloudflare R2** (object storage), it streamlines client onboarding via WhatsApp messaging, secure tokenized document upload portals, and AI-powered document extraction.
 
-## Core Features
-
-- **Public Marketing Landing Page**: High-converting landing page integrated directly at root (`/`) with client sign-in (`/login.html`) and registration (`/register.html`) flows.
-- **Operations Dashboard** (`/dashboard.html` or `/app`): Multi-tenant workspace for agents and administrators to manage loan cases, filter by product/status/amount, track document progress, and trigger follow-ups.
-- **3-Screen Case Creation Wizard**:
-  - *Screen 1 (Intake)*: Borrower details, 10-digit mobile number validation, loan product selection, and required loan amount.
-  - *Screen 2 (Document Matrix)*: Dynamic document checklist recommended based on loan product rules.
-  - *Screen 3 (WhatsApp Dispatch)*: Meta Cloud API template dispatch and unique token link generation.
-- **Client Document Portal** (`/upload.html?t=<token>`): Mobile-first upload portal for end-clients accessing their secure, time-limited token link with presigned R2 upload URLs and direct upload support.
-- **AI-Powered OCR Verification**: Asynchronous Gemini 2.5 Flash OCR extraction parsing key fields (PAN, Aadhaar, GST Returns, Bank Statements), detecting anomalies, logging failure diagnostics, and auto-advancing case status.
-- **Admin Observability & Matrix Rules**: Configurable loan product document requirement matrix and system failure logs.
+For an exhaustive technical deep-dive into the architecture, entity relationships, sequencing, and API contracts, see [**PROJECT_OVERVIEW.md**](PROJECT_OVERVIEW.md).
 
 ---
 
-## System Architecture
+## Key Features
 
-```
-[ End-Client ] ───────> Upload Portal (/upload.html?t=token)
-                              │
-                              ▼
-                        [ Cloudflare R2 ] (Document Storage)
-                              │
-                              ▼
-                       [ Gemini 2.5 OCR ] (Async Background Worker)
-                              │
-                              ▼
- [ Agent/Admin ] ─────> [ Hono Edge API ] <─────> [ Cloudflare D1 ]
-                           (Workers)                (SQLite Database)
-                              │
-                              ▼
-                  [ WhatsApp Meta Cloud API ]
-```
+- **Edge-Native Performance**: Sub-50ms API responses powered by Cloudflare Workers and Hono across global edge points of presence.
+- **WhatsApp Cloud API Integration**: Automated conversational dispatch, template failover, and interactive document intake workflows.
+- **Secure Client Upload Portals**: Tokenized, time-limited, mobile-friendly upload links with presigned Cloudflare R2 direct uploads.
+- **AI-Powered OCR Verification**: Asynchronous Gemini 2.5 Flash document extraction for PAN, Aadhaar, GST returns, and bank statements with anomaly detection.
+- **Configurable Document Matrices**: Dynamic document requirements tailored by financial product and persona.
+- **Multi-Persona UI Architecture**: Seamless workspace adapting dynamically for Chartered Accountants and Financial Loan Agents.
+- **Comprehensive Offline Mock Adapters**: 100% offline-testable with deterministic WhatsApp and Gemini mock adapters and zero-external-network isolation guards.
 
 ---
 
-## Folder Structure
+## Architecture Overview
 
 ```
-v2/
-├── migrations/         # D1 Database SQL migrations (0001, 0002, 0003)
-├── public/             # Static Assets served by Cloudflare Workers [assets]
-│   ├── index.html      # Landing Page (Root /)
-│   ├── dashboard.html  # Operations Dashboard (/dashboard.html or /app)
-│   ├── login.html      # Agent & Admin Sign In
-│   ├── register.html   # Account Creation
-│   ├── case.html       # Case Detail Workspace
-│   ├── upload.html     # Public Client Upload Portal
-│   ├── js/             # Modular JS (app.js, case-detail.js, ui-components.js, icons.js)
-│   ├── css/            # Dashboard Stylesheet (dashboard.css)
-│   └── assets/         # Tailwind CSS & bundle assets
-├── src/
-│   ├── index.js        # Hono router entrypoint, CORS, JWT auth & asset fallbacks
-│   ├── api/            # Route handlers (cases, auth, upload, ocr, webhook, admin, session)
-│   └── db/             # D1 client adapter, baseline schema, and seed SQL
-└── tests/              # TAP Integration Test Suite (node --test)
+[ End-Client ] ─────────────> Upload Portal (/upload.html?t=token)
+                                    │
+                                    ▼
+                             [ Cloudflare R2 ] (Document Storage)
+                                    │
+                                    ▼
+                           [ Gemini 2.5 Flash ] (OCR Extraction)
+                                    │
+                                    ▼
+[ Agent / Admin ] ──────────> [ Hono Edge API ] <──────────> [ Cloudflare D1 ]
+                               (Workers)                       (SQLite Database)
+                                    │
+                                    ▼
+                         [ WhatsApp Cloud API ]
 ```
 
 ---
 
-## Local Development & Testing
+## Quickstart
 
-### 1. Install Dependencies & Start Dev Server
+### 1. Prerequisites
+
+- **Node.js**: `v18.0.0` or higher
+- **npm**: `v9.0.0` or higher
+- **Cloudflare Wrangler**: `npm install -g wrangler` (or use `npx wrangler`)
+- **SQLite 3**: (pre-installed on macOS/Linux)
+
+### 2. Clone and Install
 
 ```bash
-cd v2
+git clone https://github.com/your-username/collectrr.git
+cd collectrr
 npm install
-npx wrangler dev
+npm --prefix v2 install
 ```
 
-The local dev server runs on **`http://localhost:8788`**:
-- **Landing Page**: `http://localhost:8788/`
-- **Dashboard**: `http://localhost:8788/dashboard.html` (or `http://localhost:8788/app`)
-- **Sign In**: `http://localhost:8788/login.html`
-- **Register**: `http://localhost:8788/register.html`
+### 3. Configure Local Environment
 
-*Note: In development (`localhost`), API authentication automatically grants dev bypass privileges as `DevAgent (admin)`.*
+Copy the example environment file:
+```bash
+cp v2/.dev.vars.example v2/.dev.vars
+```
 
-### 2. Run Integration Test Suite
+> [!NOTE]
+> For offline local development, you do not need real WhatsApp or Gemini credentials. The built-in mock adapters (`MOCK_WHATSAPP=true` and `MOCK_GEMINI=true`) enable complete end-to-end local testing.
+
+### 4. Initialize Local D1 Database
 
 ```bash
+npm run db:init:local
+```
+
+### 5. Start Development Server
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:8787` (or `http://localhost:8788`) to access:
+- **Landing Page**: `/`
+- **Dashboard**: `/dashboard.html` or `/app`
+- **Agent Login**: `/login.html`
+- **Registration**: `/register.html`
+
+---
+
+## Testing & Verification
+
+Collectrr includes an automated TAP test suite enforcing deep schema parity, WhatsApp state machines, and network isolation:
+
+```bash
+# Run all 81 tests across 12 suites
 npm test
-```
 
-Executes all 13 TAP unit and integration tests covering WhatsApp template failover logic, 3-Screen Wizard state machines, mobile validation, and admin matrix rules.
+# Run tests in strict offline mode (outbound network traffic blocked)
+npm run test:offline
 
----
-
-## Environment Variables Configuration
-
-Configure bindings in `v2/wrangler.toml` or secret values in `v2/.dev.vars`:
-
-```toml
-[vars]
-ENVIRONMENT = "production"
-FRONTEND_URL = "https://collectrr-v2.collectr.workers.dev"
-WHATSAPP_PROD_PHONE_ID = "1073272059211357"
-WHATSAPP_VERIFY_TOKEN = "CollectrWhatsappTokenAuth2026"
-WHATSAPP_NEW_LEAD_TEMPLATE = "new_convo_1"
-WHATSAPP_TEMPLATE_LANG = "en"
+# Verify SQLite D1 schema parity between schema.sql and migrations
+node --test v2/tests/schema-parity.test.js
 ```
 
 ---
 
-## Deploying to Production
+## Repository Structure
 
-When local development and testing are complete:
+```text
+collectrr/
+├── .github/              # GitHub Actions CI workflow & issue templates
+├── scripts/              # Secret scanning & verification tools
+├── v2/                   # Active Edge Application
+│   ├── migrations/       # D1 SQLite schema migrations (0001 → 0007)
+│   ├── public/           # Static frontend SPA assets & vanilla JS modules
+│   │   ├── js/core/      # Core API, DOM, State, and Event buses
+│   │   ├── js/modules/   # Domain modules (templates, wallet, auth, admin)
+│   │   └── dashboard.html# Operations dashboard
+│   ├── src/
+│   │   ├── api/          # Hono route endpoints (cases, ocr, templates, etc.)
+│   │   ├── db/           # D1 client, base schema, and seed queries
+│   │   ├── middleware/   # Authentication and CORS middleware
+│   │   ├── whatsapp/     # Meta Cloud API client, webhooks, and templates
+│   │   └── index.js      # Worker entrypoint
+│   ├── tests/            # Automated test suites and offline mock fixtures
+│   └── wrangler.toml     # Cloudflare Workers configuration
+├── BASELINE.md           # Test baseline inventory
+├── CONTRIBUTING.md       # Contributor guidelines and testing rules
+├── LICENSE               # MIT License
+├── PROJECT_OVERVIEW.md   # Complete technical architecture & contract documentation
+├── README.md             # This document
+└── SECURITY.md           # Vulnerability disclosure & credential rotation policy
+```
+
+---
+
+## Deployment
+
+Deploy directly to your Cloudflare account with Wrangler:
 
 ```bash
 cd v2
 npx wrangler deploy
 ```
+
+For production secret setup (e.g. `WHATSAPP_ACCESS_TOKEN`, `GEMINI_API_KEY`):
+```bash
+npx wrangler secret put WHATSAPP_ACCESS_TOKEN
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put WHATSAPP_WEBHOOK_VERIFY_TOKEN
+```
+
+---
+
+## Contributing
+
+Contributions are warmly welcomed! Please read our [**Contributing Guide**](CONTRIBUTING.md) and review our [**UI/UX Guidelines**](.agents/AGENTS.md) before opening a pull request.
+
+---
+
+## Security
+
+Please report vulnerabilities confidentially according to our [**Security Policy**](SECURITY.md). Never submit credentials or secrets to public issues or pull requests.
+
+---
+
+## License
+
+Collectrr is open-source software licensed under the [**MIT License**](LICENSE).

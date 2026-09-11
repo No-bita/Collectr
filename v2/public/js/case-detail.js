@@ -452,11 +452,10 @@ function renderWhatsAppConversationCard(c, timeline) {
           </div>
         `;
       } else {
-        // Outgoing Agent Message
-        let messageText = t.content || "";
-        if (isSystemNotificationContent(messageText)) {
-          messageText = getActualTemplateMessageText(c);
-        }
+        // Outgoing Agent Message: Render exact persisted message body
+        const messageText = t.content || "Message sent";
+        const miniTargetAttr = t.loan_product || (t.metadata && JSON.parse(typeof t.metadata === 'string' ? t.metadata : '{}')?.template_name) || "";
+        const attrLabel = miniTargetAttr ? `<span style="font-size: 0.6875rem; color: #15803d; font-weight: 600; margin-bottom: 2px; display: block;">${escapeHtml(miniTargetAttr)}</span>` : "";
 
         // Derive subtle delivery status attached to this message
         let statusHtml = "";
@@ -482,6 +481,7 @@ function renderWhatsAppConversationCard(c, timeline) {
 
         return `
           <div style="display: flex; flex-direction: column; align-items: flex-end; margin-bottom: 12px; height: auto; min-height: 0;">
+            ${attrLabel}
             <div style="background: #DCFCE7; color: #14532D; border: 1px solid #BBF7D0; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 85%; width: fit-content; height: auto; min-height: 0; font-size: 0.875rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; text-align: left; box-sizing: border-box; margin: 0;">${escapeHtml(messageText)}</div>
             <div style="margin-top: 4px;">
               ${statusHtml}
@@ -619,7 +619,15 @@ function renderWhatsAppConversationCard(c, timeline) {
     }
 
     if (select) {
-      select.innerHTML = cachedWaTemplates.map(t => `
+      const seenNames = new Set();
+      const uniqueTemplates = (cachedWaTemplates || []).filter(t => {
+        const key = (t.name || t.id || "").toLowerCase();
+        if (seenNames.has(key)) return false;
+        seenNames.add(key);
+        return true;
+      });
+
+      select.innerHTML = uniqueTemplates.map(t => `
         <option value="${escapeHtml(t.id || t.name)}">${escapeHtml(t.displayName || t.name)}</option>
       `).join("");
 

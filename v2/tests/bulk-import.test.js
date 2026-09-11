@@ -19,6 +19,7 @@ test('Bulk Client Import UI, Parser & Architecture Tests', async (t) => {
     assert.ok(htmlContent.includes('id="bulkDropzone"'), 'bulkDropzone drag and drop target must exist');
     assert.ok(htmlContent.includes('id="bulkCategorySelect"'), 'bulkCategorySelect dropdown must exist');
     assert.ok(htmlContent.includes('id="bulkTemplateSelect"'), 'bulkTemplateSelect dropdown must exist');
+    assert.ok(htmlContent.includes('id="bulkHasHeaderCheck"'), 'bulkHasHeaderCheck checkbox must exist');
     assert.ok(htmlContent.includes('id="bulkSendWhatsAppCheck"'), 'bulkSendWhatsAppCheck checkbox must exist');
     assert.ok(htmlContent.includes('id="bulkPreviewTableBody"'), 'bulkPreviewTableBody table element must exist');
     assert.ok(htmlContent.includes('id="btnExecuteBulkImport"'), 'btnExecuteBulkImport submit button must exist');
@@ -43,30 +44,24 @@ test('Bulk Client Import UI, Parser & Architecture Tests', async (t) => {
     assert.ok(jsContent.includes('function renderBulkImportPreview'), 'renderBulkImportPreview must be defined');
     assert.ok(jsContent.includes('function executeBulkImport'), 'executeBulkImport must be defined');
 
-    // Test parser logic directly
-    function mockParse(content) {
+    // Test parser logic directly matching app.js
+    function mockParse(content, hasHeader = true) {
       if (!content || !content.trim()) return [];
       const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const rows = [];
-      for (let i = 0; i < lines.length; i++) {
+      const startIndex = hasHeader ? 1 : 0;
+
+      for (let i = startIndex; i < lines.length; i++) {
         const line = lines[i];
-        if (i === 0 && (line.toLowerCase().includes("name") && (line.toLowerCase().includes("phone") || line.toLowerCase().includes("mobile")))) {
-          continue;
-        }
-        let delimiter = line.includes("\t") ? "\t" : (line.includes(";") ? ";" : ",");
+        const delimiter = ",";
         const parts = line.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
         if (parts.length === 0 || (parts.length === 1 && !parts[0])) continue;
 
-        let contactPerson = parts[0] || "";
-        let rawPhone = parts[1] || "";
-        let category = parts[2] || "";
-        let amount = parts[3] || "";
-
-        if (/^\+?\d{10,14}$/.test(contactPerson.replace(/\D/g, '')) && !/^\d+$/.test(rawPhone)) {
-          const temp = contactPerson;
-          contactPerson = rawPhone;
-          rawPhone = temp;
-        }
+        // Strict column mapping: column 1 = name, column 2 = phone
+        const contactPerson = parts[0] || "";
+        const rawPhone = parts[1] || "";
+        const category = parts[2] || "";
+        const amount = parts[3] || "";
 
         const digits = rawPhone.replace(/\D/g, "");
         const isValidPhone = digits.length === 10 || (digits.length === 12 && digits.startsWith("91"));
@@ -84,18 +79,34 @@ test('Bulk Client Import UI, Parser & Architecture Tests', async (t) => {
     }
 
     const testCsv = `Name,Phone,Category,Amount
-Aryan Shah,9137839907,Direct Intake,500000
+John Doe,9876543210,Direct Intake,500000
 Priya Patel,+91 98765 43210,ITR Filing,250000
 Invalid Client,12345,GST Registration,`;
 
-    const parsed = mockParse(testCsv);
-    assert.equal(parsed.length, 3);
-    assert.equal(parsed[0].contactPerson, "Aryan Shah");
-    assert.equal(parsed[0].digits, "9137839907");
-    assert.equal(parsed[0].isValid, true);
-    assert.equal(parsed[1].contactPerson, "Priya Patel");
-    assert.equal(parsed[1].isValid, true);
-    assert.equal(parsed[2].isValid, false, "12345 is an invalid phone");
+    // 1. With header (default)
+    const parsedWithHeader = mockParse(testCsv, true);
+    assert.equal(parsedWithHeader.length, 3);
+    assert.equal(parsedWithHeader[0].contactPerson, "John Doe");
+    assert.equal(parsedWithHeader[0].digits, "9876543210");
+    assert.equal(parsedWithHeader[0].isValid, true);
+    assert.equal(parsedWithHeader[1].contactPerson, "Priya Patel");
+    assert.equal(parsedWithHeader[1].isValid, true);
+    assert.equal(parsedWithHeader[2].isValid, false, "12345 is an invalid phone");
+
+    // 2. Without header option
+    const testNoHeader = `John Doe,9876543210,Direct Intake,500000
+Priya Patel,9876543210,ITR Filing,250000`;
+    const parsedNoHeader = mockParse(testNoHeader, false);
+    assert.equal(parsedNoHeader.length, 2);
+    assert.equal(parsedNoHeader[0].contactPerson, "John Doe");
+    assert.equal(parsedNoHeader[1].contactPerson, "Priya Patel");
+
+    // 3. Strict column order verification (first column is ALWAYS taken as name)
+    const testStrictCols = `9876543210,Some Notes Or Wrong Phone`;
+    const parsedStrict = mockParse(testStrictCols, false);
+    assert.equal(parsedStrict[0].contactPerson, "9876543210", "First column must strictly be taken as name without swapping");
+    assert.equal(parsedStrict[0].rawPhone, "Some Notes Or Wrong Phone", "Second column must strictly be taken as phone");
+    assert.equal(parsedStrict[0].isValid, false);
   });
 
   await t.test('4. Backend API Route & Handler in cases.js & index.js', () => {

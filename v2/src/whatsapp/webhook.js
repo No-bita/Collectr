@@ -38,6 +38,12 @@ export function parseWebhookPayload(body) {
       const value = change.value;
       if (!value) continue;
 
+      const phoneNumberId = value.metadata?.phone_number_id || null;
+      const displayPhoneNumber = value.metadata?.display_phone_number || null;
+
+      // Extract contact profile name if available
+      const contactProfileName = value.contacts?.[0]?.profile?.name || null;
+
       // Extract delivery status updates (sent, delivered, read, failed)
       if (Array.isArray(value.statuses)) {
         for (const statusObj of value.statuses) {
@@ -57,6 +63,7 @@ export function parseWebhookPayload(body) {
             status,
             recipientId,
             providerMsgId,
+            phoneNumberId,
             errorMsg,
             timestamp: statusObj.timestamp || null,
           });
@@ -83,6 +90,9 @@ export function parseWebhookPayload(body) {
             fromPhone,
             shortPhone,
             fullPhone,
+            profileName: contactProfileName,
+            phoneNumberId,
+            displayPhoneNumber,
             text,
             type: message.type || "text",
             timestamp: message.timestamp || null,

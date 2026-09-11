@@ -18,3 +18,6 @@ CREATE TABLE secure_tokens (
 INSERT INTO secure_tokens (token, case_id, status, fingerprint_hash, expires_at, created_at)
 SELECT token, lead_id, status, fingerprint_hash, expires_at, created_at
 FROM secure_tokens_backup;
+
+-- 4. Clean up temporary migration backup table
+DROP TABLE IF EXISTS secure_tokens_backup;

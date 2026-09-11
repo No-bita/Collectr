@@ -36,4 +36,4 @@ Each media asset is stored in a dedicated folder named by its **ID**:
    Example: To update `icon_dashboard`, add your file to `v2/public/assets/icons/icon_dashboard/icon.svg`.
 
 2. **Updating Registry & Descriptions**:
-   Edit [`v2/public/js/icons.js`](file:///Users/aaryanshah/Downloads/Lekho-Edge/v2/public/js/icons.js) or [`v2/public/assets/icons/icons-manifest.json`](file:///Users/aaryanshah/Downloads/Lekho-Edge/v2/public/assets/icons/icons-manifest.json) to update the `description`, `placeholderSvg`, or `assetPath`.
+   Edit [`v2/public/js/icons.js`](../../js/icons.js) or [`v2/public/assets/icons/icons-manifest.json`](icons-manifest.json) to update the `description`, `placeholderSvg`, or `assetPath`.

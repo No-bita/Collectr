@@ -1,20 +1,13 @@
 {
-  "name": "lekho",
-  "version": "1.0.0",
+  "name": "collectrr",
   "private": true,
   "type": "module",
-  "main": "src/index.js",
   "scripts": {
-    "tunnel": "ngrok http 3000",
-    "sheet:headers": "node scripts/sync-sheet-headers.mjs"
-  },
-  "dependencies": {
-    "@aws-sdk/client-s3": "^3.1053.0",
-    "@aws-sdk/s3-request-presigner": "^3.1053.0",
-    "hono": "^4.12.27"
-  },
-  "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260801.1",
-    "wrangler": "^4.118.0"
+    "dev": "npm --prefix v2 run dev",
+    "test": "npm --prefix v2 test",
+    "test:offline": "npm --prefix v2 run test:offline",
+    "db:init:local": "npm --prefix v2 run db:init:local",
+    "db:migrate:local": "npm --prefix v2 run db:migrate:local",
+    "scan:secrets": "node scripts/scan-secrets.js"
   }
 }

@@ -148,7 +148,7 @@ sequenceDiagram
 ## 5. Adding New Features or Modifying Copy
 
 - **Adding a new Persona Variant**:
-  1. Open [`variant-config.js`](file:///Users/aaryanshah/Downloads/Lekho-Edge/v2/public/js/variant-config.js).
+  1. Open [`v2/public/js/variant-config.js`](v2/public/js/variant-config.js).
   2. Add key under `VARIANT_COPY` (e.g. `legal_intake`).
   3. Define section headlines, badges, bullet points, and CTA text.
   4. Run `npm test` in `v2/` to ensure full copy key coverage.
