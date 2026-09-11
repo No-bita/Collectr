@@ -103,13 +103,16 @@ export function renderTemplatesList(templates) {
     return;
   }
 
+  // Deduplicate strictly by trimmed lowercase name; prioritize system templates
   const seenNames = new Set();
-  templates.forEach((tpl) => {
-    const lowerName = (tpl.name || "").toLowerCase();
-    if (seenNames.has(lowerName)) {
+  const sortedTemplates = [...templates].sort((a, b) => (b.is_system ? 1 : 0) - (a.is_system ? 1 : 0));
+
+  sortedTemplates.forEach((tpl) => {
+    const cleanName = (tpl.name || "").trim().toLowerCase();
+    if (!cleanName || seenNames.has(cleanName) || cleanName === "do_ca" && !tpl.is_system && seenNames.has("do_ca")) {
       return;
     }
-    seenNames.add(lowerName);
+    seenNames.add(cleanName);
 
     const card = document.createElement("div");
     card.className = "tpl-card";

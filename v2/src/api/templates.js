@@ -136,12 +136,12 @@ export async function handleGetTemplates(c) {
 
   try {
     // Purge any duplicate system templates that were historically saved into the custom message_templates table
-    const systemNames = Object.values(WHATSAPP_TEMPLATES).map((t) => (t.name || "").toLowerCase());
+    const systemNames = Object.values(WHATSAPP_TEMPLATES).map((t) => (t.name || "").trim().toLowerCase());
     if (systemNames.length > 0) {
       const placeholders = systemNames.map(() => "?").join(", ");
       await db.execute({
-        sql: `DELETE FROM message_templates WHERE LOWER(name) IN (${placeholders})`,
-        args: systemNames,
+        sql: `DELETE FROM message_templates WHERE LOWER(name) IN (${placeholders}) OR LOWER(TRIM(name)) IN (${placeholders})`,
+        args: [...systemNames, ...systemNames],
       }).catch(() => {});
     }
 
@@ -171,13 +171,13 @@ export async function handleGetTemplates(c) {
       `,
     });
 
-    const seenNames = new Set(systemTemplates.map((t) => (t.name || "").toLowerCase()));
+    const seenNames = new Set(systemTemplates.map((t) => (t.name || "").trim().toLowerCase()));
 
     if (res && res.rows) {
       for (const row of res.rows) {
-        const rowName = (row.name || "").toLowerCase();
+        const rowName = (row.name || "").trim().toLowerCase();
         // Disallow any custom template that duplicates a system template or another custom template
-        if (seenNames.has(rowName)) {
+        if (seenNames.has(rowName) || rowName === "do_ca") {
           continue;
         }
         seenNames.add(rowName);

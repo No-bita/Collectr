@@ -2587,13 +2587,16 @@ function renderTemplatesList(templates) {
     return;
   }
 
+  // Deduplicate strictly by trimmed lowercase name; prioritize system templates
   const seenNames = new Set();
-  templates.forEach(tpl => {
-    const lowerName = (tpl.name || "").toLowerCase();
-    if (seenNames.has(lowerName)) {
+  const sortedTemplates = [...templates].sort((a, b) => (b.is_system ? 1 : 0) - (a.is_system ? 1 : 0));
+
+  sortedTemplates.forEach(tpl => {
+    const cleanName = (tpl.name || "").trim().toLowerCase();
+    if (!cleanName || seenNames.has(cleanName) || cleanName === "do_ca" && !tpl.is_system && seenNames.has("do_ca")) {
       return;
     }
-    seenNames.add(lowerName);
+    seenNames.add(cleanName);
 
     const card = document.createElement("div");
     card.className = "tpl-card";
@@ -3027,9 +3030,12 @@ function populateBulkTemplateDropdown() {
     <option value="new_convo_1">new_convo_1 (Onboarding Intake)</option>
     <option value="hello_world">hello_world (Meta Default)</option>
   `;
+  const seenDropdownNames = new Set(["new_convo_1", "hello_world"]);
   if (Array.isArray(cachedTemplates) && cachedTemplates.length > 0) {
     cachedTemplates.forEach(t => {
-      if (t.name !== "new_convo_1" && t.name !== "hello_world") {
+      const clean = (t.name || "").trim().toLowerCase();
+      if (!seenDropdownNames.has(clean)) {
+        seenDropdownNames.add(clean);
         const opt = document.createElement("option");
         opt.value = t.name;
         opt.textContent = `${t.name} (${t.category || 'Custom'})`;
