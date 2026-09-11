@@ -210,6 +210,35 @@ sequenceDiagram
     end
 ```
 
+### Flow 4: WhatsApp Template Dispatch & UI Bubble Reconstruction
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as Agent / Frontend
+    participant API as Hono Backend (/api/cases)
+    participant DB as Cloudflare D1 (SQLite)
+    participant Meta as Meta WhatsApp Cloud API
+    participant ClientPhone as Recipient Phone
+
+    Agent->>API: POST /api/cases (with templateName: "do_ca")
+    API->>API: Compute renderedBody = renderTemplateBody(templateName, params)
+    API->>Meta: POST /messages { type: "template", template: { name: "do_ca", language: { code: "en_IN" } } }
+    Note over API,Meta: Meta API does NOT accept custom text; it delivers the copy approved in WhatsApp Business Manager.
+    Meta->>ClientPhone: Delivers registered copy of "do_ca"
+    Meta-->>API: HTTP 200 { messages: [{ id: "wamid.xxx" }] }
+    API->>DB: INSERT INTO case_timeline (event_type: "whatsapp_sent", content: renderedBody, template_name: "do_ca")
+    
+    Note over Agent,DB: UI Display Lifecycle (case.html / case-detail.js)
+    Agent->>API: GET /api/cases/:id & GET /api/cases/:id/timeline
+    API-->>Agent: Case payload { templateName: "do_ca" } and timeline events
+    alt Timeline event exists (whatsapp_sent)
+        Agent->>Agent: Render chat bubble with exact t.content stored in timeline
+    else Fallback (events empty or pending)
+        Agent->>Agent: Resolve tplName via (c.templateName || c.template_name || c.messageTemplate)
+        Agent->>Agent: Display template body for resolved tplName (avoids fallback to onboarding_first_message)
+    end
+```
+
 ---
 
 ## 5. Database Schema & Entity Relationships
@@ -313,14 +342,14 @@ erDiagram
 - `POST /api/user/recharge`: `{ amountRupees }` $\rightarrow$ Adds credits to wallet ledger.
 
 ### Cases & Contacts
-- `GET /api/cases`: Returns cases accessible to user (scoped by `user_id` or `is_demo=1`). Supports filtering by status, product, search text.
+- `GET /api/cases`: Returns cases accessible to user (scoped by `user_id` or `is_demo=1`). Supports filtering by status, product, search text. Returns canonical `templateName` (camelCase).
 - `POST /api/cases`: `{ contactPerson, phoneNumber, loanProduct, amountRequired, templateName, requiredDocIds }` $\rightarrow$ Creates case & triggers WhatsApp.
-- `GET /api/cases/:id`: Detailed case view including required documents, uploads, and timeline.
+- `GET /api/cases/:id`: Detailed case view including required documents, uploads, and timeline. Returns `templateName: caseItem.template_name`. Frontend components MUST bind against `c.templateName` (with `c.template_name` and `c.messageTemplate` fallbacks) to prevent inadvertent fallbacks to default templates.
 - `POST /api/cases/bulk-import`: Parses uploaded CSV/spreadsheet, deduplicates numbers, and generates cases.
 - `GET /api/contacts/:id/timeline`: Consolidated timeline across all mini-targets for a contact.
 
 ### Templates
-- `GET /api/templates?context=direct_outreach`: Returns system defaults and custom templates (strictly deduplicated).
+- `GET /api/templates?context=direct_outreach`: Returns system defaults and custom templates (strictly deduplicated). All system templates in `WHATSAPP_TEMPLATES` declare an explicit `body_text` matching the copy approved on Meta.
 - `POST /api/admin/templates`: Creates/updates template. Enforces unique names (409 on conflict).
 - `DELETE /api/admin/templates/:id`: Deletes custom templates, or deactivates system default templates (persisted with is_active = 0 in message_templates).
 
