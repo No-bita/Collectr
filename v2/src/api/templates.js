@@ -135,13 +135,33 @@ export async function handleGetTemplates(c) {
   const systemTemplates = buildSystemTemplates();
 
   try {
-    // Purge any duplicate system templates that were historically saved into the custom message_templates table
+    // Check which system templates have been deactivated / deleted
+    let deactivatedSystemNames = new Set();
+    try {
+      const deactRes = await db.execute({
+        sql: `SELECT LOWER(TRIM(name)) AS name, is_active FROM message_templates WHERE is_active = 0`,
+      });
+      if (deactRes && deactRes.rows) {
+        deactivatedSystemNames = new Set(
+          deactRes.rows
+            .filter((r) => r.is_active === 0 || r.is_active === "0" || r.is_active === false)
+            .map((r) => (r.name || "").toLowerCase())
+        );
+      }
+    } catch (_) {}
+
+    // Filter out deactivated system templates
+    const activeSystemTemplates = systemTemplates.filter(
+      (t) => !deactivatedSystemNames.has((t.name || "").trim().toLowerCase())
+    );
+
+    // Purge any duplicate system templates that were historically saved into the custom message_templates table (only if active)
     const systemNames = Object.values(WHATSAPP_TEMPLATES).map((t) => (t.name || "").trim().toLowerCase());
     if (systemNames.length > 0) {
       const placeholders = systemNames.map(() => "?").join(", ");
       await db.execute({
-        sql: `DELETE FROM message_templates WHERE LOWER(name) IN (${placeholders}) OR LOWER(TRIM(name)) IN (${placeholders})`,
-        args: [...systemNames, ...systemNames],
+        sql: `DELETE FROM message_templates WHERE LOWER(name) IN (${placeholders}) AND is_active = 1`,
+        args: systemNames,
       }).catch(() => {});
     }
 
@@ -171,13 +191,14 @@ export async function handleGetTemplates(c) {
       `,
     });
 
-    const seenNames = new Set(systemTemplates.map((t) => (t.name || "").trim().toLowerCase()));
+    const seenNames = new Set(activeSystemTemplates.map((t) => (t.name || "").trim().toLowerCase()));
 
     if (res && res.rows) {
       for (const row of res.rows) {
+        if (row.is_active === 0) continue;
         const rowName = (row.name || "").trim().toLowerCase();
-        // Disallow any custom template that duplicates a system template or another custom template
-        if (seenNames.has(rowName) || rowName === "do_ca") {
+        // Disallow any custom template that duplicates a system template, another custom template, or deactivated system template
+        if (seenNames.has(rowName) || deactivatedSystemNames.has(rowName)) {
           continue;
         }
         seenNames.add(rowName);
@@ -229,7 +250,7 @@ export async function handleGetTemplates(c) {
     }
 
     let allTemplates = [
-      ...systemTemplates,
+      ...activeSystemTemplates,
       ...customRows,
     ];
 
@@ -610,40 +631,47 @@ export async function handleDeleteTemplate(c) {
     );
   }
 
-  const isSystemTemplate = Object.values(
-    WHATSAPP_TEMPLATES
-  ).some(
+  const systemTemplate = Object.values(WHATSAPP_TEMPLATES).find(
     (template) =>
       template.id === id ||
-      template.name === id
+      template.name === id ||
+      (template.name || "").toLowerCase() === (id || "").toLowerCase()
   );
-
-  if (isSystemTemplate) {
-    return c.json(
-      {
-        error:
-          "Cannot delete a built-in system template.",
-      },
-      400
-    );
-  }
 
   const db = getDbClient(c.env);
 
   try {
+    if (systemTemplate) {
+      const sysName = systemTemplate.name || id;
+      // Record tombstone in message_templates with is_active = 0
+      await db.execute({
+        sql: `
+          INSERT INTO message_templates (id, name, body_text, is_active)
+          VALUES (?, ?, 'SYSTEM_TEMPLATE_DISABLED', 0)
+          ON CONFLICT(name) DO UPDATE SET is_active = 0
+        `,
+        args: [`sys_deact_${sysName}`, sysName],
+      });
+
+      return c.json({
+        success: true,
+        message: `System template "${sysName}" deleted successfully.`,
+      });
+    }
+
     await db.execute({
       sql: `
         DELETE FROM message_templates
         WHERE id = ?
            OR name = ?
+           OR LOWER(TRIM(name)) = LOWER(TRIM(?))
       `,
-      args: [id, id],
+      args: [id, id, id],
     });
 
     return c.json({
       success: true,
-      message:
-        "Template removed successfully.",
+      message: "Template removed successfully.",
     });
   } catch (err) {
     console.error(

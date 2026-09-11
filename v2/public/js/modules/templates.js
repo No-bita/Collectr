@@ -138,11 +138,9 @@ export function renderTemplatesList(templates) {
         <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A;" onclick="editCustomTemplate('${escapeHtml(tpl.name)}')">
           ✏️ Edit
         </button>
-        ${!isSystem ? `
-          <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px; color: #DC2626; border: 1px solid #FECACA; background: #FEF2F2;" onclick="deleteCustomTemplate('${escapeHtml(tpl.id || tpl.name)}')">
-            Delete
-          </button>
-        ` : ''}
+        <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px; color: #DC2626; border: 1px solid #FECACA; background: #FEF2F2;" onclick="deleteCustomTemplate('${escapeHtml(tpl.id || tpl.name)}')">
+          Delete
+        </button>
       </div>
     `;
 

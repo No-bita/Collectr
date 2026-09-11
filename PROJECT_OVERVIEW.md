@@ -322,7 +322,7 @@ erDiagram
 ### Templates
 - `GET /api/templates?context=direct_outreach`: Returns system defaults and custom templates (strictly deduplicated).
 - `POST /api/admin/templates`: Creates/updates template. Enforces unique names (409 on conflict).
-- `DELETE /api/admin/templates/:id`: Deletes custom template.
+- `DELETE /api/admin/templates/:id`: Deletes custom templates, or deactivates system default templates (persisted with is_active = 0 in message_templates).
 
 ### Upload & Client Portal
 - `GET /api/session/:token`: Validates magic link token and returns case document requirements.

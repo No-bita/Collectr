@@ -240,5 +240,67 @@ test('Message Templates UI & Modal Engine Tests', async (t) => {
     const doCaCount = returnedNames.filter(n => n === "do_ca").length;
     assert.equal(doCaCount, 1, "There must be exactly one do_ca template returned");
   });
+
+  await t.test('7. Deletion of built-in system default templates and persistence of deactivation', async () => {
+    const { handleDeleteTemplate, handleGetTemplates } = await import('../src/api/templates.js');
+
+    const executed = [];
+    const dbState = [
+      { id: "sys_deact_do_ca", name: "do_ca", is_active: 0 }
+    ];
+
+    const mockDb = {
+      prepare: (sql) => {
+        let boundArgs = [];
+        return {
+          bind: (...args) => {
+            boundArgs = args;
+            return {
+              all: async () => {
+                executed.push({ sql, args: boundArgs });
+                return { results: dbState };
+              },
+              run: async () => {
+                executed.push({ sql, args: boundArgs });
+                return { success: true };
+              }
+            };
+          },
+          all: async () => {
+            executed.push({ sql, args: boundArgs });
+            return { results: dbState };
+          },
+          run: async () => {
+            executed.push({ sql, args: boundArgs });
+            return { success: true };
+          }
+        };
+      }
+    };
+
+    // A. Verify handleDeleteTemplate allows deleting a system default template (e.g. do_ca)
+    const cDelete = {
+      env: { DB: mockDb },
+      req: { param: (k) => (k === "id" ? "do_ca" : null) },
+      json: (data, status = 200) => ({ status, data })
+    };
+
+    const resDelete = await handleDeleteTemplate(cDelete);
+    assert.equal(resDelete.status, 200);
+    assert.equal(resDelete.data.success, true);
+    assert.ok(resDelete.data.message.includes('do_ca'));
+
+    // B. Verify handleGetTemplates excludes deactivated system templates
+    const cGet = {
+      env: { DB: mockDb },
+      req: { query: () => "" },
+      json: (data, status = 200) => ({ status, data })
+    };
+
+    const resGet = await handleGetTemplates(cGet);
+    assert.equal(resGet.status, 200);
+    const returnedNames = resGet.data.templates.map(t => t.name.toLowerCase());
+    assert.equal(returnedNames.includes("do_ca"), false, "Deactivated do_ca must not be returned in templates list");
+  });
 });
 
