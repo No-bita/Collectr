@@ -228,6 +228,8 @@ export const WHATSAPP_TEMPLATES = {
     context: ["direct_outreach", "ca"],
     description:
       "Direct Outreach introductory message for CAs in English (IND)",
+    body_text:
+      "Kem cho?\n\nI came across your firm on Google and noticed you don't have a website.\n\nI made a sample for you to show how you can present your services, build trust online and make it easier for new clients to find you.\n\nWhat do you think?",
     parameters: [],
 
     getPayloads: ({

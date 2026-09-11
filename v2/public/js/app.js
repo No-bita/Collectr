@@ -723,7 +723,7 @@ function render() {
           </div>
         </td>
         <td>
-          <div class="loan-type-main">${escapeHtml(c.loanProduct || c.messageTemplate || 'Unspecified')}</div>
+          <div class="loan-type-main">${escapeHtml(c.loanProduct || c.templateName || c.messageTemplate || 'Unspecified')}</div>
         </td>
         <td>
           ${getWhatsAppDeliveryBadgeHtml(waDeliveryStatus)}

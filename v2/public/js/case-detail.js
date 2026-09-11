@@ -359,7 +359,7 @@ function formatCleanDeliveryError(msg) {
 }
 
 function getActualTemplateMessageText(c) {
-  const tplName = (c?.messageTemplate || c?.template_name || "onboarding_first_message").toLowerCase();
+  const tplName = (c?.templateName || c?.messageTemplate || c?.template_name || "onboarding_first_message").toLowerCase();
   const contactName = c?.contactPerson || "Client";
 
   if (tplName.includes("loan_agent") || tplName === "loan_agent_first_outreach") {
@@ -784,7 +784,7 @@ async function loadTimeline(caseId) {
         contentHtml = `WhatsApp message delivered`;
       } else if (t.event_type === 'whatsapp_sent') {
         if (isSystemNotificationContent(t.content)) {
-          const tplName = (currentCase && (currentCase.messageTemplate || currentCase.template_name)) || 'onboarding_first_message';
+          const tplName = (currentCase && (currentCase.templateName || currentCase.messageTemplate || currentCase.template_name)) || 'onboarding_first_message';
           contentHtml = `WhatsApp onboarding message sent <span style="font-size: 0.75rem; color: #64748b;">(Template: ${escapeHtml(tplName)})</span>`;
         } else {
           contentHtml = `Direct WhatsApp message sent${t.created_by ? ` by ${escapeHtml(t.created_by)}` : ''}`;
