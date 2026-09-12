@@ -1014,14 +1014,37 @@ export async function handleGetSingleCase(c) {
       displayPhone = displayPhone.slice(2);
     }
 
+    // Resolve authoritative template once for case details
+    let resolvedTemplateName = caseItem?.template_name;
+    if (!resolvedTemplateName && caseItem?.loan_product && caseItem.loan_product !== 'Direct Intake') {
+      resolvedTemplateName = caseItem.loan_product;
+    }
+    if (!resolvedTemplateName) {
+      resolvedTemplateName = 'onboarding_first_message';
+    }
+
+    const tplConfig = getWhatsAppTemplate(resolvedTemplateName, c.env);
+    const resolvedContactPerson = contact?.contact_person || caseItem?.contact_person || 'Client';
+    const renderedBody = renderTemplateBody(resolvedTemplateName, {
+      contactPerson: resolvedContactPerson,
+      templateParams: [resolvedContactPerson]
+    });
+
+    const template = {
+      name: resolvedTemplateName,
+      displayName: tplConfig?.displayName || resolvedTemplateName,
+      renderedBody: renderedBody
+    };
+
     const loanCase = {
       id: caseItem?.id || primaryTargetId,
       contactId: contact?.id || contactId,
-      contactPerson: contact?.contact_person || caseItem?.contact_person,
+      contactPerson: resolvedContactPerson,
       phone: displayPhone,
       rawPhone: contact?.phone_number || caseItem?.phone_number,
       loanProduct: caseItem?.loan_product,
-      templateName: caseItem?.template_name,
+      templateName: resolvedTemplateName,
+      template,
       amountRequired: caseItem?.amount_required,
       status: caseItem?.status || 'lead',
       docProgress: { fulfilled: fulfilledReqs, total: totalReqs },

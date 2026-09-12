@@ -173,4 +173,21 @@ test("Contact, Mini Target & Unified WhatsApp Architecture Tests", async (t) => 
     assert.ok(caseDetailJs.includes("const messageText = t.content || \"Message sent\";"), "case-detail.js not using t.content directly");
     assert.ok(caseDetailJs.includes("miniTargetAttr"), "case-detail.js missing Mini Target attribution rendering");
   });
+
+  // 8. Single Template Fetch & Unified UI Binding
+  await t.test("8. handleGetSingleCase provides authoritative template and case-detail.js uses it everywhere", () => {
+    const casesApiJs = fs.readFileSync(path.join(process.cwd(), "src", "api", "cases.js"), "utf8");
+    const caseDetailJs = fs.readFileSync(path.join(process.cwd(), "public", "js", "case-detail.js"), "utf8");
+
+    // Backend resolution in handleGetSingleCase
+    assert.ok(casesApiJs.includes("const template = {"), "cases.js must build authoritative template object");
+    assert.ok(casesApiJs.includes("renderedBody"), "template object must include renderedBody");
+    assert.ok(casesApiJs.includes("template,"), "loanCase must return template object");
+
+    // Frontend binding in case-detail.js
+    assert.ok(caseDetailJs.includes("c.template && (c.template.displayName || c.template.name)"), "Info bar must bind to authoritative template");
+    assert.ok(caseDetailJs.includes("c.template && c.template.renderedBody"), "Conversation card must bind to authoritative template renderedBody");
+    assert.ok(caseDetailJs.includes("currentCase.template && (currentCase.template.displayName || currentCase.template.name)"), "Activity history must bind to authoritative template");
+  });
 });
+

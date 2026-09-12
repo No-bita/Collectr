@@ -164,7 +164,7 @@ function renderBanner(c) {
     if (templateCol) {
       templateCol.style.display = "flex";
       if (templateValEl) {
-        templateValEl.textContent = c.templateName || c.template_name || (c.loanProduct && c.loanProduct !== "Direct Intake" ? c.loanProduct : null) || "do_ca";
+        templateValEl.textContent = (c.template && (c.template.displayName || c.template.name)) || c.templateName || c.template_name || (c.loanProduct && c.loanProduct !== "Direct Intake" ? c.loanProduct : null) || "do_ca";
       }
     }
     if (statsGrid) statsGrid.style.display = "none";
@@ -411,7 +411,8 @@ function formatCleanDeliveryError(msg) {
 }
 
 function getActualTemplateMessageText(c) {
-  const tplName = (c?.templateName || c?.messageTemplate || c?.template_name || "onboarding_first_message").toLowerCase();
+  if (c?.template?.renderedBody) return c.template.renderedBody;
+  const tplName = (c?.template?.name || c?.templateName || c?.messageTemplate || c?.template_name || (c?.loanProduct && c.loanProduct !== "Direct Intake" ? c.loanProduct : null) || "onboarding_first_message").toLowerCase();
   const contactName = c?.contactPerson || "Client";
 
   if (tplName.includes("loan_agent") || tplName === "loan_agent_first_outreach") {
@@ -481,7 +482,7 @@ function renderWhatsAppConversationCard(c, timeline) {
   if (conversationEvents.length === 0 && (waStatus === 'sent' || waStatus === 'delivered' || waStatus === 'read' || waStatus === 'replied' || waStatus === 'failed' || failedEvt)) {
     conversationEvents.push({
       event_type: 'whatsapp_sent',
-      content: getActualTemplateMessageText(c),
+      content: (c.template && c.template.renderedBody) || getActualTemplateMessageText(c),
       created_at: (failedEvt && failedEvt.created_at) || c.createdAt || c.created_at || new Date().toISOString(),
       created_by: 'system'
     });
@@ -506,6 +507,9 @@ function renderWhatsAppConversationCard(c, timeline) {
       } else {
         // Outgoing Agent Message: Render exact persisted message body
         const messageText = t.content || "Message sent";
+        const displayBody = (isSystemNotificationContent(messageText) || !messageText.trim())
+          ? ((c.template && c.template.renderedBody) || getActualTemplateMessageText(c))
+          : messageText;
         const miniTargetAttr = t.loan_product || (t.metadata && JSON.parse(typeof t.metadata === 'string' ? t.metadata : '{}')?.template_name) || "";
         const attrLabel = miniTargetAttr ? `<span style="font-size: 0.6875rem; color: #15803d; font-weight: 600; margin-bottom: 2px; display: block;">${escapeHtml(miniTargetAttr)}</span>` : "";
 
@@ -534,7 +538,7 @@ function renderWhatsAppConversationCard(c, timeline) {
         return `
           <div style="display: flex; flex-direction: column; align-items: flex-end; margin-bottom: 12px; height: auto; min-height: 0;">
             ${attrLabel}
-            <div style="background: #DCFCE7; color: #14532D; border: 1px solid #BBF7D0; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 85%; width: fit-content; height: auto; min-height: 0; font-size: 0.875rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; text-align: left; box-sizing: border-box; margin: 0;">${escapeHtml(messageText)}</div>
+            <div style="background: #DCFCE7; color: #14532D; border: 1px solid #BBF7D0; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 85%; width: fit-content; height: auto; min-height: 0; font-size: 0.875rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; text-align: left; box-sizing: border-box; margin: 0;">${escapeHtml(displayBody)}</div>
             <div style="margin-top: 4px;">
               ${statusHtml}
             </div>
@@ -836,7 +840,7 @@ async function loadTimeline(caseId) {
         contentHtml = `WhatsApp message delivered`;
       } else if (t.event_type === 'whatsapp_sent') {
         if (isSystemNotificationContent(t.content)) {
-          const tplName = (currentCase && (currentCase.templateName || currentCase.messageTemplate || currentCase.template_name)) || 'onboarding_first_message';
+          const tplName = (currentCase && currentCase.template && (currentCase.template.displayName || currentCase.template.name)) || (currentCase && (currentCase.templateName || currentCase.messageTemplate || currentCase.template_name || (currentCase.loanProduct && currentCase.loanProduct !== 'Direct Intake' ? currentCase.loanProduct : null))) || 'do_ca';
           contentHtml = `WhatsApp onboarding message sent <span style="font-size: 0.75rem; color: #64748b;">(Template: ${escapeHtml(tplName)})</span>`;
         } else {
           contentHtml = `Direct WhatsApp message sent${t.created_by ? ` by ${escapeHtml(t.created_by)}` : ''}`;

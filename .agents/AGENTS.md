@@ -11,3 +11,12 @@
 ## UI & UX Guidelines
 
 - **No Unnecessary Microcopy**: Unless explicitly required by the user or essential for accessibility, avoid adding explanatory subtext, helper labels, or decorative microcopy below headings and buttons. Keep UI elements high-leverage, clean, and direct.
+
+---
+
+## Deployment & Version Control
+
+- **Dual Deployment Standard**: Whenever asked to deploy, ALWAYS:
+  1. **Deploy to Cloudflare**: Run `npx wrangler deploy` in `v2/`.
+  2. **Push to GitHub**: Stage, commit with clear semantic message, and run `git push origin main`.
+
