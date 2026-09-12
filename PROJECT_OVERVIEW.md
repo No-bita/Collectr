@@ -67,17 +67,18 @@ Lekho-Edge/
     ├── wrangler.toml.example          # Example deployment configuration
     ├── .dev.vars.example              # Example local secrets with mock flags
     │
-    ├── migrations/                    # D1 Database Migrations (0001 → 0007)
+    ├── migrations/                    # D1 Database Migrations (0001 → 0008)
     │   ├── 0001_initial_v1_schema.sql
     │   ├── 0002_add_users_and_multi_tenancy.sql
     │   ├── 0003_refactor_lead_to_case_tokens.sql
     │   ├── 0004_freemium_messaging_credits.sql
     │   ├── 0005_custom_message_templates.sql
     │   ├── 0006_contacts_and_mini_targets.sql
-    │   └── 0007_loan_product_doc_mappings.sql
+    │   ├── 0007_loan_product_doc_mappings.sql
+    │   └── 0008_schedules.sql
     │
     ├── src/                           # Backend Application Code
-    │   ├── index.js                   # Worker entrypoint, router dispatcher & redirects
+    │   ├── index.js                   # Worker entrypoint, router dispatcher & scheduled/queue handlers
     │   ├── middleware/
     │   │   ├── auth.js                # JWT session verification & dev-mode bypass
     │   │   └── cors.js                # CORS headers & preflight handler
@@ -85,12 +86,17 @@ Lekho-Edge/
     │   │   ├── auth.js                # Login, registration, password hashing
     │   │   ├── cases.js               # Case CRUD, document checklists, Excel/CSV import
     │   │   ├── contacts.js            # Contact directory & timeline consolidation
+    │   │   ├── schedules.js           # Schedule creation, listing, cancellation & safe retry
     │   │   ├── upload.js              # Token validation, presigned R2 URLs, direct upload
     │   │   ├── ocr.js                 # Gemini 2.5 Flash OCR trigger & mock adapter
     │   │   ├── templates.js           # WhatsApp template CRUD & uniqueness enforcement
     │   │   ├── credits.js             # Financial ledger, recharge wallet, paise math
     │   │   ├── webhook.js             # Meta webhook verification & delivery status parser
     │   │   └── admin.js               # Matrix rule editor & failure log viewer
+    │   ├── scheduler/                 # Asynchronous Scheduling Engine
+    │   │   ├── time.js                # Recurrence engine preserving IANA wall-clock times
+    │   │   ├── scanner.js             # Cron scanner with 10-minute crash-window recovery leases
+    │   │   └── consumer.js            # Queue consumer with JIT credit validation & pipeline dispatch
     │   ├── whatsapp/
     │   │   ├── client.js              # Meta Graph API client & offline mock adapter
     │   │   ├── templates.js           # Template registry, token payload builder
@@ -372,6 +378,12 @@ erDiagram
 - `GET /api/templates?context=direct_outreach`: Returns system defaults and custom templates (strictly deduplicated). All system templates in `WHATSAPP_TEMPLATES` declare an explicit `body_text` matching the copy approved on Meta.
 - `POST /api/admin/templates`: Creates/updates template. Enforces unique names (409 on conflict).
 - `DELETE /api/admin/templates/:id`: Deletes custom templates, or deactivates system default templates (persisted with is_active = 0 in message_templates).
+
+### Schedules
+- `GET /api/schedules`: Returns schedules and occurrence execution history for authenticated agent.
+- `POST /api/schedules`: `{ phoneNumber, templateName, templateParams, scheduleType, recurrenceInterval, timezone, scheduledFor, caseId, contactId }` $\rightarrow$ Creates schedule and initial pending occurrence (no upfront credit deduction; validation binds JIT before execution).
+- `DELETE /api/schedules/:id`: Cancels schedule and marks any pending/claimed occurrences as `skipped` (`skip_reason: 'cancelled'`).
+- `POST /api/schedules/occurrences/:id/retry`: Manual retry control. If occurrence status is `unknown`, strictly blocks retry without explicit warning acknowledgement (`forceDuplicateRiskAcknowledgement: true`) to prevent double-messaging.
 
 ### Upload & Client Portal
 - `GET /api/session/:token`: Validates magic link token and returns case document requirements.

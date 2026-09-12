@@ -53,6 +53,15 @@ import {
   handleCreateTemplate,
   handleDeleteTemplate
 } from "./api/templates.js";
+import {
+  handleCreateSchedule,
+  handleGetSchedules,
+  handleCancelSchedule,
+  handleRetryOccurrence
+} from "./api/schedules.js";
+import { scanAndClaimDueOccurrences } from "./scheduler/scanner.js";
+import { processScheduledOccurrence, handleQueueBatch } from "./scheduler/consumer.js";
+import { getDbClient } from "./db/client.js";
 
 import { authMiddleware, adminOnlyMiddleware } from "./middleware/auth.js";
 import { corsMiddleware } from "./middleware/cors.js";
@@ -187,6 +196,14 @@ app.get("/api/documents/*", authMiddleware, async (c) => {
   }
 });
 
+// Schedules Endpoints
+app.use("/api/schedules", authMiddleware);
+app.use("/api/schedules/*", authMiddleware);
+app.get("/api/schedules", handleGetSchedules);
+app.post("/api/schedules", handleCreateSchedule);
+app.delete("/api/schedules/:id", handleCancelSchedule);
+app.post("/api/schedules/occurrences/:id/retry", handleRetryOccurrence);
+
 // Admin Analytics & Observability
 app.get("/admin/analytics", handleGetAdminAnalyticsDashboard);
 app.get("/api/admin/analytics", handleGetAdminAnalyticsData);
@@ -195,4 +212,27 @@ app.get("/api/admin/failures", handleGetAdminFailures);
 app.delete("/api/admin/failures", handleClearAllFailures);
 app.delete("/api/admin/failures/:id", handleDeleteAdminFailure);
 
-export default app;
+// Cloudflare Scheduled (Cron) & Queue Handlers
+export async function scheduled(controller, env, ctx) {
+  const db = getDbClient(env);
+  const queue = env.SCHEDULE_QUEUE;
+  return await scanAndClaimDueOccurrences(db, queue, 50, async (payload) => {
+    await processScheduledOccurrence(payload.occurrenceId, env, db);
+  });
+}
+
+export async function queue(batch, env, ctx) {
+  const db = getDbClient(env);
+  return await handleQueueBatch(batch, env, ctx, db);
+}
+
+app.scheduled = scheduled;
+app.queue = queue;
+
+export default {
+  fetch: app.fetch,
+  request: (...args) => app.request(...args),
+  scheduled,
+  queue,
+  app
+};

@@ -38,3 +38,15 @@ invocation_logs = true
 enabled = true
 persist = true
 head_sampling_rate = 1
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[queues.producers]]
+binding = "SCHEDULE_QUEUE"
+queue = "collectrr-schedule-queue"
+
+[[queues.consumers]]
+queue = "collectrr-schedule-queue"
+max_batch_size = 10
+max_batch_timeout = 5

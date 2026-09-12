@@ -1,5 +1,8 @@
 export function getDbClient(env) {
-  const db = env.DB;
+  const db = env?.DB || env;
+  if (db && typeof db.execute === "function" && typeof db.prepare !== "function") {
+    return db;
+  }
   
   const executeQuery = async (query) => {
     let sql, args;
@@ -136,6 +139,61 @@ export function getDbClient(env) {
         if (args && args.length > 0) {
           stmt = stmt.bind(...args);
         }
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+      if (msg.includes("no such table: schedules")) {
+        try {
+          await db.prepare(`
+            CREATE TABLE IF NOT EXISTS schedules (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              case_id TEXT,
+              contact_id TEXT,
+              phone_number TEXT NOT NULL,
+              template_name TEXT NOT NULL,
+              template_params JSON,
+              schedule_type TEXT NOT NULL,
+              recurrence_interval TEXT,
+              timezone TEXT NOT NULL DEFAULT 'UTC',
+              status TEXT NOT NULL DEFAULT 'active',
+              next_run_utc DATETIME,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              cancelled_at DATETIME
+            )
+          `).run();
+          await db.prepare("CREATE INDEX IF NOT EXISTS idx_schedules_user_status ON schedules(user_id, status)").run();
+          await db.prepare("CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(status, next_run_utc)").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+      if (msg.includes("no such table: scheduled_occurrences")) {
+        try {
+          await db.prepare(`
+            CREATE TABLE IF NOT EXISTS scheduled_occurrences (
+              id TEXT PRIMARY KEY,
+              schedule_id TEXT NOT NULL,
+              occurrence_key TEXT NOT NULL,
+              scheduled_for_utc DATETIME NOT NULL,
+              operational_status TEXT NOT NULL DEFAULT 'pending',
+              claimed_at DATETIME,
+              attempts INTEGER NOT NULL DEFAULT 0,
+              provider_message_id TEXT,
+              skip_reason TEXT,
+              last_error TEXT,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              executed_at DATETIME,
+              CONSTRAINT unq_occurrence_schedule_key UNIQUE(schedule_id, occurrence_key)
+            )
+          `).run();
+          await db.prepare("CREATE INDEX IF NOT EXISTS idx_occurrences_claim ON scheduled_occurrences(operational_status, scheduled_for_utc, claimed_at)").run();
+          await db.prepare("CREATE INDEX IF NOT EXISTS idx_occurrences_schedule ON scheduled_occurrences(schedule_id)").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
         const res = await stmt.all();
         return { rows: res.results || [] };
       }
