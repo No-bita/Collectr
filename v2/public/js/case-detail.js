@@ -143,7 +143,38 @@ function renderBanner(c) {
 
   const prog = c.docProgress || { fulfilled: 0, total: 0 };
   const reqs = c.docRequirements || [];
-  const isDirectOutreach = (prog.total === 0 || reqs.length === 0 || c.noDocsRequired || c.noDocs);
+  const isDirectOutreach = Boolean(
+    prog.total === 0 ||
+    reqs.length === 0 ||
+    c.noDocsRequired ||
+    c.noDocs ||
+    c.loanProduct === "do_ca" ||
+    c.templateName === "do_ca" ||
+    c.template_name === "do_ca" ||
+    (typeof window.getVariantKey === "function" && window.getVariantKey() === "direct_outreach")
+  );
+
+  const bannerCard = el("bannerCard");
+  const statsGrid = el("bannerStatsGrid") || (amountCol ? amountCol.closest(".banner-stats-grid") : null);
+  const templateCol = el("directOutreachTemplateCol");
+  const templateValEl = el("directOutreachTemplateVal");
+
+  if (isDirectOutreach) {
+    if (statusBadge) statusBadge.style.display = "none";
+    if (templateCol) {
+      templateCol.style.display = "flex";
+      if (templateValEl) {
+        templateValEl.textContent = c.templateName || c.template_name || (c.loanProduct && c.loanProduct !== "Direct Intake" ? c.loanProduct : null) || "do_ca";
+      }
+    }
+    if (statsGrid) statsGrid.style.display = "none";
+    if (bannerCard) bannerCard.classList.add("is-direct-outreach");
+  } else {
+    if (statusBadge) statusBadge.style.display = "";
+    if (templateCol) templateCol.style.display = "none";
+    if (statsGrid) statsGrid.style.display = "";
+    if (bannerCard) bannerCard.classList.remove("is-direct-outreach");
+  }
 
   const amountCol = amountEl ? amountEl.closest(".stat-col") : null;
   if (amountCol) amountCol.style.display = isDirectOutreach ? "none" : "";
