@@ -1275,14 +1275,28 @@ tr.detail-row td {
 }
 
 .stat-card-modern {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
   display: flex;
   align-items: center;
   gap: 1.25rem;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  box-shadow: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.stat-card-modern:hover {
+  border-color: #CBD5E1;
+  background: #FCFBF8;
+}
+
+.stat-card-modern.active-filter {
+  border-color: #171717;
+  box-shadow: 0 0 0 1px #171717;
+  background: #FAF9F6;
 }
 
 .stat-icon-circle {
@@ -1681,13 +1695,13 @@ tr.detail-row td {
   gap: 0.35rem;
   padding: 0.35rem 0.75rem;
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 6px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease-out;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -1697,15 +1711,15 @@ tr.case-row:hover .row-copy-btn {
 }
 
 .row-copy-btn:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: #ECE8DF;
+  border-color: #CBD5E1;
+  color: #171717;
 }
 
 .row-copy-btn.copied {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #15803d;
+  background: #E6F4ED;
+  border-color: #C8E6D7;
+  color: #1C8C5E;
 }
 
 /* Empty States UI */
@@ -2140,6 +2154,263 @@ tr.case-row:hover .row-copy-btn {
   color: #991B1B;
 }
 
+/* ==========================================================================
+   Segmented Document Progress Bar (Design Brief Decision 1)
+   ========================================================================== */
+.seg-progress-bar {
+  display: flex;
+  gap: 3px;
+  width: 100px;
+  height: 5px;
+  margin-bottom: 4px;
+}
 
+.seg-bar {
+  flex: 1;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background var(--transition-fast);
+}
 
+.seg-bar.filled {
+  background: var(--status-success-text);
+}
 
+/* ==========================================================================
+   OCR Verification & Anomaly Badges (Design Brief Wow Moment)
+   ========================================================================== */
+.ocr-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.ocr-verified {
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
+  border: 1px solid #C8E6D7;
+}
+
+.ocr-anomaly {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-text);
+  border: 1px solid #FDE68A;
+}
+
+/* ==========================================================================
+   Mobile Fix Pass (<=480px) — Narrowly Scoped Layout Invariants
+   ========================================================================== */
+@media (max-width: 600px) {
+  .main-content {
+    padding: 16px 12px !important;
+  }
+
+  /* Issue 1: Mobile Dashboard Header */
+  .top-nav-bar {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    grid-template-rows: auto auto !important;
+    gap: 12px 8px !important;
+    padding: 12px 14px !important;
+    align-items: center !important;
+  }
+
+  .top-nav-brand {
+    grid-column: 1 / 2 !important;
+    grid-row: 1 / 2 !important;
+    align-self: center !important;
+  }
+
+  .top-nav-right {
+    display: contents !important;
+  }
+
+  .persona-toggle-group {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 / 3 !important;
+    width: 100% !important;
+    display: flex !important;
+    justify-content: stretch !important;
+    box-sizing: border-box !important;
+  }
+
+  .persona-toggle-group button {
+    flex: 1 !important;
+    text-align: center !important;
+    min-height: 36px !important;
+    font-size: 12px !important;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
+  }
+
+  #topUserContainer {
+    grid-column: 2 / 3 !important;
+    grid-row: 1 / 2 !important;
+    justify-self: end !important;
+    padding: 2px 4px 2px 2px !important;
+  }
+
+  #topUserContainer .user-info {
+    display: none !important;
+  }
+
+  #userCreditBadge {
+    grid-column: 2 / 3 !important;
+    grid-row: 1 / 2 !important;
+    justify-self: end !important;
+    margin-right: 44px !important;
+  }
+
+  /* Issue 2: Mobile Dashboard Action Buttons */
+  .stats-top-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .stats-top-row > div:first-child {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .stat-card-modern {
+    padding: 10px 14px !important;
+    min-height: 48px !important;
+  }
+
+  .stat-count {
+    font-size: 20px !important;
+  }
+
+  .top-actions-row {
+    width: 100% !important;
+    margin-left: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .top-actions-row #openAdd {
+    order: -1 !important;
+    width: 100% !important;
+    height: 46px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    justify-content: center !important;
+  }
+
+  .secondary-actions-group {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .secondary-actions-group .btn-secondary {
+    height: 40px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .ocr-tag {
+    white-space: normal !important;
+    word-break: break-word !important;
+    line-height: 1.3 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Issue 3: Mobile Case Detail Document Actions */
+  .docs-table-header {
+    display: none !important;
+  }
+
+  .doc-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px !important;
+    border-radius: 10px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-row-info {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-row-name {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #171717 !important;
+    word-break: break-word !important;
+    line-height: 1.3 !important;
+  }
+
+  .doc-row-status {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    padding-top: 6px !important;
+    border-top: 1px solid #F4F3EF !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-row-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    justify-content: stretch !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-row-actions .view-file-btn {
+    flex: 1 1 calc(50% - 4px) !important;
+    min-height: 40px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+    padding: 8px 8px !important;
+  }
+
+  .doc-row-actions .btn {
+    flex: 1 1 100% !important;
+    min-height: 40px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+    padding: 8px 12px !important;
+    width: 100% !important;
+  }
+}

@@ -608,6 +608,11 @@ function render() {
 
   updateSummary();
 
+  const tPending = el("triageCardPending");
+  const tReview = el("triageCardReview");
+  if (tPending) tPending.classList.toggle("active-filter", selectedStatus === "documents_pending");
+  if (tReview) tReview.classList.toggle("active-filter", selectedStatus === "ready_for_review");
+
   const filtered = allCases.filter(c => {
     if (!isCaseForPersona(c, persona)) return false;
     const displayStatus = getDisplayStatus(c, persona);
@@ -815,12 +820,11 @@ function render() {
           ${prog.total > 0 ? `
             <div class="doc-prog-wrapper">
               <div style="flex: 1;">
-                <div class="doc-prog-track">
-                  <div class="doc-prog-fill" style="width: ${pct}%; background-color: ${progressColor};"></div>
+                <div class="seg-progress-bar" title="${prog.fulfilled} of ${prog.total} documents received">
+                  ${Array.from({length: Math.max(1, prog.total)}, (_, i) => `<div class="seg-bar ${i < prog.fulfilled ? 'filled' : ''}"></div>`).join('')}
                 </div>
-                <div class="doc-prog-sub">${prog.fulfilled} / ${prog.total} docs</div>
+                <div class="doc-prog-sub">${prog.fulfilled} of ${prog.total} docs</div>
               </div>
-              <div class="doc-prog-text">${pct}%</div>
             </div>
           ` : `
             <span class="badge" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0;">No Docs Required</span>
@@ -886,6 +890,7 @@ function buildCaseDrawerHtml(c) {
           let ocrDetails = "";
           if (up.ocr && up.ocr.fields) {
             const fieldPairs = Object.entries(up.ocr.fields).map(([k, v]) => `${k}: ${v}`).slice(0, 3).join(" | ");
+
             if (fieldPairs) {
               ocrDetails = `<div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;"><strong>OCR Extracted:</strong> ${escapeHtml(fieldPairs)}</div>`;
             }
@@ -1671,6 +1676,36 @@ const statusFilterEl = el("statusFilter");
 if (statusFilterEl) {
   statusFilterEl.addEventListener("change", (e) => {
     statusFilter = e.target.value;
+    currentPage = 1;
+    render();
+  });
+}
+
+const triagePendingEl = el("triageCardPending");
+if (triagePendingEl) {
+  triagePendingEl.addEventListener("click", () => {
+    if (statusFilter === "documents_pending") {
+      statusFilter = "all";
+    } else {
+      statusFilter = "documents_pending";
+    }
+    const sel = el("statusFilter");
+    if (sel) sel.value = statusFilter;
+    currentPage = 1;
+    render();
+  });
+}
+
+const triageReviewEl = el("triageCardReview");
+if (triageReviewEl) {
+  triageReviewEl.addEventListener("click", () => {
+    if (statusFilter === "ready_for_review") {
+      statusFilter = "all";
+    } else {
+      statusFilter = "ready_for_review";
+    }
+    const sel = el("statusFilter");
+    if (sel) sel.value = statusFilter;
     currentPage = 1;
     render();
   });

@@ -304,9 +304,29 @@ function renderDocuments(reqs) {
     const hasUploads = uploads.length > 0;
     const isReceived = req.status === 'received' || hasUploads;
 
+    let ocrBadgeHtml = "";
+    if (hasUploads) {
+      for (const u of uploads) {
+        let payload = u.ocr || u.ocrPayload || u.ocr_payload;
+        if (typeof payload === 'string') {
+          try { payload = JSON.parse(payload); } catch (e) {}
+        }
+        if (payload) {
+          if (payload.anomaly || u.ocrStatus === 'flagged') {
+            const anomalyMsg = typeof payload.anomaly === 'string' ? payload.anomaly : (payload.anomalyReason || 'Anomaly detected');
+            ocrBadgeHtml = `<div class="ocr-tag ocr-anomaly" title="Gemini OCR Review Flag">⚠️ ${escapeHtml(anomalyMsg)}</div>`;
+            break;
+          } else if (payload.documentType && !ocrBadgeHtml) {
+            const fieldSummary = payload.fields?.pan ? ` (${payload.fields.pan})` : (payload.fields?.name ? ` · ${payload.fields.name}` : '');
+            ocrBadgeHtml = `<div class="ocr-tag ocr-verified" title="Gemini OCR Extraction Verified">✓ Verified ${escapeHtml(payload.documentType)}${escapeHtml(fieldSummary)}</div>`;
+          }
+        }
+      }
+    }
+
     const fileCountText = hasUploads ? `${uploads.length} file${uploads.length > 1 ? "s" : ""}` : "";
     const ocrCount = uploads.filter(u => u.ocrStatus === "processed").length;
-    const ocrText = ocrCount > 0 ? ` • OCR completed` : "";
+    const ocrText = (ocrCount > 0 && !ocrBadgeHtml) ? ` • OCR completed` : "";
     const subtext = hasUploads ? `${fileCountText}${ocrText}` : "";
     const latestUploadTime = hasUploads ? formatUploadTime(uploads[uploads.length - 1].uploadedAt || uploads[uploads.length - 1].uploaded_at) : "";
 
@@ -320,6 +340,7 @@ function renderDocuments(reqs) {
       <div class="doc-row-info">
         <div>
           <div class="doc-row-name">${escapeHtml(label)}</div>
+          ${ocrBadgeHtml}
           ${subtext ? `<div class="doc-row-sub">${subtext}</div>` : ''}
         </div>
       </div>

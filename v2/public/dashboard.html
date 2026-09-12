@@ -62,8 +62,8 @@
             <h2 style="font-size: 1.15rem; font-weight: 600; color: #171717; margin: 0;">Collectrr</h2>
           </div>
         </a>
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-          <div style="display: flex; background: #F4F3EF; padding: 3px; border-radius: 999px; border: 1px solid #ECE8DF;">
+        <div class="top-nav-right" style="display: flex; align-items: center; gap: 0.75rem;">
+          <div class="persona-toggle-group" style="display: flex; background: #F4F3EF; padding: 3px; border-radius: 999px; border: 1px solid #ECE8DF;">
             <button type="button" id="personaToggleCA" onclick="window.setVariantKey('ca')" style="padding: 4px 12px; font-size: 12px; border-radius: 999px; border: none; cursor: pointer;">CA</button>
             <button type="button" id="personaToggleLoan" onclick="window.setVariantKey('loan_agent')" style="padding: 4px 12px; font-size: 12px; border-radius: 999px; border: none; cursor: pointer;">Loan Agent</button>
             <button type="button" id="personaToggleOutreach" onclick="window.setVariantKey('direct_outreach')" style="display: none; padding: 4px 12px; font-size: 12px; border-radius: 999px; border: none; cursor: pointer;">Direct Outreach</button>
@@ -88,7 +88,7 @@
       <!-- Stats + Action CTA Row -->
       <section class="stats-top-row" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 24px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-          <div class="stat-card-modern stat-pending" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;">
+          <div class="stat-card-modern stat-pending" id="triageCardPending" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;" title="Filter by Docs Pending">
             <div class="stat-card-body">
               <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
                 <span class="stat-count" id="statPending" style="font-size: 24px; font-weight: 600; color: #171717;">—</span>
@@ -97,7 +97,7 @@
             </div>
           </div>
 
-          <div class="stat-card-modern stat-review" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;">
+          <div class="stat-card-modern stat-review" id="triageCardReview" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;" title="Filter by Ready for Review">
             <div class="stat-card-body">
               <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
                 <span class="stat-count" id="statReview" style="font-size: 24px; font-weight: 600; color: #171717;">—</span>
@@ -108,15 +108,17 @@
         </div>
 
         <div class="top-actions-row" style="display: flex; align-items: center; gap: 0.75rem; margin-left: auto;">
-          <button type="button" class="btn btn-secondary" id="btnOpenDocMappingModal" style="display: none; height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
-            Document Rules
-          </button>
-          <button type="button" class="btn btn-secondary" id="btnOpenTemplateModal" style="display: none; height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
-            Message Templates
-          </button>
-          <button type="button" class="btn btn-secondary" id="btnOpenBulkImportModal" style="height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
-            📥 Import List
-          </button>
+          <div class="secondary-actions-group" style="display: flex; align-items: center; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary" id="btnOpenDocMappingModal" style="display: none; height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
+              Document Rules
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnOpenTemplateModal" style="display: none; height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
+              Message Templates
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnOpenBulkImportModal" style="height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px;">
+              📥 Import List
+            </button>
+          </div>
           <button type="button" class="btn btn-primary" id="openAdd" data-variant-key="dashboardNewBtn" style="height: 44px; padding: 0 18px; font-size: 15px; font-weight: 500; border-radius: 12px; background: #171717; color: #ffffff; border: none; cursor: pointer;">
             + New Client
           </button>
