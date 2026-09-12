@@ -391,6 +391,43 @@ window.applyVariantToDOM = function () {
       }
     }
   }
+
+  // Triage cards: 2 cards (Docs Pending, Ready for Review) for standard modes, 4 cards (Sent, Delivered, Read, Replied) for Direct Outreach
+  const triagePending = document.getElementById('triageCardPending');
+  const triageReview = document.getElementById('triageCardReview');
+  const outreachTriageCards = ['triageCardSent', 'triageCardDelivered', 'triageCardRead', 'triageCardReplied'].map(id => document.getElementById(id));
+
+  if (copy.id === 'direct_outreach') {
+    if (triagePending) {
+      triagePending.hidden = true;
+      triagePending.classList.add('is-hidden');
+    }
+    if (triageReview) {
+      triageReview.hidden = true;
+      triageReview.classList.add('is-hidden');
+    }
+    outreachTriageCards.forEach(c => {
+      if (c) {
+        c.hidden = false;
+        c.classList.remove('is-hidden');
+      }
+    });
+  } else {
+    if (triagePending) {
+      triagePending.hidden = false;
+      triagePending.classList.remove('is-hidden');
+    }
+    if (triageReview) {
+      triageReview.hidden = false;
+      triageReview.classList.remove('is-hidden');
+    }
+    outreachTriageCards.forEach(c => {
+      if (c) {
+        c.hidden = true;
+        c.classList.add('is-hidden');
+      }
+    });
+  }
 };
 
 document.addEventListener('DOMContentLoaded', () => {

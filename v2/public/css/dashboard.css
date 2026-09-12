@@ -527,6 +527,15 @@ tbody tr:hover {
 .badge-approved { background: var(--status-success-bg); color: var(--status-success-text); }
 .badge-disbursed { background: var(--status-success-bg); color: var(--status-success-text); }
 .badge-closed { background: var(--status-neutral-bg); color: var(--status-neutral-text); }
+.badge-sent { background: #DCFCE7; color: #15803D; }
+.badge-delivered { background: #DCFCE7; color: #15803D; }
+.badge-read { background: #DBEAFE; color: #1D4ED8; }
+.badge-replied { background: #E0E7FF; color: #3730A3; }
+
+.stat-card-modern.is-hidden,
+.stat-card-modern[hidden] {
+  display: none !important;
+}
 
 /* Glass Modal */
 .modal-backdrop {

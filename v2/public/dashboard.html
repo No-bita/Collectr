@@ -88,6 +88,7 @@
       <!-- Stats + Action CTA Row -->
       <section class="stats-top-row" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 24px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+          <!-- Standard Triage Cards -->
           <div class="stat-card-modern stat-pending" id="triageCardPending" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;" title="Filter by Docs Pending">
             <div class="stat-card-body">
               <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
@@ -102,6 +103,43 @@
               <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
                 <span class="stat-count" id="statReview" style="font-size: 24px; font-weight: 600; color: #171717;">—</span>
                 <span class="badge badge-ready_for_review">Ready for Review</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Direct Outreach Triage Cards (Sent, Delivered, Read, Replied) -->
+          <div class="stat-card-modern stat-sent is-hidden" id="triageCardSent" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;" title="Filter by Sent" hidden>
+            <div class="stat-card-body">
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statSent" style="font-size: 24px; font-weight: 600; color: #171717;">0</span>
+                <span class="badge badge-sent">Sent</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card-modern stat-delivered is-hidden" id="triageCardDelivered" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;" title="Filter by Delivered" hidden>
+            <div class="stat-card-body">
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statDelivered" style="font-size: 24px; font-weight: 600; color: #171717;">0</span>
+                <span class="badge badge-delivered">Delivered</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card-modern stat-read is-hidden" id="triageCardRead" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;" title="Filter by Read" hidden>
+            <div class="stat-card-body">
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statRead" style="font-size: 24px; font-weight: 600; color: #171717;">0</span>
+                <span class="badge badge-read">Read</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card-modern stat-replied is-hidden" id="triageCardReplied" style="padding: 12px 20px; min-height: 56px; border-radius: 12px; background: #ffffff; border: 1px solid #ECE8DF;" title="Filter by Replied" hidden>
+            <div class="stat-card-body">
+              <div class="stat-top-line" style="gap: 0.625rem; display: flex; align-items: center;">
+                <span class="stat-count" id="statReplied" style="font-size: 24px; font-weight: 600; color: #171717;">0</span>
+                <span class="badge badge-replied">Replied</span>
               </div>
             </div>
           </div>

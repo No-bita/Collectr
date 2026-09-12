@@ -613,6 +613,15 @@ function render() {
   if (tPending) tPending.classList.toggle("active-filter", selectedStatus === "documents_pending");
   if (tReview) tReview.classList.toggle("active-filter", selectedStatus === "ready_for_review");
 
+  const tSent = el("triageCardSent");
+  const tDeliv = el("triageCardDelivered");
+  const tRead = el("triageCardRead");
+  const tReplied = el("triageCardReplied");
+  if (tSent) tSent.classList.toggle("active-filter", selectedStatus === "sent");
+  if (tDeliv) tDeliv.classList.toggle("active-filter", selectedStatus === "delivered");
+  if (tRead) tRead.classList.toggle("active-filter", selectedStatus === "read");
+  if (tReplied) tReplied.classList.toggle("active-filter", selectedStatus === "replied");
+
   const filtered = allCases.filter(c => {
     if (!isCaseForPersona(c, persona)) return false;
     const displayStatus = getDisplayStatus(c, persona);
@@ -1324,19 +1333,33 @@ function escapeHtml(str) {
 
 function updateSummary(summary) {
   const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const isDirectOutreach = (persona === 'direct_outreach');
   const personaCases = (allCases || []).filter(c => isCaseForPersona(c, persona));
 
   const total = summary && summary.total !== undefined ? summary.total : personaCases.length;
-  const docsPending = summary && summary.documentsPending !== undefined ? summary.documentsPending : personaCases.filter(c => c.status === 'documents_pending' || c.status === 'lead').length;
-  const readyForReview = summary && summary.readyForReview !== undefined ? summary.readyForReview : personaCases.filter(c => c.status === 'ready_for_review').length;
-  const submitted = summary && summary.submitted !== undefined ? summary.submitted : personaCases.filter(c => c.status === 'submitted').length;
-  const disbursed = summary && summary.disbursed !== undefined ? summary.disbursed : personaCases.filter(c => c.status === 'disbursed').length;
-
   const tot = el("statTotal"); if (tot) tot.textContent = total;
-  const pen = el("statPending"); if (pen) pen.textContent = docsPending;
-  const rev = el("statReview"); if (rev) rev.textContent = readyForReview;
-  const sub = el("statSubmitted"); if (sub) sub.textContent = submitted;
-  const dis = el("statDisbursed"); if (dis) dis.textContent = disbursed;
+
+  if (isDirectOutreach) {
+    const sentCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'sent').length;
+    const delivCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'delivered').length;
+    const readCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'read').length;
+    const repCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'replied').length;
+
+    const sSent = el("statSent"); if (sSent) sSent.textContent = sentCount;
+    const sDeliv = el("statDelivered"); if (sDeliv) sDeliv.textContent = delivCount;
+    const sRead = el("statRead"); if (sRead) sRead.textContent = readCount;
+    const sRep = el("statReplied"); if (sRep) sRep.textContent = repCount;
+  } else {
+    const docsPending = summary && summary.documentsPending !== undefined ? summary.documentsPending : personaCases.filter(c => c.status === 'documents_pending' || c.status === 'lead').length;
+    const readyForReview = summary && summary.readyForReview !== undefined ? summary.readyForReview : personaCases.filter(c => c.status === 'ready_for_review').length;
+    const submitted = summary && summary.submitted !== undefined ? summary.submitted : personaCases.filter(c => c.status === 'submitted').length;
+    const disbursed = summary && summary.disbursed !== undefined ? summary.disbursed : personaCases.filter(c => c.status === 'disbursed').length;
+
+    const pen = el("statPending"); if (pen) pen.textContent = docsPending;
+    const rev = el("statReview"); if (rev) rev.textContent = readyForReview;
+    const sub = el("statSubmitted"); if (sub) sub.textContent = submitted;
+    const dis = el("statDisbursed"); if (dis) dis.textContent = disbursed;
+  }
 }
 
 async function loadLoanProducts() {
@@ -1710,6 +1733,28 @@ if (triageReviewEl) {
     render();
   });
 }
+
+function bindTriageCardClick(cardId, targetStatus) {
+  const cardEl = el(cardId);
+  if (cardEl) {
+    cardEl.addEventListener("click", () => {
+      if (statusFilter === targetStatus) {
+        statusFilter = "all";
+      } else {
+        statusFilter = targetStatus;
+      }
+      const sel = el("statusFilter");
+      if (sel) sel.value = statusFilter;
+      currentPage = 1;
+      render();
+    });
+  }
+}
+
+bindTriageCardClick("triageCardSent", "sent");
+bindTriageCardClick("triageCardDelivered", "delivered");
+bindTriageCardClick("triageCardRead", "read");
+bindTriageCardClick("triageCardReplied", "replied");
 
 const loanTypeFilterEl = el("loanTypeFilter");
 if (loanTypeFilterEl) {
