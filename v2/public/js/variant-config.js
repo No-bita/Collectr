@@ -141,7 +141,7 @@ window.VARIANT_COPY = {
     dashboardHeader: 'Direct Outreach',
     dashboardNewBtn: '+ New Target Outreach',
     dashboardSearchPlaceholder: 'Search target name or contact...',
-    filterAllCategories: 'All Message Templates',
+    filterAllCategories: 'All Templates',
     thCategory: 'Message Template',
     wizardTitle: 'New Direct Outreach',
     lblCategorySelect: 'Message Template',
@@ -427,6 +427,12 @@ window.applyVariantToDOM = function () {
         c.classList.add('is-hidden');
       }
     });
+  }
+
+  // Direct Outreach Heading: delete/hide in direct outreach mode
+  const headerContainer = document.getElementById('dashboardHeaderContainer') || document.querySelector('[data-variant-key="dashboardHeader"]')?.parentElement;
+  if (headerContainer) {
+    headerContainer.style.display = (copy.id === 'direct_outreach') ? 'none' : '';
   }
 };
 

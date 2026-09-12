@@ -378,7 +378,13 @@ function populateLoanTypeFilter() {
   const sortedTypes = Array.from(typesSet).sort();
 
   const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
-  filterEl.innerHTML = persona === 'ca' ? '<option value="all">All Categories</option>' : '<option value="all">All Collection Types</option>';
+  let defaultOpt = '<option value="all">All Categories</option>';
+  if (persona === 'direct_outreach') {
+    defaultOpt = '<option value="all">All Templates</option>';
+  } else if (persona === 'loan_agent') {
+    defaultOpt = '<option value="all">All Collection Types</option>';
+  }
+  filterEl.innerHTML = defaultOpt;
   sortedTypes.forEach(t => {
     const opt = document.createElement("option");
     opt.value = t;
