@@ -11,7 +11,7 @@ export async function handleSessionRequest(c) {
   
   // Fetch token and case info
   const tokenRes = await db.execute({
-    sql: `SELECT s.status, s.expires_at, c.id as case_id, c.contact_person, c.loan_product, c.phone_number 
+    sql: `SELECT s.status, s.expires_at, s.fingerprint_hash, c.id as case_id, c.contact_person, c.loan_product, c.phone_number 
           FROM secure_tokens s
           JOIN loan_cases c ON s.case_id = c.id
           WHERE s.token = ?`,

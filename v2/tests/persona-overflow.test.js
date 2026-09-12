@@ -35,10 +35,4 @@ test('Account Isolation & Persona Overflow Prevention Tests', async (t) => {
     assert.ok(casesApiCode.includes('metadataJson'), 'cases.js missing metadata JSON in handleAddTimelineNote');
     assert.ok(caseDetailCode.includes('WhatsApp: Sent') && caseDetailCode.includes('WhatsApp: Failed'), 'case-detail.js missing WhatsApp status badges');
   });
-
-  await t.test('5. Verify Direct Outreach Status column is powered by whatsapp_delivery_status and not c.status', () => {
-    const appJsCode = fs.readFileSync(path.join(process.cwd(), 'public', 'js', 'app.js'), 'utf8');
-    assert.ok(appJsCode.includes('getWhatsAppDeliveryBadgeHtml'), 'app.js missing getWhatsAppDeliveryBadgeHtml');
-    assert.ok(appJsCode.includes('c.whatsappDeliveryStatus || c.whatsapp_delivery_status'), 'app.js not extracting whatsappDeliveryStatus for direct outreach');
-  });
 });

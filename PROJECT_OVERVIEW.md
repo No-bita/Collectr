@@ -136,6 +136,8 @@ Lekho-Edge/
         ├── wizard_ui.test.js          # 3-Screen wizard state machine tests
         ├── dom-integration.test.js    # HTML DOM element integrity tests
         ├── contact-model.test.js      # Phone normalization & contact relationship tests
+        ├── route-auth.test.js         # Hono route auth, role matrix & cross-tenant isolation tests
+        ├── magic-link.test.js         # Magic link session lifecycle, fingerprinting & upload tests
         └── frontend-syntax.test.js    # JS parse & syntax check
 ```
 
