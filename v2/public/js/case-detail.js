@@ -573,7 +573,7 @@ function renderWhatsAppConversationCard(c, timeline) {
     let freeformComposerHtml = "";
     if (isWindowOpen) {
       freeformComposerHtml = `
-        <form id="waDirectSendForm" style="flex: 1; display: flex; gap: 8px; align-items: center; margin: 0;" onsubmit="handleDirectWhatsAppSend(event, '${c.id}')">
+        <form id="waDirectSendForm" style="flex: 1; width: 100%; display: flex; gap: 8px; align-items: center; margin: 0;" onsubmit="handleDirectWhatsAppSend(event, '${c.id}')">
           <input type="text" id="waDirectSendInput" placeholder="Type WhatsApp message to send..." style="flex: 1; height: 40px; padding: 0 1rem; background: #ffffff; border: 1px solid #ECE8DF; border-radius: 8px; font-size: 14px; color: #171717; outline: none;" required />
           <button type="submit" class="btn btn-primary" id="waDirectSendBtn" style="height: 40px; padding: 0 1.25rem; font-weight: 600; white-space: nowrap; border-radius: 8px;">
             Send WhatsApp ➔
@@ -582,13 +582,13 @@ function renderWhatsAppConversationCard(c, timeline) {
       `;
     } else if (hasClientReply) {
       freeformComposerHtml = `
-        <div style="flex: 1; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; font-size: 0.8125rem; color: #92400E; display: flex; align-items: center; justify-content: space-between;">
+        <div style="flex: 1; width: 100%; box-sizing: border-box; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 10px 14px; font-size: 0.8125rem; color: #92400E; display: flex; align-items: center; justify-content: space-between;">
           <span>24h service window closed. Awaiting client reply for free-form messaging.</span>
         </div>
       `;
     } else {
       freeformComposerHtml = `
-        <div style="flex: 1; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 12px; font-size: 0.8125rem; color: #64748B;">
+        <div style="flex: 1; width: 100%; box-sizing: border-box; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; font-size: 0.8125rem; color: #64748B;">
           Awaiting client reply to enable free-form WhatsApp messaging.
         </div>
       `;
@@ -596,20 +596,16 @@ function renderWhatsAppConversationCard(c, timeline) {
 
     panel.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #ECE8DF; padding-bottom: 0.875rem;">
-        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: #171717; display: flex; align-items: center; gap: 8px;">
-          💬 WhatsApp Conversation
+        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700; color: #171717;">
+          WhatsApp Conversation
         </h3>
-        <span class="badge" style="${badgeStyle} font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;">${badgeLabel}</span>
       </div>
 
       <div id="waThreadFeed" style="min-height: 240px; max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; padding: 14px; border: 1px solid #ECE8DF; border-radius: 12px; background: #FCFBF8; margin-bottom: 1rem;">
         ${chatHtml}
       </div>
 
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <button type="button" id="btnOpenWaTemplatePicker" class="btn" style="height: 40px; padding: 0 14px; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; border: 1px solid #D1D5DB; background: #FFFFFF; color: #374151; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;" onclick="openWhatsAppTemplateModal('${c.id}')">
-          <span>📄</span> Template
-        </button>
+      <div style="display: flex; align-items: center; width: 100%;">
         ${freeformComposerHtml}
       </div>
     `;
