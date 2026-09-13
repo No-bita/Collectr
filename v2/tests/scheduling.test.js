@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { localToUtc, utcToLocalParts } from "../src/scheduler/time.js";
 import { scanAndClaimDueOccurrences } from "../src/scheduler/scanner.js";
-import { processScheduledOccurrence } from "../src/scheduler/consumer.js";
+import { processScheduledOccurrence, handleQueueBatch } from "../src/scheduler/consumer.js";
 import { handleCreateSchedule, handleGetSchedules, handleCancelSchedule, handleRetryOccurrence } from "../src/api/schedules.js";
 
 function createInMemoryDb() {
@@ -616,5 +616,72 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     const res3 = await scanAndClaimDueOccurrences(db, { send: async (p) => queueWorker3.push(p) });
     assert.equal(res3.claimed, 0, "No occurrences can be claimed while active leases are held");
     assert.equal(queueWorker3.length, 0);
+  });
+
+  await t.test("10. Queue Consumer 200+ Messages Batch Processing & Safe Size Verification", async () => {
+    const db = createInMemoryDb();
+    const mockEnv = { ENVIRONMENT: "development", MOCK_WHATSAPP: "true", MOCK_WHATSAPP_STATUS: "sent" };
+
+    const TOTAL_MESSAGES = 225; // 200+ messages
+    const occurrenceIds = [];
+
+    for (let i = 1; i <= TOTAL_MESSAGES; i++) {
+      const occId = `occ_bulk_${i}`;
+      const schId = `sch_bulk_${i}`;
+      const phone = `983000${String(i).padStart(4, "0")}`;
+
+      db.tables.schedules.push({
+        id: schId,
+        user_id: "usr_test_1",
+        case_id: null,
+        contact_id: `cnt_${i}`,
+        phone_number: phone,
+        template_name: "welcome_template",
+        template_params: "[]",
+        schedule_type: "one_off",
+        recurrence_interval: null,
+        timezone: "Asia/Kolkata",
+        status: "active",
+        next_run_utc: "2026-09-13 00:00:00",
+        created_at: new Date().toISOString(),
+        cancelled_at: null
+      });
+
+      db.tables.scheduled_occurrences.push({
+        id: occId,
+        schedule_id: schId,
+        occurrence_key: `key_bulk_${i}`,
+        scheduled_for_utc: "2026-09-13 00:00:00",
+        operational_status: "claimed",
+        claimed_at: new Date().toISOString().replace("T", " ").substring(0, 19),
+        attempts: 1,
+        provider_message_id: null,
+        skip_reason: null,
+        last_error: null,
+        created_at: new Date().toISOString(),
+        executed_at: null
+      });
+
+      occurrenceIds.push(occId);
+    }
+
+    // Set user credits: usr_test_1 credit_balance has enough credits for all 225 messages
+    db.tables.users[0].credit_balance = 25000;
+
+    // Simulate Worker queue invocations adhering to max_batch_size = 1
+    let totalAcked = 0;
+    for (const id of occurrenceIds) {
+      const singleBatch = {
+        messages: [{
+          body: { occurrenceId: id },
+          ack: () => { totalAcked++; }
+        }]
+      };
+      await handleQueueBatch(singleBatch, mockEnv, null, db);
+    }
+
+    assert.equal(totalAcked, TOTAL_MESSAGES, `All ${TOTAL_MESSAGES} messages must be acknowledged`);
+    const allCompleted = db.tables.scheduled_occurrences.every(o => o.operational_status === "completed");
+    assert.ok(allCompleted, `All ${TOTAL_MESSAGES} occurrences must be settled to completed`);
   });
 });

@@ -48,5 +48,7 @@ queue = "collectrr-schedule-queue"
 
 [[queues.consumers]]
 queue = "collectrr-schedule-queue"
-max_batch_size = 10
-max_batch_timeout = 5
+max_batch_size = 1
+max_batch_timeout = 0
+max_concurrency = 10
+

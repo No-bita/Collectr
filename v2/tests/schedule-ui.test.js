@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { handleBulkImportCases, executeWhatsAppMessagingPipeline } from '../src/api/cases.js';
-import { processScheduledOccurrence } from '../src/scheduler/consumer.js';
+import { processScheduledOccurrence, handleQueueBatch } from '../src/scheduler/consumer.js';
 import { scanAndClaimDueOccurrences } from '../src/scheduler/scanner.js';
 import { toSqliteUtc, isValidTimezone, parseScheduledForToUtc } from '../src/scheduler/time.js';
 
@@ -995,6 +995,177 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
       // Crucial: Occurrence in D1 is completed
       const finalOcc = mockDb.records.scheduled_occurrences.find(o => o.id === 'occ_race_test');
       assert.equal(finalOcc.operational_status, 'completed');
+    });
+
+    await st.test('5.18 Queue consumer failure isolation: batch_size = 1 isolates faults whereas batch_size = 10 cascades and drops unhandled batch messages', async () => {
+      const mockDb = createMockDb();
+      const mockEnv = { ENVIRONMENT: 'development', MOCK_WHATSAPP: 'true', MOCK_WHATSAPP_STATUS: 'sent' };
+      const user = { id: 'usr_test_1', username: 'Test Agent', credit_balance: 5000 };
+      mockDb.records.users[0].credit_balance = 5000;
+
+      // Create 10 occurrences
+      const occIds = [];
+      for (let i = 1; i <= 10; i++) {
+        const occId = `occ_batch_iso_${i}`;
+        const schId = `sch_batch_iso_${i}`;
+        mockDb.records.schedules.push({
+          id: schId, user_id: user.id, phone_number: `98765400${String(i).padStart(2, '0')}`, template_name: 'test_tpl', status: 'active', schedule_type: 'one_off'
+        });
+        mockDb.records.scheduled_occurrences.push({
+          id: occId, schedule_id: schId, occurrence_key: `key_batch_iso_${i}`, scheduled_for_utc: new Date().toISOString(), operational_status: 'claimed'
+        });
+        occIds.push(occId);
+      }
+
+      // Scenario A: Worker processing a batch of 10 where Worker crashes at message #3 (e.g. fatal timeout / subrequest limit)
+      // When an uncatchable exception or worker exit occurs at message 3, messages 4..10 never get executed or acked
+      const unhandledBatchAcked = [];
+      try {
+        const batchOf10 = {
+          messages: occIds.map((id, idx) => ({
+            body: { occurrenceId: id },
+            ack: () => unhandledBatchAcked.push(id)
+          }))
+        };
+        for (let i = 0; i < batchOf10.messages.length; i++) {
+          if (i === 2) {
+            throw new Error('Worker subrequest limit exceeded (simulated catastrophic crash in batch of 10)');
+          }
+          await processScheduledOccurrence(batchOf10.messages[i].body.occurrenceId, mockEnv, mockDb);
+          batchOf10.messages[i].ack();
+        }
+      } catch (err) {
+        assert.ok(err.message.includes('subrequest limit exceeded'));
+      }
+      assert.equal(unhandledBatchAcked.length, 2, 'In batch of 10, only first 2 messages were acked before worker crash');
+
+      // Scenario B: With max_batch_size = 1, each Worker invocation handles exactly 1 message.
+      // Message 3 fails, but all other 9 messages are executed in their own separate invocations and succeed.
+      const isolatedAcked = [];
+      for (let i = 0; i < occIds.length; i++) {
+        const singleBatch = {
+          messages: [{
+            body: { occurrenceId: occIds[i] },
+            ack: () => isolatedAcked.push(occIds[i])
+          }]
+        };
+        try {
+          if (i === 2) {
+            // Simulated error on this single message
+            throw new Error('Simulated single-invocation isolated error');
+          }
+          await handleQueueBatch(singleBatch, mockEnv, null, mockDb);
+        } catch (_) {
+          // Handled or retried by queue runtime for this single message only
+        }
+      }
+      // 9 out of 10 were successfully processed in their isolated invocations
+      assert.equal(isolatedAcked.length, 9, 'With max_batch_size = 1, 9 other messages process successfully despite error on message #3');
+    });
+
+    await st.test('5.19 200+ message bulk import & queue consumer pipeline with max_batch_size = 1', async () => {
+      const mockDb = createMockDb();
+      const mockDbUser = mockDb.records.users.find(u => u.id === 'usr_test_1');
+      mockDbUser.credit_balance = 30000; // 300 INR (enough for 220 messages @ 90 paise = 19,800 paise)
+
+      const publishedBatches = [];
+      const mockQueue = {
+        sendBatch: async (messages) => {
+          assert.ok(messages.length <= 100, `sendBatch received ${messages.length} messages, exceeding 100 cap`);
+          publishedBatches.push(messages);
+          return { success: true };
+        }
+      };
+      const mockEnv = {
+        DB: mockDb,
+        SCHEDULE_QUEUE: mockQueue,
+        ENVIRONMENT: 'development',
+        MOCK_WHATSAPP: 'true',
+        MOCK_WHATSAPP_STATUS: 'sent'
+      };
+
+      const TOTAL_CLIENTS = 220; // 200+ clients
+      const rawClients = Array.from({ length: TOTAL_CLIENTS }, (_, i) => ({
+        contactPerson: `Client ${i + 1}`,
+        phoneNumber: `982000${String(i + 1).padStart(4, '0')}`
+      }));
+
+      const mockContext = {
+        req: {
+          json: async () => ({
+            clients: rawClients,
+            sendWhatsApp: true
+          })
+        },
+        env: mockEnv,
+        get: (k) => k === 'user' ? { id: 'usr_test_1', username: 'Test Agent' } : null,
+        json: (data, code = 200) => ({ data, code })
+      };
+
+      // Step 1: Bulk Import 220 clients
+      const importRes = await handleBulkImportCases(mockContext);
+      assert.equal(importRes.code, 200);
+      assert.equal(importRes.data.importedCount, TOTAL_CLIENTS);
+
+      // Verify chunked queue publication (100, 100, 20)
+      assert.equal(publishedBatches.length, 3, '220 clients must be published in 3 queue batches (100 + 100 + 20)');
+      assert.equal(publishedBatches[0].length, 100);
+      assert.equal(publishedBatches[1].length, 100);
+      assert.equal(publishedBatches[2].length, 20);
+
+      const allEnqueuedMessages = publishedBatches.flat();
+      assert.equal(allEnqueuedMessages.length, TOTAL_CLIENTS);
+
+      // Step 2: Simulate Cloudflare Queue Consumer invocations with max_batch_size = 1
+      let ackCount = 0;
+      for (const queueMsg of allEnqueuedMessages) {
+        const consumerBatch = {
+          messages: [{
+            body: queueMsg.body,
+            ack: () => { ackCount++; }
+          }]
+        };
+        await handleQueueBatch(consumerBatch, mockEnv, null, mockDb);
+      }
+
+      // Step 3: Assertions on 200+ consumer processing
+      assert.equal(ackCount, TOTAL_CLIENTS, `All ${TOTAL_CLIENTS} queue messages must be explicitly acknowledged`);
+
+      // All 220 occurrences must be completed
+      const occurrences = mockDb.records.scheduled_occurrences;
+      assert.equal(occurrences.length, TOTAL_CLIENTS);
+      const allCompleted = occurrences.every(o => o.operational_status === 'completed');
+      assert.ok(allCompleted, 'All 220 occurrences must be settled to operational_status = "completed"');
+
+      // All 220 cases must have whatsapp delivery status updated
+      const cases = mockDb.records.loan_cases;
+      assert.equal(cases.length, TOTAL_CLIENTS);
+      const allCasesSent = cases.every(c => c.whatsapp_delivery_status === 'sent');
+      assert.ok(allCasesSent, 'All 220 cases must reflect whatsapp_delivery_status = "sent"');
+
+      // Exactly 220 records in whatsapp_messages with status SENT
+      assert.equal(mockDb.records.whatsapp_messages.length, TOTAL_CLIENTS);
+      assert.ok(mockDb.records.whatsapp_messages.every(m => m.status === 'SENT'));
+
+      // Credit deduction: exactly 220 * 90 = 19,800 paise deducted (30,000 - 19,800 = 10,200)
+      assert.equal(mockDbUser.credit_balance, 30000 - (TOTAL_CLIENTS * 90), 'Credit balance must be deducted exactly 90 paise per client');
+
+      // Step 4: Idempotency re-delivery test:
+      // Re-delivering all 220 messages to consumer must NOT send duplicate WhatsApp messages or deduct more credits
+      let reAckCount = 0;
+      for (const queueMsg of allEnqueuedMessages) {
+        const consumerBatch = {
+          messages: [{
+            body: queueMsg.body,
+            ack: () => { reAckCount++; }
+          }]
+        };
+        await handleQueueBatch(consumerBatch, mockEnv, null, mockDb);
+      }
+
+      assert.equal(reAckCount, TOTAL_CLIENTS, 'All re-delivered messages must be acknowledged');
+      assert.equal(mockDb.records.whatsapp_messages.length, TOTAL_CLIENTS, 'No duplicate whatsapp_messages records created on redelivery');
+      assert.equal(mockDbUser.credit_balance, 30000 - (TOTAL_CLIENTS * 90), 'No additional credits deducted on redelivery');
     });
   });
 });

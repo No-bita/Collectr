@@ -302,6 +302,8 @@ sequenceDiagram
 1. **D1 is the durable execution ledger**: Outbound occurrences are atomically claimed before queue enqueue.
 2. **Chunked Queue Publication**: Messages are chunked into slices of $\le 100$ per `sendBatch()` call.
 3. **SENDING Ambiguity Protection**: Active in-flight consumers yield without overwriting to `unknown`; orphaned `SENDING` older than 10 minutes are flagged `unknown` and never blindly re-sent to Meta.
+4. **Consumer Invariant - Single-Message Worker Isolation (`max_batch_size = 1`)**: Queue consumer delivers 1 occurrence per Worker invocation (`max_batch_size = 1`, `max_batch_timeout = 0`, `max_concurrency = 10`). This isolates outbound Meta API HTTPS network requests and D1 transactions, preventing subrequest limit exhaustion (< 15 per invocation vs 50 cap) and ensuring that 200+ message bursts are scaled horizontally without batch timeout cascades.
+
 
 ### Flow 6.1: Bulk Upload Pre-Check & Action Flow (Send Now vs Schedule for Later)
 ```text

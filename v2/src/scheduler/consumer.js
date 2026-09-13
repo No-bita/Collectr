@@ -211,8 +211,9 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
  * Cloudflare Queue batch handler
  */
 export async function handleQueueBatch(batch, env, ctx, db) {
-  for (const message of batch.messages) {
-    const { occurrenceId } = message.body || {};
+  const messages = batch?.messages || [];
+  for (const message of messages) {
+    const { occurrenceId } = message?.body || {};
     if (occurrenceId) {
       try {
         await processScheduledOccurrence(occurrenceId, env, db);
@@ -221,6 +222,8 @@ export async function handleQueueBatch(batch, env, ctx, db) {
       }
     }
     // Always acknowledge message to prevent infinite retry loop
-    message.ack();
+    if (typeof message?.ack === "function") {
+      message.ack();
+    }
   }
 }
