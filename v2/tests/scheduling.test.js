@@ -234,7 +234,7 @@ function createInMemoryDb() {
 
       // whatsapp_messages & credit tables fallbacks
       if (normSql.includes("FROM whatsapp_messages")) return { rows: [] };
-      if (normSql.includes("INSERT INTO whatsapp_messages")) return { rows: [] };
+      if (normSql.includes("INSERT INTO whatsapp_messages")) return { rows: [{ id: "mock_wa_msg" }], changes: 1 };
       if (normSql.includes("UPDATE whatsapp_messages")) return { rows: [] };
       if (normSql.includes("INSERT INTO credit_reservations")) return { rows: [] };
       if (normSql.includes("UPDATE credit_reservations")) return { rows: [] };

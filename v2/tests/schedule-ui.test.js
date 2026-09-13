@@ -251,16 +251,17 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
           };
         }
         if (norm.startsWith("INSERT INTO whatsapp_messages")) {
-          const [id, user_id, idempotency_key, status] = args;
+          const [id, user_id, idempotency_key] = args;
+          const status = norm.includes("'SENDING'") ? 'SENDING' : (args[3] || 'SENDING');
           const existing = records.whatsapp_messages.find(m => m.user_id === user_id && m.idempotency_key === idempotency_key);
           if (existing) {
-            existing.status = status;
+            return { rows: [], changes: 0 };
           } else {
             records.whatsapp_messages.push({
               id, user_id, idempotency_key, status, provider_message_id: null, created_at: new Date().toISOString()
             });
+            return { rows: [{ id }], changes: 1 };
           }
-          return { rows: [] };
         }
         if (norm.startsWith("UPDATE whatsapp_messages SET status = 'SENT'")) {
           const [providerMsgId, msgId] = args;
@@ -947,6 +948,58 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
 
       const userB = mockDb.records.users.find(u => u.id === 'usr_tenant_b');
       assert.equal(userB.credit_balance, 810, 'Tenant B balance must be deducted by 90 paise');
+    });
+
+    await st.test('5.17 Concurrency race test: Consumer A and Consumer B racing simultaneously on same occurrence - exactly 1 Meta send', async () => {
+      const mockDb = createMockDb();
+      const mockEnv = {
+        ENVIRONMENT: 'development',
+        MOCK_WHATSAPP: 'true',
+        MOCK_WHATSAPP_STATUS: 'sent'
+      };
+
+      // Set up occurrence and schedule
+      mockDb.records.users.push({ id: 'usr_race_test', username: 'Race Agent', credit_balance: 900 });
+      mockDb.records.schedules.push({
+        id: 'sch_race_test',
+        user_id: 'usr_race_test',
+        phone_number: '9876543299',
+        template_name: 'test_tpl',
+        status: 'active',
+        schedule_type: 'one_off'
+      });
+      mockDb.records.scheduled_occurrences.push({
+        id: 'occ_race_test',
+        schedule_id: 'sch_race_test',
+        occurrence_key: 'key_race_test',
+        scheduled_for_utc: new Date().toISOString(),
+        operational_status: 'claimed'
+      });
+
+      // Both consumers execute simultaneously: Promise.all([Consumer A, Consumer B])
+      const [resA, resB] = await Promise.all([
+        processScheduledOccurrence('occ_race_test', mockEnv, mockDb),
+        processScheduledOccurrence('occ_race_test', mockEnv, mockDb)
+      ]);
+
+      // Assertions:
+      // One consumer must succeed and complete
+      // The other consumer must detect inFlight and yield as duplicate
+      const statuses = [resA.status, resB.status];
+      assert.ok(statuses.includes('completed'), 'One consumer must complete successfully');
+      assert.ok(statuses.includes('in_flight_duplicate'), 'The concurrent duplicate consumer must recognize in-flight dispatch and yield');
+
+      // Crucial: Exactly 1 row in whatsapp_messages, status SENT
+      assert.equal(mockDb.records.whatsapp_messages.length, 1, 'Exactly one whatsapp_messages record must exist');
+      assert.equal(mockDb.records.whatsapp_messages[0].status, 'SENT');
+
+      // Crucial: Credit deducted exactly once (900 - 90 = 810)
+      const raceUser = mockDb.records.users.find(u => u.id === 'usr_race_test');
+      assert.equal(raceUser.credit_balance, 810, 'Credits must be deducted exactly once despite concurrent consumers');
+
+      // Crucial: Occurrence in D1 is completed
+      const finalOcc = mockDb.records.scheduled_occurrences.find(o => o.id === 'occ_race_test');
+      assert.equal(finalOcc.operational_status, 'completed');
     });
   });
 });

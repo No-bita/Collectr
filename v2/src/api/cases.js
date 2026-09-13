@@ -137,15 +137,8 @@ export async function executeWhatsAppMessagingPipeline(
 ) {
   const idempotencyKey = `idemp_${user?.id || 'sys'}_${referenceId}`;
 
-  const msgCheck = await db.execute({
-    sql: `SELECT status, provider_message_id, created_at,
-          (strftime('%s', 'now') - strftime('%s', created_at)) as age_seconds
-          FROM whatsapp_messages
-          WHERE user_id = ? AND idempotency_key = ?`,
-    args: [user?.id || 'sys', idempotencyKey]
-  });
-  if (msgCheck.rows.length > 0) {
-    const existingMsg = msgCheck.rows[0];
+  // Helper to inspect an existing whatsapp_message row
+  const handleExistingMessage = async (existingMsg) => {
     if (existingMsg.status === 'SENT' || existingMsg.provider_message_id) {
       return {
         success: true,
@@ -181,8 +174,28 @@ export async function executeWhatsAppMessagingPipeline(
         ambiguous: true
       };
     }
+    return {
+      success: false,
+      error: "WHATSAPP_ALREADY_EXISTS",
+      message: `Message already exists in state ${existingMsg.status}.`,
+      inFlight: false,
+      ambiguous: true
+    };
+  };
+
+  // 1. Fast read check: if message already exists, handle immediately without doing work
+  const msgCheck = await db.execute({
+    sql: `SELECT status, provider_message_id, created_at,
+          (strftime('%s', 'now') - strftime('%s', created_at)) as age_seconds
+          FROM whatsapp_messages
+          WHERE user_id = ? AND idempotency_key = ?`,
+    args: [user?.id || 'sys', idempotencyKey]
+  });
+  if (msgCheck.rows && msgCheck.rows.length > 0) {
+    return await handleExistingMessage(msgCheck.rows[0]);
   }
 
+  // 2. Pre-execution credit check
   const isDevEnv = (env?.ENVIRONMENT === 'development');
   let currentBalance = 900;
 
@@ -205,11 +218,52 @@ export async function executeWhatsAppMessagingPipeline(
     }
   }
 
+  // 3. ATOMIC LOCK ACQUISITION:
+  // SQLite guarantees UNIQUE(user_id, idempotency_key).
+  // Exactly ONE consumer will successfully insert and acquire the lock.
+  // Any concurrent consumer racing past the SELECT above will hit the unique constraint,
+  // insert 0 rows, and fail to acquire the lock.
   const msgId = "msg_" + crypto.randomUUID();
-  await db.execute({
-    sql: "INSERT INTO whatsapp_messages (id, user_id, idempotency_key, status) VALUES (?, ?, ?, 'SENDING') ON CONFLICT(user_id, idempotency_key) DO UPDATE SET status = 'SENDING'",
-    args: [msgId, user?.id || 'sys', idempotencyKey]
-  }).catch(e => console.error("Failed writing whatsapp_message:", e));
+  let isAcquired = false;
+  try {
+    const insertRes = await db.execute({
+      sql: `INSERT INTO whatsapp_messages (id, user_id, idempotency_key, status)
+            VALUES (?, ?, ?, 'SENDING')
+            ON CONFLICT(user_id, idempotency_key) DO NOTHING
+            RETURNING id`,
+      args: [msgId, user?.id || 'sys', idempotencyKey]
+    });
+    isAcquired = Boolean(
+      (insertRes?.rows && insertRes.rows.length === 1) ||
+      (insertRes?.changes === 1) ||
+      (insertRes?.meta?.changes === 1)
+    );
+  } catch (insertErr) {
+    console.error("Atomic whatsapp_messages lock error:", insertErr);
+    isAcquired = false;
+  }
+
+  // If another consumer won the atomic race, inspect the row they created and yield
+  if (!isAcquired) {
+    const raceCheck = await db.execute({
+      sql: `SELECT status, provider_message_id, created_at,
+            (strftime('%s', 'now') - strftime('%s', created_at)) as age_seconds
+            FROM whatsapp_messages
+            WHERE user_id = ? AND idempotency_key = ?`,
+      args: [user?.id || 'sys', idempotencyKey]
+    });
+    if (raceCheck.rows && raceCheck.rows.length > 0) {
+      return await handleExistingMessage(raceCheck.rows[0]);
+    }
+    // Defensive fallback: lock not acquired, do NOT proceed to Meta
+    return {
+      success: false,
+      error: "WHATSAPP_LOCK_FAILED",
+      message: "Failed to acquire exclusive dispatch lock. Suppressed duplicate Meta call.",
+      inFlight: true,
+      ambiguous: false
+    };
+  }
 
   const resId = "res_" + crypto.randomUUID();
   if (isDevEnv) {

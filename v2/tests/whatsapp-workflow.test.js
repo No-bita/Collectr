@@ -48,7 +48,7 @@ function createPipelineMockDb({ initialBalance = 900, existingAttempts = 0 } = {
       }
       if (sql.includes("INSERT INTO whatsapp_messages")) {
         messages.push({ id: args[0], status: 'SENDING' });
-        return { rows: [] };
+        return { rows: [{ id: args[0] }], changes: 1 };
       }
       if (sql.includes("UPDATE whatsapp_messages")) {
         const last = messages[messages.length - 1];
