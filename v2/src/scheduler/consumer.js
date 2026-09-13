@@ -6,9 +6,9 @@
 
 import { executeWhatsAppMessagingPipeline } from "../api/cases.js";
 import { calculateNextRunUtc } from "./time.js";
+import { MESSAGE_COST_PAISE } from "../api/credits.js";
 
 const TERMINAL_CASE_STATUSES = ["closed", "disbursed"];
-const MESSAGE_COST_PAISE = 90;
 
 export async function processScheduledOccurrence(occurrenceId, env, db) {
   if (!occurrenceId) return { handled: false, reason: "missing_id" };

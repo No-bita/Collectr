@@ -6,7 +6,8 @@ import { runGeminiOcr } from "./ocr.js";
 import { getWhatsAppTemplate, renderTemplateBody } from "../whatsapp/templates.js";
 import { sendWhatsAppTemplate as clientSendWhatsAppTemplate, sendWhatsAppText, normalizeIndianPhoneNumber } from "../whatsapp/client.js";
 import { getCustomerReplyWindowStatus } from "../whatsapp/window.js";
-import { toSqliteUtc, isValidTimezone } from "../scheduler/time.js";
+import { toSqliteUtc, isValidTimezone, parseScheduledForToUtc } from "../scheduler/time.js";
+import { MESSAGE_COST_PAISE } from "./credits.js";
 
 const VALID_STATUSES = [
   'lead', 'documents_pending', 'ready_for_review', 
@@ -134,7 +135,6 @@ export async function executeWhatsAppMessagingPipeline(
   contactId = null,
   miniTargetId = null
 ) {
-  const MESSAGE_COST_PAISE = 90;
   const idempotencyKey = `idemp_${user?.id || 'sys'}_${referenceId}`;
 
   const msgCheck = await db.execute({
@@ -485,115 +485,127 @@ export async function handleCreateCase(c) {
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     const initialStatus = requiredDocTypes.length > 0 ? 'documents_pending' : 'lead';
+    const isScheduled = !!(body.schedule && body.schedule.scheduledFor);
+    const initialDeliveryStatus = isScheduled ? 'scheduled' : 'pending';
 
-    // Insert Mini Target
-    await db.execute({
+    let scheduledForUtc = null;
+    let schedType = "one_off";
+    let recurrenceInterval = null;
+    let timezone = "Asia/Kolkata";
+    let scheduleId = null;
+
+    if (isScheduled) {
+      timezone = isValidTimezone(body.schedule.timezone) ? body.schedule.timezone : "Asia/Kolkata";
+      scheduledForUtc = parseScheduledForToUtc(body.schedule.scheduledFor, timezone);
+      schedType = body.schedule.scheduleType || (body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off" ? "recurring" : "one_off");
+      recurrenceInterval = (schedType === "recurring" && body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off") ? body.schedule.recurrenceInterval : null;
+      scheduleId = `sch_${crypto.randomUUID()}`;
+    }
+
+    const caseStatements = [];
+
+    // 1. Insert Mini Target
+    caseStatements.push({
       sql: `INSERT INTO loan_cases (id, contact_id, user_id, is_demo, contact_person, phone_number, loan_product, template_name, amount_required, status, whatsapp_delivery_status, created_at, last_updated)
-            VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))`,
-      args: [caseId, contact.id, userId, contact.contactPerson, canonicalPhone, loanProduct, targetTemplate, isNoDocs ? null : amountRequired, initialStatus]
+            VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      args: [caseId, contact.id, userId, contact.contactPerson, canonicalPhone, loanProduct, targetTemplate, isNoDocs ? null : amountRequired, initialStatus, initialDeliveryStatus]
     });
 
-    // Insert Secure Token
-    await db.execute({
+    // 2. Insert Secure Token
+    caseStatements.push({
       sql: "INSERT INTO secure_tokens (token, case_id, expires_at) VALUES (?, ?, ?)",
       args: [token, caseId, expiresAt.toISOString()]
     });
 
-    // Insert Document Requirements
+    // 3. Insert Document Requirements
     if (!isNoDocs) {
       for (const docType of requiredDocTypes) {
-        await db.execute({
+        caseStatements.push({
           sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
           args: [crypto.randomUUID(), caseId, docType, getCanonicalDocumentLabel(docType)]
         });
       }
     }
 
-    // Insert Internal Timeline Event
-    await db.execute({
+    // 4. Insert Internal Timeline Event
+    caseStatements.push({
       sql: `INSERT INTO case_timeline (id, contact_id, case_id, event_type, content, created_by)
             VALUES (?, ?, ?, 'case_created', ?, 'agent')`,
       args: [crypto.randomUUID(), contact.id, caseId, isNoDocs ? `Direct outreach message dispatched for ${loanProduct}` : `Filing request created for ${loanProduct}`]
     });
 
-    // Handle Schedule Outreach if requested
-    if (body.schedule && body.schedule.scheduledFor) {
-      const scheduleDate = new Date(body.schedule.scheduledFor);
-      if (!isNaN(scheduleDate.getTime())) {
-        const scheduledForUtc = toSqliteUtc(scheduleDate);
-        const schedType = body.schedule.scheduleType || (body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off" ? "recurring" : "one_off");
-        const recurrenceInterval = (schedType === "recurring" && body.schedule.recurrenceInterval) ? body.schedule.recurrenceInterval : null;
-        const timezone = isValidTimezone(body.schedule.timezone) ? body.schedule.timezone : "Asia/Kolkata";
-        const scheduleId = `sch_${crypto.randomUUID()}`;
-        const occId = `occ_${crypto.randomUUID()}`;
-        const occKey = `${scheduleId}_${scheduledForUtc}`;
+    // 5. If scheduled, append schedule and initial occurrence statements to the atomic batch
+    if (isScheduled && scheduledForUtc) {
+      const occId = `occ_${crypto.randomUUID()}`;
+      const occKey = `${scheduleId}_${scheduledForUtc}`;
 
-        // Update case delivery status to scheduled
-        await db.execute({
-          sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'scheduled' WHERE id = ?",
-          args: [caseId]
-        });
-
-        // Insert into schedules
-        await db.execute({
-          sql: `
-            INSERT INTO schedules (
-              id, user_id, case_id, contact_id, phone_number, template_name,
-              template_params, schedule_type, recurrence_interval, timezone,
-              status, next_run_utc
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
-          `,
-          args: [
-            scheduleId,
-            userId,
-            caseId,
-            contact.id,
-            canonicalPhone,
-            targetTemplate,
-            JSON.stringify(templateParams),
-            schedType,
-            recurrenceInterval,
-            timezone,
-            scheduledForUtc
-          ]
-        });
-
-        // Insert initial pending occurrence
-        await db.execute({
-          sql: `
-            INSERT INTO scheduled_occurrences (
-              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
-            ) VALUES (?, ?, ?, ?, 'pending')
-          `,
-          args: [occId, scheduleId, occKey, scheduledForUtc]
-        });
-
-        // Log to timeline
-        const intervalNote = recurrenceInterval ? ` (Recurring ${recurrenceInterval})` : "";
-        await db.execute({
-          sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
-                VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
-          args: [
-            crypto.randomUUID(),
-            contact.id,
-            caseId,
-            targetTemplate,
-            `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`,
-            JSON.stringify({ scheduledForUtc, scheduleType: schedType, recurrenceInterval, timezone })
-          ]
-        });
-
-        return c.json({
-          success: true,
-          caseId,
-          contactId: contact.id,
-          scheduled: true,
+      caseStatements.push({
+        sql: `
+          INSERT INTO schedules (
+            id, user_id, case_id, contact_id, phone_number, template_name,
+            template_params, schedule_type, recurrence_interval, timezone,
+            status, next_run_utc
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+        `,
+        args: [
           scheduleId,
-          nextRunUtc: scheduledForUtc,
-          token,
-          uploadUrl: `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=${token}`
-        }, 201);
+          userId,
+          caseId,
+          contact.id,
+          canonicalPhone,
+          targetTemplate,
+          JSON.stringify(templateParams),
+          schedType,
+          recurrenceInterval,
+          timezone,
+          scheduledForUtc
+        ]
+      });
+
+      caseStatements.push({
+        sql: `
+          INSERT INTO scheduled_occurrences (
+            id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
+          ) VALUES (?, ?, ?, ?, 'pending')
+        `,
+        args: [occId, scheduleId, occKey, scheduledForUtc]
+      });
+
+      const intervalNote = recurrenceInterval ? ` (Recurring ${recurrenceInterval})` : "";
+      caseStatements.push({
+        sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+              VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+        args: [
+          crypto.randomUUID(),
+          contact.id,
+          caseId,
+          targetTemplate,
+          `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`,
+          JSON.stringify({ scheduledForUtc, scheduleType: schedType, recurrenceInterval, timezone })
+        ]
+      });
+    }
+
+    // Execute all case creation statements atomically
+    if (typeof db.batch === "function") {
+      await db.batch(caseStatements);
+    } else {
+      for (const stmt of caseStatements) {
+        await db.execute(stmt);
       }
+    }
+
+    if (isScheduled && scheduledForUtc) {
+      return c.json({
+        success: true,
+        caseId,
+        contactId: contact.id,
+        scheduled: true,
+        scheduleId,
+        nextRunUtc: scheduledForUtc,
+        token,
+        uploadUrl: `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=${token}`
+      }, 201);
     }
 
     // Dispatch WhatsApp Template with Idempotency and State Machine
@@ -739,6 +751,19 @@ export async function handleBulkImportCases(c) {
   const defaultProduct = body.defaultLoanProduct || "Direct Intake";
   const defaultRequiredDocs = isNoDocs ? [] : (body.defaultRequiredDocIds || ['pan', 'bank_statement', 'gst_returns']);
 
+  const isScheduled = !!(sendWhatsApp && body.schedule && body.schedule.scheduledFor);
+  let scheduledForUtc = null;
+  let schedType = "one_off";
+  let recurrenceInterval = null;
+  let timezone = "Asia/Kolkata";
+
+  if (isScheduled) {
+    timezone = isValidTimezone(body.schedule.timezone) ? body.schedule.timezone : "Asia/Kolkata";
+    scheduledForUtc = parseScheduledForToUtc(body.schedule.scheduledFor, timezone);
+    schedType = body.schedule.scheduleType || (body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off" ? "recurring" : "one_off");
+    recurrenceInterval = (schedType === "recurring" && body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off") ? body.schedule.recurrenceInterval : null;
+  }
+
   const results = [];
   let importedCount = 0;
   let failedCount = 0;
@@ -768,45 +793,109 @@ export async function handleBulkImportCases(c) {
       if (!isNaN(parsedAmount)) amountRequired = parsedAmount;
     }
 
+    let caseId = null;
     try {
       const contact = await ensureContact(db, userId, canonicalPhone, contactPerson);
 
-      const caseId = crypto.randomUUID();
+      caseId = crypto.randomUUID();
       const token = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 14);
 
+      const rowStatements = [];
       const initialStatus = defaultRequiredDocs.length > 0 ? 'documents_pending' : 'lead';
+      const initialDeliveryStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : 'pending';
+      const rowParams = Array.isArray(item.templateParams) ? item.templateParams : (Array.isArray(item.params) ? item.params : []);
 
-      await db.execute({
+      rowStatements.push({
         sql: `INSERT INTO loan_cases (id, contact_id, user_id, is_demo, contact_person, phone_number, loan_product, template_name, amount_required, status, whatsapp_delivery_status, created_at, last_updated)
-              VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))`,
-        args: [caseId, contact.id, userId, contact.contactPerson, canonicalPhone, loanProduct, templateName, amountRequired, initialStatus]
+              VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        args: [caseId, contact.id, userId, contact.contactPerson, canonicalPhone, loanProduct, templateName, amountRequired, initialStatus, initialDeliveryStatus]
       });
 
-      await db.execute({
+      rowStatements.push({
         sql: "INSERT INTO secure_tokens (token, case_id, expires_at) VALUES (?, ?, ?)",
         args: [token, caseId, expiresAt.toISOString()]
       });
 
       if (!isNoDocs && defaultRequiredDocs.length > 0) {
         for (const docType of defaultRequiredDocs) {
-          await db.execute({
+          rowStatements.push({
             sql: "INSERT INTO required_documents (id, case_id, document_type, label, status) VALUES (?, ?, ?, ?, 'pending')",
             args: [crypto.randomUUID(), caseId, docType, getCanonicalDocumentLabel(docType)]
           });
         }
       }
 
-      await db.execute({
+      rowStatements.push({
         sql: `INSERT INTO case_timeline (id, contact_id, case_id, event_type, content, created_by)
               VALUES (?, ?, ?, 'case_created', ?, 'agent')`,
         args: [crypto.randomUUID(), contact.id, caseId, `Client imported via bulk list: ${contact.contactPerson}`]
       });
 
-      let whatsappStatus = 'not_sent';
-      const rowParams = Array.isArray(item.templateParams) ? item.templateParams : (Array.isArray(item.params) ? item.params : []);
-      if (sendWhatsApp && env?.WHATSAPP_PHONE_ID) {
+      if (isScheduled && scheduledForUtc) {
+        const scheduleId = `sch_${crypto.randomUUID()}`;
+        const occId = `occ_${crypto.randomUUID()}`;
+        const occKey = `${scheduleId}_${scheduledForUtc}`;
+
+        rowStatements.push({
+          sql: `
+            INSERT INTO schedules (
+              id, user_id, case_id, contact_id, phone_number, template_name,
+              template_params, schedule_type, recurrence_interval, timezone,
+              status, next_run_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+          `,
+          args: [
+            scheduleId,
+            userId,
+            caseId,
+            contact.id,
+            canonicalPhone,
+            templateName,
+            JSON.stringify(rowParams),
+            schedType,
+            recurrenceInterval,
+            timezone,
+            scheduledForUtc
+          ]
+        });
+
+        rowStatements.push({
+          sql: `
+            INSERT INTO scheduled_occurrences (
+              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
+            ) VALUES (?, ?, ?, ?, 'pending')
+          `,
+          args: [occId, scheduleId, occKey, scheduledForUtc]
+        });
+
+        const intervalNote = recurrenceInterval ? ` (Recurring ${recurrenceInterval})` : "";
+        rowStatements.push({
+          sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+                VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+          args: [
+            crypto.randomUUID(),
+            contact.id,
+            caseId,
+            templateName,
+            `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`,
+            JSON.stringify({ scheduledForUtc, scheduleType: schedType, recurrenceInterval, timezone })
+          ]
+        });
+      }
+
+      // Execute row statements atomically
+      if (typeof db.batch === "function") {
+        await db.batch(rowStatements);
+      } else {
+        for (const stmt of rowStatements) {
+          await db.execute(stmt);
+        }
+      }
+
+      let whatsappStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : 'not_sent';
+      if (!isScheduled && sendWhatsApp && env?.WHATSAPP_PHONE_ID) {
         const refId = `bulk_${caseId}`;
         const pipeRes = await executeWhatsAppMessagingPipeline(
           db,
@@ -837,6 +926,19 @@ export async function handleBulkImportCases(c) {
       });
     } catch (err) {
       console.error(`Error importing row ${i}:`, err);
+      // Guarantee per-row consistency: purge any partial records for this case
+      if (caseId) {
+        try {
+          await db.execute({ sql: "DELETE FROM scheduled_occurrences WHERE schedule_id IN (SELECT id FROM schedules WHERE case_id = ?)", args: [caseId] });
+          await db.execute({ sql: "DELETE FROM schedules WHERE case_id = ?", args: [caseId] });
+          await db.execute({ sql: "DELETE FROM case_timeline WHERE case_id = ?", args: [caseId] });
+          await db.execute({ sql: "DELETE FROM required_documents WHERE case_id = ?", args: [caseId] });
+          await db.execute({ sql: "DELETE FROM secure_tokens WHERE case_id = ?", args: [caseId] });
+          await db.execute({ sql: "DELETE FROM loan_cases WHERE id = ?", args: [caseId] });
+        } catch (cleanupErr) {
+          console.error(`Failed to clean up partial row records for case ${caseId}:`, cleanupErr);
+        }
+      }
       failedCount++;
       results.push({ index: i, name: contactPerson, phone: canonicalPhone, success: false, error: err.message || "Failed to insert record" });
     }
@@ -844,10 +946,14 @@ export async function handleBulkImportCases(c) {
 
   return c.json({
     success: true,
-    message: `Successfully imported ${importedCount} of ${rawClients.length} clients.`,
+    message: isScheduled && scheduledForUtc
+      ? `Successfully scheduled outreach for ${importedCount} of ${rawClients.length} clients.`
+      : `Successfully imported ${importedCount} of ${rawClients.length} clients.`,
     total: rawClients.length,
     importedCount,
     failedCount,
+    scheduled: !!(isScheduled && scheduledForUtc),
+    nextRunUtc: scheduledForUtc,
     results
   });
 }

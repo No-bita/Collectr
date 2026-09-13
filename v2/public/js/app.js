@@ -1803,10 +1803,7 @@ if (openAddBtn) {
     if (el("modalErrorStep1")) el("modalErrorStep1").hidden = true;
     if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
 
-    setDeliveryTiming('now');
-    const recurrenceSelect = el("scheduleRecurrence");
-    if (recurrenceSelect) recurrenceSelect.value = "one_off";
-    wizardState.schedule = null;
+    clearWizardSchedule();
 
     const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
     const amountGroup = el("amountRequiredGroup");
@@ -2028,33 +2025,25 @@ if (cpInput) {
   });
 }
 
-// Schedule Delivery Timing Logic
-let currentDeliveryTiming = 'now'; // 'now' | 'schedule'
+// ==========================================
+// Scheduling Popover Panel Engine
+// ==========================================
+let wizardScheduleState = null;
+let bulkScheduleState = null;
 
-function setDeliveryTiming(mode) {
-  currentDeliveryTiming = mode;
-  const btnNow = el("btnDeliveryNow");
-  const btnSchedule = el("btnDeliverySchedule");
-  const scheduleContainer = el("scheduleOptionsContainer");
-  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
-  const continueBtn = el("btnDetailsContinue");
+function formatScheduleChipText(isoDateStr, recurrence) {
+  const d = new Date(isoDateStr);
+  const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const rec = (recurrence && recurrence !== 'one_off') ? ` (${recurrence.charAt(0).toUpperCase() + recurrence.slice(1)})` : '';
+  return `${dateStr}, ${timeStr}${rec}`;
+}
 
-  if (mode === 'schedule') {
-    if (btnNow) {
-      btnNow.classList.remove("active");
-      btnNow.style.background = "#F8FAFC";
-      btnNow.style.color = "#475569";
-      btnNow.style.borderColor = "#CBD5E1";
-    }
-    if (btnSchedule) {
-      btnSchedule.classList.add("active");
-      btnSchedule.style.background = "#0F172A";
-      btnSchedule.style.color = "#FFFFFF";
-      btnSchedule.style.borderColor = "#0F172A";
-    }
-    if (scheduleContainer) {
-      scheduleContainer.hidden = false;
-    }
+function openWizardSchedulePopup() {
+  const popup = el("wizardSchedulePopup");
+  if (!popup) return;
+  const isHidden = popup.hidden;
+  if (isHidden) {
     const dtInput = el("scheduleDatetime");
     if (dtInput) {
       const now = new Date();
@@ -2066,77 +2055,282 @@ function setDeliveryTiming(mode) {
         dtInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       }
     }
-    if (persona === 'direct_outreach' && continueBtn) {
-      continueBtn.textContent = "Schedule Message →";
-    }
+    const errBox = el("wizardScheduleError");
+    if (errBox) errBox.hidden = true;
+    popup.hidden = false;
   } else {
-    if (btnNow) {
-      btnNow.classList.add("active");
-      btnNow.style.background = "#0F172A";
-      btnNow.style.color = "#FFFFFF";
-      btnNow.style.borderColor = "#0F172A";
-    }
-    if (btnSchedule) {
-      btnSchedule.classList.remove("active");
-      btnSchedule.style.background = "#F8FAFC";
-      btnSchedule.style.color = "#475569";
-      btnSchedule.style.borderColor = "#CBD5E1";
-    }
-    if (scheduleContainer) {
-      scheduleContainer.hidden = true;
-    }
-    if (persona === 'direct_outreach' && continueBtn) {
-      continueBtn.textContent = "Send Message →";
-    }
+    popup.hidden = true;
   }
 }
 
-const btnDeliveryNow = el("btnDeliveryNow");
-if (btnDeliveryNow) {
-  btnDeliveryNow.addEventListener("click", () => setDeliveryTiming('now'));
-}
-const btnDeliverySchedule = el("btnDeliverySchedule");
-if (btnDeliverySchedule) {
-  btnDeliverySchedule.addEventListener("click", () => setDeliveryTiming('schedule'));
+function closeWizardSchedulePopup() {
+  const popup = el("wizardSchedulePopup");
+  if (popup) popup.hidden = true;
 }
 
-function getSchedulePayloadFromInputs(errorContainerId) {
-  if (currentDeliveryTiming !== 'schedule') return null;
-
+function setWizardSchedule() {
   const dtInput = el("scheduleDatetime");
+  const errBox = el("wizardScheduleError");
+  if (errBox) errBox.hidden = true;
+
   const dtVal = dtInput ? dtInput.value : "";
   if (!dtVal) {
-    showActionableError("Please select a date and time for the scheduled message.", errorContainerId);
+    if (errBox) {
+      errBox.textContent = "Please select a date and time.";
+      errBox.hidden = false;
+    }
     if (dtInput) dtInput.focus();
-    return { error: true };
+    return;
   }
 
   const schedDate = new Date(dtVal);
   if (isNaN(schedDate.getTime())) {
-    showActionableError("Please enter a valid date and time.", errorContainerId);
+    if (errBox) {
+      errBox.textContent = "Please enter a valid date and time.";
+      errBox.hidden = false;
+    }
     if (dtInput) dtInput.focus();
-    return { error: true };
+    return;
   }
 
   if (schedDate.getTime() <= Date.now()) {
-    showActionableError("Scheduled date and time must be in the future.", errorContainerId);
+    if (errBox) {
+      errBox.textContent = "Date and time must be in the future.";
+      errBox.hidden = false;
+    }
     if (dtInput) dtInput.focus();
-    return { error: true };
+    return;
   }
 
-  const recurrenceSelect = el("scheduleRecurrence");
-  const recurrenceVal = recurrenceSelect ? recurrenceSelect.value : "one_off";
+  const recSelect = el("scheduleRecurrence");
+  const recurrenceVal = recSelect ? recSelect.value : "one_off";
   let userTz = "Asia/Kolkata";
   try {
     userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
   } catch (_) {}
 
-  return {
-    scheduledFor: schedDate.toISOString(),
-    recurrenceInterval: recurrenceVal,
-    scheduleType: recurrenceVal && recurrenceVal !== 'one_off' ? 'recurring' : 'one_off',
+  const isRecurring = (recurrenceVal && recurrenceVal !== 'one_off');
+  wizardScheduleState = {
+    scheduledFor: dtVal,
+    scheduleType: isRecurring ? 'recurring' : 'one_off',
     timezone: userTz
   };
+  if (isRecurring) {
+    wizardScheduleState.recurrenceInterval = recurrenceVal;
+  }
+  wizardState.schedule = wizardScheduleState;
+
+  const chip = el("wizardScheduleChip");
+  const chipText = el("wizardScheduleChipText");
+  if (chipText) chipText.textContent = formatScheduleChipText(dtVal, recurrenceVal);
+  if (chip) chip.hidden = false;
+
+  const clockBtn = el("btnOpenSchedulePopup");
+  if (clockBtn) clockBtn.classList.add("active");
+
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const continueBtn = el("btnDetailsContinue");
+  if (persona === 'direct_outreach' && continueBtn) {
+    continueBtn.textContent = "Schedule Message →";
+  }
+
+  closeWizardSchedulePopup();
+}
+
+function clearWizardSchedule() {
+  wizardScheduleState = null;
+  wizardState.schedule = null;
+
+  const chip = el("wizardScheduleChip");
+  if (chip) chip.hidden = true;
+
+  const clockBtn = el("btnOpenSchedulePopup");
+  if (clockBtn) clockBtn.classList.remove("active");
+
+  const dtInput = el("scheduleDatetime");
+  if (dtInput) dtInput.value = "";
+  const recSelect = el("scheduleRecurrence");
+  if (recSelect) recSelect.value = "one_off";
+
+  const errBox = el("wizardScheduleError");
+  if (errBox) errBox.hidden = true;
+
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const continueBtn = el("btnDetailsContinue");
+  if (persona === 'direct_outreach' && continueBtn) {
+    continueBtn.textContent = "Send Message →";
+  }
+}
+
+function openBulkSchedulePopup() {
+  const popup = el("bulkSchedulePopup");
+  if (!popup) return;
+  const isHidden = popup.hidden;
+  if (isHidden) {
+    const dtInput = el("bulkScheduleDatetime");
+    if (dtInput) {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      dtInput.min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      if (!dtInput.value) {
+        const d = new Date(Date.now() + 60 * 60 * 1000);
+        d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0);
+        dtInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    }
+    const errBox = el("bulkScheduleError");
+    if (errBox) errBox.hidden = true;
+    popup.hidden = false;
+  } else {
+    popup.hidden = true;
+  }
+}
+
+function closeBulkSchedulePopup() {
+  const popup = el("bulkSchedulePopup");
+  if (popup) popup.hidden = true;
+}
+
+function setBulkSchedule() {
+  const dtInput = el("bulkScheduleDatetime");
+  const errBox = el("bulkScheduleError");
+  if (errBox) errBox.hidden = true;
+
+  const dtVal = dtInput ? dtInput.value : "";
+  if (!dtVal) {
+    if (errBox) {
+      errBox.textContent = "Please select a date and time.";
+      errBox.hidden = false;
+    }
+    if (dtInput) dtInput.focus();
+    return;
+  }
+
+  const schedDate = new Date(dtVal);
+  if (isNaN(schedDate.getTime())) {
+    if (errBox) {
+      errBox.textContent = "Please enter a valid date and time.";
+      errBox.hidden = false;
+    }
+    if (dtInput) dtInput.focus();
+    return;
+  }
+
+  if (schedDate.getTime() <= Date.now()) {
+    if (errBox) {
+      errBox.textContent = "Date and time must be in the future.";
+      errBox.hidden = false;
+    }
+    if (dtInput) dtInput.focus();
+    return;
+  }
+
+  const recSelect = el("bulkScheduleRecurrence");
+  const recurrenceVal = recSelect ? recSelect.value : "one_off";
+  let userTz = "Asia/Kolkata";
+  try {
+    userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+  } catch (_) {}
+
+  const isRecurring = (recurrenceVal && recurrenceVal !== 'one_off');
+  bulkScheduleState = {
+    scheduledFor: dtVal,
+    scheduleType: isRecurring ? 'recurring' : 'one_off',
+    timezone: userTz
+  };
+  if (isRecurring) {
+    bulkScheduleState.recurrenceInterval = recurrenceVal;
+  }
+
+  const chip = el("bulkScheduleChip");
+  const chipText = el("bulkScheduleChipText");
+  if (chipText) chipText.textContent = formatScheduleChipText(dtVal, recurrenceVal);
+  if (chip) chip.hidden = false;
+
+  const clockBtn = el("btnBulkOpenSchedule");
+  if (clockBtn) clockBtn.classList.add("active");
+
+  updateBulkSubmitButtonLabel();
+  closeBulkSchedulePopup();
+}
+
+function clearBulkSchedule() {
+  bulkScheduleState = null;
+
+  const chip = el("bulkScheduleChip");
+  if (chip) chip.hidden = true;
+
+  const clockBtn = el("btnBulkOpenSchedule");
+  if (clockBtn) clockBtn.classList.remove("active");
+
+  const dtInput = el("bulkScheduleDatetime");
+  if (dtInput) dtInput.value = "";
+  const recSelect = el("bulkScheduleRecurrence");
+  if (recSelect) recSelect.value = "one_off";
+
+  const errBox = el("bulkScheduleError");
+  if (errBox) errBox.hidden = true;
+
+  updateBulkSubmitButtonLabel();
+}
+
+function updateBulkSubmitButtonLabel() {
+  const submitBtn = el("btnExecuteBulkImport");
+  if (!submitBtn) return;
+  const validCount = (Array.isArray(parsedBulkClients) ? parsedBulkClients : []).filter(r => r.isValid).length;
+  if (submitBtn.disabled && validCount === 0) return;
+
+  if (bulkScheduleState) {
+    submitBtn.textContent = `Schedule Outreach for ${validCount} Client${validCount === 1 ? '' : 's'}`;
+  } else {
+    submitBtn.textContent = `Import ${validCount} Client${validCount === 1 ? '' : 's'}`;
+  }
+}
+
+const btnOpenSchedulePopup = el("btnOpenSchedulePopup");
+if (btnOpenSchedulePopup) btnOpenSchedulePopup.addEventListener("click", openWizardSchedulePopup);
+
+const btnCloseWizardSchedulePopup = el("btnCloseWizardSchedulePopup");
+if (btnCloseWizardSchedulePopup) btnCloseWizardSchedulePopup.addEventListener("click", closeWizardSchedulePopup);
+
+const btnCancelWizardSchedule = el("btnCancelWizardSchedule");
+if (btnCancelWizardSchedule) btnCancelWizardSchedule.addEventListener("click", closeWizardSchedulePopup);
+
+const btnSetWizardSchedule = el("btnSetWizardSchedule");
+if (btnSetWizardSchedule) btnSetWizardSchedule.addEventListener("click", setWizardSchedule);
+
+const btnClearWizardSchedule = el("btnClearWizardSchedule");
+if (btnClearWizardSchedule) btnClearWizardSchedule.addEventListener("click", clearWizardSchedule);
+
+const btnBulkOpenSchedule = el("btnBulkOpenSchedule");
+if (btnBulkOpenSchedule) btnBulkOpenSchedule.addEventListener("click", openBulkSchedulePopup);
+
+const btnCloseBulkSchedulePopup = el("btnCloseBulkSchedulePopup");
+if (btnCloseBulkSchedulePopup) btnCloseBulkSchedulePopup.addEventListener("click", closeBulkSchedulePopup);
+
+const btnCancelBulkSchedule = el("btnCancelBulkSchedule");
+if (btnCancelBulkSchedule) btnCancelBulkSchedule.addEventListener("click", closeBulkSchedulePopup);
+
+const btnSetBulkSchedule = el("btnSetBulkSchedule");
+if (btnSetBulkSchedule) btnSetBulkSchedule.addEventListener("click", setBulkSchedule);
+
+const btnBulkClearSchedule = el("btnBulkClearSchedule");
+if (btnBulkClearSchedule) btnBulkClearSchedule.addEventListener("click", clearBulkSchedule);
+
+const bulkSendWhatsAppCheckEl = el("bulkSendWhatsAppCheck");
+if (bulkSendWhatsAppCheckEl) {
+  bulkSendWhatsAppCheckEl.addEventListener("change", (e) => {
+    const isChecked = e.target.checked;
+    const clockBtn = el("btnBulkOpenSchedule");
+    const chip = el("bulkScheduleChip");
+    const popup = el("bulkSchedulePopup");
+    if (clockBtn) clockBtn.style.display = isChecked ? "inline-flex" : "none";
+    if (chip && !isChecked) chip.hidden = true;
+    if (popup && !isChecked) popup.hidden = true;
+    if (!isChecked) {
+      clearBulkSchedule();
+    }
+  });
 }
 
 // Contact Duplicate Check Helpers
@@ -2252,13 +2446,8 @@ if (btnDetailsContinue) {
         return;
       }
 
-      // If delivery is scheduled, validate schedule inputs
-      let schedulePayload = null;
-      if (currentDeliveryTiming === 'schedule') {
-        const schedRes = getSchedulePayloadFromInputs("modalErrorStep1");
-        if (schedRes && schedRes.error) return;
-        schedulePayload = schedRes;
-      }
+      // If delivery is scheduled via popover, attach schedule
+      const schedulePayload = wizardScheduleState;
 
       // Pre-check Contact duplicate state
       const checkData = await checkContactDuplicate(rawPhone, selectedTemplate);
@@ -2386,13 +2575,8 @@ if (btnDetailsContinue) {
       amountRequired = (rawAmount && !isNaN(parseFloat(rawAmount)) && parseFloat(rawAmount) > 0) ? parseFloat(rawAmount) : null;
     }
 
-    // If delivery is scheduled, validate schedule inputs
-    let schedulePayload = null;
-    if (currentDeliveryTiming === 'schedule') {
-      const schedRes = getSchedulePayloadFromInputs("modalErrorStep1");
-      if (schedRes && schedRes.error) return;
-      schedulePayload = schedRes;
-    }
+    // If delivery is scheduled via popover, attach schedule
+    const schedulePayload = wizardScheduleState;
 
     const proceedToDocsScreen = () => {
       // Save to State Machine
@@ -3274,6 +3458,10 @@ function openBulkImportModal() {
   if (err) err.hidden = true;
   const fileInput = el("bulkFileInput");
   if (fileInput) fileInput.value = "";
+  clearBulkSchedule();
+  const sendWhatsAppCheck = el("bulkSendWhatsAppCheck");
+  const clockBtn = el("btnBulkOpenSchedule");
+  if (clockBtn) clockBtn.style.display = (sendWhatsAppCheck && sendWhatsAppCheck.checked) ? "inline-flex" : "none";
 }
 
 function updateBulkSampleFormat() {
@@ -3424,7 +3612,7 @@ function renderBulkImportPreview(rows) {
 
   if (submitBtn) {
     submitBtn.disabled = (validCount === 0);
-    submitBtn.textContent = `Import ${validCount} Client${validCount === 1 ? '' : 's'}`;
+    updateBulkSubmitButtonLabel();
   }
 
   if (!tbody) return;
@@ -3542,9 +3730,15 @@ async function executeBulkImport() {
     noDocsRequired: isDirectOutreach
   };
 
+  if (sendWhatsApp && bulkScheduleState) {
+    payload.schedule = bulkScheduleState;
+  }
+
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.textContent = `Importing ${validRows.length} clients...`;
+    submitBtn.textContent = (sendWhatsApp && bulkScheduleState)
+      ? `Scheduling outreach for ${validRows.length} clients...`
+      : `Importing ${validRows.length} clients...`;
   }
 
   try {
@@ -3556,8 +3750,22 @@ async function executeBulkImport() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Failed to import client batch.");
 
+    const totalParsedCount = (Array.isArray(parsedBulkClients) ? parsedBulkClients.length : validRows.length);
+    const skippedInvalidCount = totalParsedCount - validRows.length;
+    const importedCount = data.importedCount || 0;
+    const backendFailedCount = data.failedCount || 0;
+    const actionWord = data.scheduled ? "scheduled" : "imported";
+
     if (typeof UI !== 'undefined' && UI.toast) {
-      UI.toast(`Successfully imported ${data.importedCount} clients!`, "success");
+      if (skippedInvalidCount > 0 && backendFailedCount > 0) {
+        UI.toast(`${importedCount} clients ${actionWord} (${backendFailedCount} failed) · ${skippedInvalidCount} invalid rows skipped`, "warning");
+      } else if (skippedInvalidCount > 0) {
+        UI.toast(`${importedCount} clients ${actionWord} · ${skippedInvalidCount} invalid rows skipped`, "success");
+      } else if (backendFailedCount > 0) {
+        UI.toast(`${importedCount} clients ${actionWord} · ${backendFailedCount} failed`, "warning");
+      } else {
+        UI.toast(`Successfully ${actionWord} ${importedCount} clients!`, "success");
+      }
     }
 
     closeBulkImportModal();
@@ -3571,7 +3779,7 @@ async function executeBulkImport() {
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = `Import ${validRows.length} Clients`;
+      updateBulkSubmitButtonLabel();
     }
   }
 }

@@ -4,7 +4,7 @@
  */
 
 import { getDbClient } from "../db/client.js";
-import { toSqliteUtc, isValidTimezone } from "../scheduler/time.js";
+import { toSqliteUtc, isValidTimezone, parseScheduledForToUtc } from "../scheduler/time.js";
 
 const VALID_INTERVALS = ["daily", "weekly", "monthly"];
 const VALID_SCHEDULE_TYPES = ["one_off", "recurring"];
@@ -51,65 +51,61 @@ export async function handleCreateSchedule(c) {
     return c.json({ error: "Recurring schedules require recurrenceInterval: 'daily', 'weekly', or 'monthly'" }, 400);
   }
 
-  const safeTz = isValidTimezone(timezone) ? timezone : "UTC";
-
-  // Compute scheduled_for_utc
-  let scheduledForUtc;
-  if (scheduledFor) {
-    const d = new Date(scheduledFor);
-    if (isNaN(d.getTime())) {
-      return c.json({ error: "Invalid scheduledFor date format" }, 400);
-    }
-    scheduledForUtc = toSqliteUtc(d);
-  } else {
-    // Default to immediately / current timestamp
-    scheduledForUtc = toSqliteUtc(new Date());
-  }
+  const safeRecurrenceInterval = (scheduleType === "recurring") ? recurrenceInterval : null;
+  const safeTz = isValidTimezone(timezone) ? timezone : "Asia/Kolkata";
+  const scheduledForUtc = parseScheduledForToUtc(scheduledFor, safeTz);
 
   const scheduleId = `sch_${crypto.randomUUID()}`;
   const occurrenceId = `occ_${crypto.randomUUID()}`;
   const occurrenceKey = `${scheduleId}_${scheduledForUtc}`;
 
-  // Insert schedule (NO credit deduction on creation as per architectural specification)
-  await db.execute({
-    sql: `
-      INSERT INTO schedules (
-        id, user_id, case_id, contact_id, phone_number, template_name,
-        template_params, schedule_type, recurrence_interval, timezone,
-        status, next_run_utc
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
-    `,
-    args: [
-      scheduleId,
-      user.id,
-      caseId,
-      contactId,
-      cleanedPhone,
-      templateName,
-      JSON.stringify(templateParams),
-      scheduleType,
-      recurrenceInterval,
-      safeTz,
-      scheduledForUtc
-    ]
-  });
+  const scheduleStatements = [
+    {
+      sql: `
+        INSERT INTO schedules (
+          id, user_id, case_id, contact_id, phone_number, template_name,
+          template_params, schedule_type, recurrence_interval, timezone,
+          status, next_run_utc
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+      `,
+      args: [
+        scheduleId,
+        user.id,
+        caseId,
+        contactId,
+        cleanedPhone,
+        templateName,
+        JSON.stringify(templateParams),
+        scheduleType,
+        safeRecurrenceInterval,
+        safeTz,
+        scheduledForUtc
+      ]
+    },
+    {
+      sql: `
+        INSERT INTO scheduled_occurrences (
+          id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
+        ) VALUES (?, ?, ?, ?, 'pending')
+      `,
+      args: [occurrenceId, scheduleId, occurrenceKey, scheduledForUtc]
+    }
+  ];
 
-  // Insert initial pending occurrence
-  await db.execute({
-    sql: `
-      INSERT INTO scheduled_occurrences (
-        id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
-      ) VALUES (?, ?, ?, ?, 'pending')
-    `,
-    args: [occurrenceId, scheduleId, occurrenceKey, scheduledForUtc]
-  });
+  if (typeof db.batch === "function") {
+    await db.batch(scheduleStatements);
+  } else {
+    for (const stmt of scheduleStatements) {
+      await db.execute(stmt);
+    }
+  }
 
   return c.json({
     success: true,
     schedule: {
       id: scheduleId,
       scheduleType,
-      recurrenceInterval,
+      recurrenceInterval: safeRecurrenceInterval,
       timezone: safeTz,
       scheduledForUtc,
       status: "active"

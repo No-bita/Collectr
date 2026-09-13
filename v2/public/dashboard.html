@@ -297,38 +297,49 @@
                 <input id="amountRequired" name="amountRequired" type="number" step="any" min="0" placeholder="25" required />
               </div>
 
-              <div class="field" id="scheduleDeliveryGroup" style="margin-top: 14px;">
-                <label style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 6px;">Delivery Timing</label>
-                <div class="delivery-toggle-container" style="display: flex; gap: 8px; margin-bottom: 8px;">
-                  <button type="button" class="delivery-toggle-btn active" id="btnDeliveryNow" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid #CBD5E1; background: #0F172A; color: #FFFFFF; cursor: pointer; transition: all 0.15s ease;">Send Now</button>
-                  <button type="button" class="delivery-toggle-btn" id="btnDeliverySchedule" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid #CBD5E1; background: #F8FAFC; color: #475569; cursor: pointer; transition: all 0.15s ease;">Schedule for Later</button>
-                </div>
-
-                <div id="scheduleOptionsContainer" hidden style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
-                  <div class="form-row-2col">
-                    <div class="field">
-                      <label for="scheduleDatetime" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Date & Time</label>
-                      <input type="datetime-local" id="scheduleDatetime" class="form-input" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;" />
-                    </div>
-                    <div class="field">
-                      <label for="scheduleRecurrence" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Repeat</label>
-                      <select id="scheduleRecurrence" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;">
-                        <option value="one_off">One-off</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div id="modalErrorStep1" class="wizard-error-box" hidden></div>
             </div>
 
-            <div class="wizard-footer">
+            <div class="wizard-footer" style="position: relative;">
               <button type="button" class="btn" id="cancelAdd">Cancel</button>
-              <button type="button" class="btn btn-primary" id="btnDetailsContinue">Continue →</button>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="wizardScheduleChip" class="schedule-chip" hidden>
+                  <span id="wizardScheduleChipText"></span>
+                  <button type="button" id="btnClearWizardSchedule" title="Clear schedule" aria-label="Clear schedule">✕</button>
+                </span>
+                <button type="button" class="btn btn-primary" id="btnDetailsContinue">Continue →</button>
+                <button type="button" class="btn-schedule-clock" id="btnOpenSchedulePopup" title="Schedule message" aria-label="Schedule message">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </button>
+              </div>
+
+              <!-- Scheduling popover panel within wizard modal -->
+              <div class="schedule-popover-panel" id="wizardSchedulePopup" hidden role="region" aria-label="Schedule message">
+                <div class="schedule-popover-header">
+                  <span style="font-weight: 600; font-size: 13px; color: #0F172A;">Schedule for Later</span>
+                  <button type="button" class="schedule-popover-close" id="btnCloseWizardSchedulePopup" aria-label="Close scheduling panel">✕</button>
+                </div>
+                <div class="schedule-popover-body">
+                  <div class="field" style="margin-bottom: 8px;">
+                    <label for="scheduleDatetime" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Date & Time</label>
+                    <input type="datetime-local" id="scheduleDatetime" class="form-input" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;" />
+                  </div>
+                  <div class="field" style="margin-bottom: 12px;">
+                    <label for="scheduleRecurrence" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Repeat</label>
+                    <select id="scheduleRecurrence" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;">
+                      <option value="one_off">One-off</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                  <div id="wizardScheduleError" class="wizard-error-box" hidden style="font-size: 11px; padding: 6px 8px; margin-bottom: 8px;"></div>
+                </div>
+                <div class="schedule-popover-footer">
+                  <button type="button" class="btn btn-sm" id="btnCancelWizardSchedule" style="padding: 5px 10px; font-size: 12px;">Cancel</button>
+                  <button type="button" class="btn btn-sm btn-primary" id="btnSetWizardSchedule" style="padding: 5px 12px; font-size: 12px; background: #0F172A; color: #FFFFFF; border-radius: 6px;">Set Schedule</button>
+                </div>
+              </div>
             </div>
           </form>
         </div>
@@ -667,15 +678,52 @@
             </div>
           </div>
 
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; position: relative;">
             <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; font-weight: 500; cursor: pointer;">
               <input type="checkbox" id="bulkHasHeaderCheck" checked style="width: 16px; height: 16px;" />
               <span>First row includes header</span>
             </label>
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; font-weight: 500; cursor: pointer;">
-              <input type="checkbox" id="bulkSendWhatsAppCheck" checked style="width: 16px; height: 16px;" />
-              <span>Send WhatsApp onboarding message to all valid contacts</span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; font-weight: 500; cursor: pointer; margin: 0;">
+                <input type="checkbox" id="bulkSendWhatsAppCheck" checked style="width: 16px; height: 16px;" />
+                <span>Send WhatsApp onboarding message to all valid contacts</span>
+              </label>
+              <button type="button" class="btn-schedule-clock" id="btnBulkOpenSchedule" title="Schedule message" aria-label="Schedule message">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </button>
+              <span id="bulkScheduleChip" class="schedule-chip" hidden>
+                <span id="bulkScheduleChipText"></span>
+                <button type="button" id="btnBulkClearSchedule" title="Clear schedule" aria-label="Clear schedule">✕</button>
+              </span>
+            </div>
+
+            <!-- Scheduling Popover Panel within Bulk Import Modal -->
+            <div class="schedule-popover-panel" id="bulkSchedulePopup" hidden role="region" aria-label="Schedule message" style="top: calc(100% + 4px); bottom: auto; left: 0; right: auto;">
+              <div class="schedule-popover-header">
+                <span style="font-weight: 600; font-size: 13px; color: #0F172A;">Schedule for Later</span>
+                <button type="button" class="schedule-popover-close" id="btnCloseBulkSchedulePopup" aria-label="Close scheduling panel">✕</button>
+              </div>
+              <div class="schedule-popover-body">
+                <div class="field" style="margin-bottom: 8px;">
+                  <label for="bulkScheduleDatetime" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Date & Time</label>
+                  <input type="datetime-local" id="bulkScheduleDatetime" class="form-input" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;" />
+                </div>
+                <div class="field" style="margin-bottom: 12px;">
+                  <label for="bulkScheduleRecurrence" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Repeat</label>
+                  <select id="bulkScheduleRecurrence" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;">
+                    <option value="one_off">One-off</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div id="bulkScheduleError" class="wizard-error-box" hidden style="font-size: 11px; padding: 6px 8px; margin-bottom: 8px;"></div>
+              </div>
+              <div class="schedule-popover-footer">
+                <button type="button" class="btn btn-sm" id="btnCancelBulkSchedule" style="padding: 5px 10px; font-size: 12px;">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btnSetBulkSchedule" style="padding: 5px 12px; font-size: 12px; background: #0F172A; color: #FFFFFF; border-radius: 6px;">Set Schedule</button>
+              </div>
+            </div>
           </div>
 
           <!-- Parsed Data Preview Table -->

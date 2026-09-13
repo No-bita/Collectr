@@ -178,3 +178,45 @@ export function isValidTimezone(tz) {
     return false;
   }
 }
+
+/**
+ * Converts a scheduledFor input (which may be a datetime-local string 'YYYY-MM-DDTHH:mm'
+ * or an ISO UTC string) in a given IANA timezone to a standardized SQLite UTC string.
+ * Strictly guarantees datetime-local strings are parsed in the specified IANA timezone,
+ * never accidentally interpreted as UTC.
+ */
+export function parseScheduledForToUtc(scheduledFor, timezone = "Asia/Kolkata") {
+  if (!scheduledFor) return toSqliteUtc(new Date());
+
+  const safeTz = isValidTimezone(timezone) ? timezone : "Asia/Kolkata";
+
+  // Case 1: If string includes an explicit UTC offset ('Z' or '+/-HH:mm')
+  if (typeof scheduledFor === "string" && (scheduledFor.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(scheduledFor))) {
+    const d = new Date(scheduledFor);
+    if (!isNaN(d.getTime())) return toSqliteUtc(d);
+  }
+
+  // Case 2: datetime-local string format "YYYY-MM-DDTHH:mm" or "YYYY-MM-DD HH:mm:ss" without offset
+  // Parse year, month, day, hour, minute and convert using localToUtc in the target IANA timezone
+  if (typeof scheduledFor === "string") {
+    const match = scheduledFor.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (match) {
+      const [, y, m, d, h, min, s] = match;
+      const utcDate = localToUtc(
+        parseInt(y, 10),
+        parseInt(m, 10),
+        parseInt(d, 10),
+        parseInt(h, 10),
+        parseInt(min, 10),
+        parseInt(s || "0", 10),
+        safeTz
+      );
+      return toSqliteUtc(utcDate);
+    }
+  }
+
+  // Fallback if Date object or other parseable date
+  const d = new Date(scheduledFor);
+  if (!isNaN(d.getTime())) return toSqliteUtc(d);
+  return toSqliteUtc(new Date());
+}

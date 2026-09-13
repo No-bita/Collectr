@@ -1,6 +1,15 @@
 export function getDbClient(env) {
   const db = env?.DB || env;
   if (db && typeof db.execute === "function" && typeof db.prepare !== "function") {
+    if (typeof db.batch !== "function") {
+      db.batch = async (queries) => {
+        const results = [];
+        for (const q of queries) {
+          results.push(await db.execute(q));
+        }
+        return results;
+      };
+    }
     return db;
   }
   
@@ -205,7 +214,26 @@ export function getDbClient(env) {
     }
   };
 
+  const executeBatch = async (queries) => {
+    if (db && typeof db.batch === "function") {
+      const prepared = queries.map(q => {
+        const sql = typeof q === "string" ? q : q.sql;
+        const args = typeof q === "string" ? [] : (q.args || []);
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        return stmt;
+      });
+      return await db.batch(prepared);
+    }
+    const results = [];
+    for (const q of queries) {
+      results.push(await executeQuery(q));
+    }
+    return results;
+  };
+
   return {
-    execute: executeQuery
+    execute: executeQuery,
+    batch: executeBatch
   };
 }
