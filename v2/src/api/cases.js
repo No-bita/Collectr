@@ -100,7 +100,7 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson) {
     args: [userId, canonicalPhone]
   });
 
-  if (existingRes.rows.length > 0) {
+  if (existingRes.rows && existingRes.rows.length > 0) {
     return {
       id: existingRes.rows[0].id,
       contactPerson: existingRes.rows[0].contact_person,
@@ -110,16 +110,31 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson) {
 
   const contactId = "cnt_" + crypto.randomUUID();
   const name = contactPerson || ("Client " + canonicalPhone.slice(-4));
-  await db.execute({
-    sql: "INSERT INTO contacts (id, user_id, contact_person, phone_number, created_at, last_updated) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
-    args: [contactId, userId, name, canonicalPhone]
-  });
-
-  return {
-    id: contactId,
-    contactPerson: name,
-    isNew: true
-  };
+  try {
+    await db.execute({
+      sql: "INSERT INTO contacts (id, user_id, contact_person, phone_number, created_at, last_updated) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
+      args: [contactId, userId, name, canonicalPhone]
+    });
+    return {
+      id: contactId,
+      contactPerson: name,
+      isNew: true
+    };
+  } catch (insertErr) {
+    // If concurrent insert created the contact, fetch the existing record
+    const retryRes = await db.execute({
+      sql: "SELECT id, contact_person FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
+      args: [userId, canonicalPhone]
+    });
+    if (retryRes.rows && retryRes.rows.length > 0) {
+      return {
+        id: retryRes.rows[0].id,
+        contactPerson: retryRes.rows[0].contact_person,
+        isNew: false
+      };
+    }
+    throw insertErr;
+  }
 }
 
 export async function executeWhatsAppMessagingPipeline(
@@ -559,15 +574,15 @@ export async function handleCreateCase(c) {
     // 1. Ensure Contact exists (without silently renaming existing Contact)
     const contact = await ensureContact(db, userId, canonicalPhone, contactPerson);
 
-    // 2. Active Mini Target duplicate check
+    // 2. Active workflow duplicate check
     const existingActiveRes = await db.execute({
-      sql: "SELECT id FROM loan_cases WHERE contact_id = ? AND lower(trim(loan_product)) = lower(trim(?)) AND status IN ('lead', 'documents_pending', 'ready_for_review', 'submitted', 'approved') LIMIT 1",
-      args: [contact.id, loanProduct]
+      sql: "SELECT id FROM loan_cases WHERE user_id = ? AND phone_number = ? AND status NOT IN ('closed', 'completed') LIMIT 1",
+      args: [userId, canonicalPhone]
     });
 
-    if (existingActiveRes.rows.length > 0) {
+    if (existingActiveRes.rows && existingActiveRes.rows.length > 0) {
       return c.json({
-        error: `An active Mini Target for "${loanProduct}" already exists under ${contact.contactPerson}. Please manage the existing target or close it before re-creating.`
+        error: `An active workflow already exists for ${contact.contactPerson || canonicalPhone}. Please complete or close the existing workflow before creating a new one.`
       }, 400);
     }
 
@@ -581,22 +596,18 @@ export async function handleCreateCase(c) {
     const initialDeliveryStatus = isScheduled ? 'scheduled' : 'pending';
 
     let scheduledForUtc = null;
-    let schedType = "one_off";
-    let recurrenceInterval = null;
     let timezone = "Asia/Kolkata";
     let scheduleId = null;
 
     if (isScheduled) {
       timezone = isValidTimezone(body.schedule.timezone) ? body.schedule.timezone : "Asia/Kolkata";
       scheduledForUtc = parseScheduledForToUtc(body.schedule.scheduledFor, timezone);
-      schedType = body.schedule.scheduleType || (body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off" ? "recurring" : "one_off");
-      recurrenceInterval = (schedType === "recurring" && body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off") ? body.schedule.recurrenceInterval : null;
       scheduleId = `sch_${crypto.randomUUID()}`;
     }
 
     const caseStatements = [];
 
-    // 1. Insert Mini Target
+    // 1. Insert Case / Workflow record
     caseStatements.push({
       sql: `INSERT INTO loan_cases (id, contact_id, user_id, is_demo, contact_person, phone_number, loan_product, template_name, amount_required, status, whatsapp_delivery_status, created_at, last_updated)
             VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
@@ -623,7 +634,7 @@ export async function handleCreateCase(c) {
     caseStatements.push({
       sql: `INSERT INTO case_timeline (id, contact_id, case_id, event_type, content, created_by)
             VALUES (?, ?, ?, 'case_created', ?, 'agent')`,
-      args: [crypto.randomUUID(), contact.id, caseId, isNoDocs ? `Direct outreach message dispatched for ${loanProduct}` : `Filing request created for ${loanProduct}`]
+      args: [crypto.randomUUID(), contact.id, caseId, isNoDocs ? `Direct outreach message dispatched for ${loanProduct}` : `Workflow request created for ${loanProduct}`]
     });
 
     // 5. If scheduled, append schedule and initial occurrence statements to the atomic batch
@@ -647,8 +658,8 @@ export async function handleCreateCase(c) {
           canonicalPhone,
           targetTemplate,
           JSON.stringify(templateParams),
-          schedType,
-          recurrenceInterval,
+          'one_off',
+          null,
           timezone,
           scheduledForUtc
         ]
@@ -663,7 +674,6 @@ export async function handleCreateCase(c) {
         args: [occId, scheduleId, occKey, scheduledForUtc]
       });
 
-      const intervalNote = recurrenceInterval ? ` (Recurring ${recurrenceInterval})` : "";
       caseStatements.push({
         sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
               VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
@@ -672,8 +682,8 @@ export async function handleCreateCase(c) {
           contact.id,
           caseId,
           targetTemplate,
-          `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`,
-          JSON.stringify({ scheduledForUtc, scheduleType: schedType, recurrenceInterval, timezone })
+          `WhatsApp outreach scheduled for ${scheduledForUtc} UTC`,
+          JSON.stringify({ scheduledForUtc, scheduleType: 'one_off', timezone })
         ]
       });
     }
@@ -780,20 +790,21 @@ export async function handleBulkImportPreview(c) {
       seenInBatch.set(canonicalPhone, i);
     }
 
-    // Check if Contact exists in database
-    const contactRes = await db.execute({
-      sql: "SELECT id, contact_person FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
+    // Check if active workflow exists in database
+    const activeRes = await db.execute({
+      sql: "SELECT id, contact_person, status FROM loan_cases WHERE user_id = ? AND phone_number = ? AND status NOT IN ('closed', 'completed') LIMIT 1",
       args: [userId, canonicalPhone]
     });
 
-    if (contactRes.rows.length > 0) {
-      const existing = contactRes.rows[0];
+    if (activeRes.rows && activeRes.rows.length > 0) {
+      const existing = activeRes.rows[0];
       existingContactRows.push({
         index: i,
         nameEntered: rawName,
         existingContactName: existing.contact_person,
         phone: canonicalPhone,
-        product
+        product,
+        existingCaseId: existing.id
       });
     } else {
       newContactRows.push({
@@ -845,21 +856,19 @@ export async function handleBulkImportCases(c) {
 
   const isScheduled = !!(sendWhatsApp && body.schedule && body.schedule.scheduledFor);
   let scheduledForUtc = null;
-  let schedType = "one_off";
-  let recurrenceInterval = null;
   let timezone = "Asia/Kolkata";
 
   if (isScheduled) {
     timezone = isValidTimezone(body.schedule.timezone) ? body.schedule.timezone : "Asia/Kolkata";
     scheduledForUtc = parseScheduledForToUtc(body.schedule.scheduledFor, timezone);
-    schedType = body.schedule.scheduleType || (body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off" ? "recurring" : "one_off");
-    recurrenceInterval = (schedType === "recurring" && body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off") ? body.schedule.recurrenceInterval : null;
   }
 
   const results = [];
   let importedCount = 0;
+  let duplicateCount = 0;
   let failedCount = 0;
   const immediateJobs = [];
+  const seenPhonesInBatch = new Set();
 
   for (let i = 0; i < rawClients.length; i++) {
     const item = rawClients[i];
@@ -877,6 +886,44 @@ export async function handleBulkImportCases(c) {
 
     if (!contactPerson) {
       contactPerson = "Client " + canonicalPhone.slice(-4);
+    }
+
+    // 1. In-batch duplicate check (A. Same phone twice in one import)
+    if (seenPhonesInBatch.has(canonicalPhone)) {
+      duplicateCount++;
+      results.push({
+        index: i,
+        name: contactPerson,
+        phone: canonicalPhone,
+        status: "duplicate_skipped",
+        skipped: true,
+        reason: "Duplicate phone number in same import batch",
+        success: true
+      });
+      continue;
+    }
+    seenPhonesInBatch.add(canonicalPhone);
+
+    // 2. Existing active workflow check (B. Same phone across separate imports)
+    const activeCaseRes = await db.execute({
+      sql: "SELECT id, contact_person, status, whatsapp_delivery_status FROM loan_cases WHERE user_id = ? AND phone_number = ? AND status NOT IN ('closed', 'completed') LIMIT 1",
+      args: [userId, canonicalPhone]
+    });
+
+    if (activeCaseRes?.rows && activeCaseRes.rows.length > 0) {
+      const existing = activeCaseRes.rows[0];
+      duplicateCount++;
+      results.push({
+        index: i,
+        name: contactPerson || existing.contact_person,
+        phone: canonicalPhone,
+        status: "duplicate_skipped",
+        skipped: true,
+        existingCaseId: existing.id,
+        reason: `Active workflow already exists (${existing.status})`,
+        success: true
+      });
+      continue;
     }
 
     let loanProduct = String(item.loanProduct || item.category || item.product || defaultProduct).trim();
@@ -949,8 +996,8 @@ export async function handleBulkImportCases(c) {
             canonicalPhone,
             templateName,
             JSON.stringify(rowParams),
-            schedType,
-            recurrenceInterval,
+            'one_off',
+            null,
             timezone,
             occExecutionUtc
           ]
@@ -965,9 +1012,8 @@ export async function handleBulkImportCases(c) {
           args: [occId, scheduleId, occKey, occExecutionUtc]
         });
 
-        const intervalNote = recurrenceInterval ? ` (Recurring ${recurrenceInterval})` : "";
         const timelineContent = (isScheduled && scheduledForUtc)
-          ? `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`
+          ? `WhatsApp outreach scheduled for ${scheduledForUtc} UTC`
           : `WhatsApp outreach queued for delivery`;
 
         rowStatements.push({
@@ -979,7 +1025,7 @@ export async function handleBulkImportCases(c) {
             caseId,
             templateName,
             timelineContent,
-            JSON.stringify({ scheduledForUtc: occExecutionUtc, scheduleType: schedType, recurrenceInterval, timezone })
+            JSON.stringify({ scheduledForUtc: occExecutionUtc, scheduleType: 'one_off', timezone })
           ]
         });
       }
@@ -1007,25 +1053,41 @@ export async function handleBulkImportCases(c) {
         phone: canonicalPhone,
         loanProduct,
         whatsappStatus,
+        status: "imported",
         success: true
       });
     } catch (err) {
-      console.error(`Error importing row ${i}:`, err);
-      // Guarantee per-row consistency: purge any partial records for this case
-      if (caseId) {
-        try {
-          await db.execute({ sql: "DELETE FROM scheduled_occurrences WHERE schedule_id IN (SELECT id FROM schedules WHERE case_id = ?)", args: [caseId] });
-          await db.execute({ sql: "DELETE FROM schedules WHERE case_id = ?", args: [caseId] });
-          await db.execute({ sql: "DELETE FROM case_timeline WHERE case_id = ?", args: [caseId] });
-          await db.execute({ sql: "DELETE FROM required_documents WHERE case_id = ?", args: [caseId] });
-          await db.execute({ sql: "DELETE FROM secure_tokens WHERE case_id = ?", args: [caseId] });
-          await db.execute({ sql: "DELETE FROM loan_cases WHERE id = ?", args: [caseId] });
-        } catch (cleanupErr) {
-          console.error(`Failed to clean up partial row records for case ${caseId}:`, cleanupErr);
+      const errMsg = String(err?.message || "");
+      if (errMsg.includes("unq_active_case_user_phone") || errMsg.includes("UNIQUE constraint failed: loan_cases.user_id, loan_cases.phone_number")) {
+        // Handled race condition: active workflow was created concurrently (E. Concurrent bulk-import requests)
+        duplicateCount++;
+        results.push({
+          index: i,
+          name: contactPerson,
+          phone: canonicalPhone,
+          status: "duplicate_skipped",
+          skipped: true,
+          reason: "Active workflow already exists (concurrent conflict)",
+          success: true
+        });
+      } else {
+        console.error(`Error importing row ${i}:`, err);
+        // Guarantee per-row consistency: purge any partial records for this case
+        if (caseId) {
+          try {
+            await db.execute({ sql: "DELETE FROM scheduled_occurrences WHERE schedule_id IN (SELECT id FROM schedules WHERE case_id = ?)", args: [caseId] });
+            await db.execute({ sql: "DELETE FROM schedules WHERE case_id = ?", args: [caseId] });
+            await db.execute({ sql: "DELETE FROM case_timeline WHERE case_id = ?", args: [caseId] });
+            await db.execute({ sql: "DELETE FROM required_documents WHERE case_id = ?", args: [caseId] });
+            await db.execute({ sql: "DELETE FROM secure_tokens WHERE case_id = ?", args: [caseId] });
+            await db.execute({ sql: "DELETE FROM loan_cases WHERE id = ?", args: [caseId] });
+          } catch (cleanupErr) {
+            console.error(`Failed to clean up partial row records for case ${caseId}:`, cleanupErr);
+          }
         }
+        failedCount++;
+        results.push({ index: i, name: contactPerson, phone: canonicalPhone, success: false, error: err.message || "Failed to insert record" });
       }
-      failedCount++;
-      results.push({ index: i, name: contactPerson, phone: canonicalPhone, success: false, error: err.message || "Failed to insert record" });
     }
   }
 
@@ -1082,19 +1144,20 @@ export async function handleBulkImportCases(c) {
   }
 
   const actionMsg = (isScheduled && scheduledForUtc)
-    ? `Successfully scheduled outreach for ${importedCount} of ${rawClients.length} clients.`
+    ? `Successfully scheduled outreach for ${importedCount} of ${rawClients.length} clients${duplicateCount > 0 ? ` (${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} skipped)` : ''}.`
     : (sendWhatsApp
-      ? `Successfully imported ${importedCount} of ${rawClients.length} clients · outreach queued.`
-      : `Successfully imported ${importedCount} of ${rawClients.length} clients.`);
+      ? `Successfully imported ${importedCount} of ${rawClients.length} clients${duplicateCount > 0 ? ` (${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} skipped)` : ''} · outreach queued.`
+      : `Successfully imported ${importedCount} of ${rawClients.length} clients${duplicateCount > 0 ? ` (${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} skipped)` : ''}.`);
 
   return c.json({
     success: true,
     message: actionMsg,
     total: rawClients.length,
     importedCount,
+    duplicateCount,
     failedCount,
     scheduled: !!(isScheduled && scheduledForUtc),
-    queued: !isScheduled && sendWhatsApp,
+    queued: !isScheduled && sendWhatsApp && immediateJobs.length > 0,
     nextRunUtc: scheduledForUtc,
     results
   });

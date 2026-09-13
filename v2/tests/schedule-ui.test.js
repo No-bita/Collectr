@@ -31,15 +31,11 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
     // Compact popover panel inside wizard modal
     assert.ok(html.includes('id="wizardSchedulePopup"'), 'wizardSchedulePopup popover must exist');
     assert.ok(html.includes('id="scheduleDatetime"'), 'scheduleDatetime input (datetime-local) must exist');
-    assert.ok(html.includes('id="scheduleRecurrence"'), 'scheduleRecurrence select dropdown must exist');
     assert.ok(html.includes('id="btnCancelWizardSchedule"'), 'btnCancelWizardSchedule must exist');
     assert.ok(html.includes('id="btnSetWizardSchedule"'), 'btnSetWizardSchedule must exist');
 
-    // Recurrence options
-    assert.ok(html.includes('value="one_off"'), 'one_off recurrence option must exist');
-    assert.ok(html.includes('value="daily"'), 'daily recurrence option must exist');
-    assert.ok(html.includes('value="weekly"'), 'weekly recurrence option must exist');
-    assert.ok(html.includes('value="monthly"'), 'monthly recurrence option must exist');
+    // Ensure recurrence dropdown was removed
+    assert.ok(!html.includes('id="scheduleRecurrence"'), 'scheduleRecurrence select dropdown must not exist');
 
     // Ensure old bloated permanent section was removed
     assert.ok(!html.includes('id="scheduleDeliveryGroup"'), 'Old permanent scheduleDeliveryGroup must not exist');
@@ -55,7 +51,7 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
     // Compact popover panel inside bulk modal
     assert.ok(html.includes('id="bulkSchedulePopup"'), 'bulkSchedulePopup popover must exist');
     assert.ok(html.includes('id="bulkScheduleDatetime"'), 'bulkScheduleDatetime input must exist');
-    assert.ok(html.includes('id="bulkScheduleRecurrence"'), 'bulkScheduleRecurrence select must exist');
+    assert.ok(!html.includes('id="bulkScheduleRecurrence"'), 'bulkScheduleRecurrence select must not exist');
     assert.ok(html.includes('id="btnCancelBulkSchedule"'), 'btnCancelBulkSchedule must exist');
     assert.ok(html.includes('id="btnSetBulkSchedule"'), 'btnSetBulkSchedule must exist');
   });
@@ -442,20 +438,19 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
       assert.equal(sched1.timezone, 'Asia/Kolkata');
     });
 
-    await st.test('5.3 Recurring bulk scheduling creates ONLY the first occurrence (does not generate future ones)', async () => {
+    await st.test('5.3 One-off bulk scheduling creates ONLY the initial occurrence', async () => {
       const mockDb = createMockDb();
       const mockEnv = { DB: mockDb };
       const futureDate = new Date(Date.now() + 24 * 3600 * 1000);
       const reqBody = {
         clients: [
-          { contactPerson: 'Recurring Client', phoneNumber: '9876543210' }
+          { contactPerson: 'Scheduled Client', phoneNumber: '9876543210' }
         ],
         sendWhatsApp: true,
         templateName: 'new_convo_1',
         schedule: {
           scheduledFor: futureDate.toISOString(),
-          scheduleType: 'recurring',
-          recurrenceInterval: 'weekly',
+          scheduleType: 'one_off',
           timezone: 'Asia/Kolkata'
         }
       };
@@ -470,8 +465,8 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
       const res = await handleBulkImportCases(mockContext);
       assert.equal(res.data.importedCount, 1);
       assert.equal(mockDb.records.schedules.length, 1);
-      assert.equal(mockDb.records.schedules[0].schedule_type, 'recurring');
-      assert.equal(mockDb.records.schedules[0].recurrence_interval, 'weekly');
+      assert.equal(mockDb.records.schedules[0].schedule_type, 'one_off');
+      assert.equal(mockDb.records.schedules[0].recurrence_interval, null);
       assert.equal(mockDb.records.scheduled_occurrences.length, 1, 'MUST ONLY create the first initial occurrence');
     });
 

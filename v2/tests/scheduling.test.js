@@ -1,7 +1,7 @@
 import "./helpers/network-guard.js";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { localToUtc, utcToLocalParts, calculateNextRunUtc } from "../src/scheduler/time.js";
+import { localToUtc, utcToLocalParts } from "../src/scheduler/time.js";
 import { scanAndClaimDueOccurrences } from "../src/scheduler/scanner.js";
 import { processScheduledOccurrence } from "../src/scheduler/consumer.js";
 import { handleCreateSchedule, handleGetSchedules, handleCancelSchedule, handleRetryOccurrence } from "../src/api/schedules.js";
@@ -247,22 +247,18 @@ function createInMemoryDb() {
 }
 
 test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) => {
-  await t.test("1. Wall-Clock Recurrence Preservation in IANA Timezones", () => {
+  await t.test("1. One-Off Timezone Conversion via localToUtc and utcToLocalParts", () => {
     // 09:00 AM in Asia/Kolkata (UTC+5:30) is 03:30 AM UTC
-    const currentUtc = "2026-09-13 03:30:00";
-    const nextDaily = calculateNextRunUtc(currentUtc, "daily", "Asia/Kolkata");
-    assert.equal(nextDaily, "2026-09-14 03:30:00", "Daily recurrence must strictly preserve 09:00 IST (03:30 UTC)");
+    const utcDate = localToUtc(2026, 9, 13, 9, 0, 0, "Asia/Kolkata");
+    const utcFormatted = utcDate.toISOString().replace("T", " ").substring(0, 19);
+    assert.equal(utcFormatted, "2026-09-13 03:30:00", "Local 09:00 IST must convert to 03:30:00 UTC");
 
-    const nextWeekly = calculateNextRunUtc(currentUtc, "weekly", "Asia/Kolkata");
-    assert.equal(nextWeekly, "2026-09-20 03:30:00", "Weekly recurrence must advance by 7 days at 09:00 IST");
-
-    const nextMonthly = calculateNextRunUtc(currentUtc, "monthly", "Asia/Kolkata");
-    assert.equal(nextMonthly, "2026-10-13 03:30:00", "Monthly recurrence must advance to next month at 09:00 IST");
-
-    // Month-end clamping check: Jan 31 -> Feb 28 in UTC
-    const jan31Utc = "2026-01-31 03:30:00";
-    const febMonthly = calculateNextRunUtc(jan31Utc, "monthly", "Asia/Kolkata");
-    assert.equal(febMonthly, "2026-02-28 03:30:00", "Jan 31 monthly recurrence must clamp to Feb 28");
+    const parts = utcToLocalParts(utcDate, "Asia/Kolkata");
+    assert.equal(parts.year, 2026);
+    assert.equal(parts.month, 9);
+    assert.equal(parts.day, 13);
+    assert.equal(parts.hour, 9);
+    assert.equal(parts.minute, 0);
   });
 
   await t.test("2. Claim -> Queue Crash Window Recovery (10-Minute Lease)", async () => {
@@ -312,13 +308,13 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.users[0].credit_balance = 0;
 
     db.tables.schedules.push({
-      id: "sch_recur",
+      id: "sch_oneoff",
       user_id: "usr_test_1",
       case_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
-      schedule_type: "recurring",
-      recurrence_interval: "daily",
+      schedule_type: "one_off",
+      recurrence_interval: null,
       timezone: "Asia/Kolkata",
       status: "active",
       next_run_utc: "2026-09-13 03:30:00"
@@ -326,8 +322,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
 
     db.tables.scheduled_occurrences.push({
       id: "occ_no_credit",
-      schedule_id: "sch_recur",
-      occurrence_key: "sch_recur_2026-09-13 03:30:00",
+      schedule_id: "sch_oneoff",
+      occurrence_key: "sch_oneoff_2026-09-13 03:30:00",
       scheduled_for_utc: "2026-09-13 03:30:00",
       operational_status: "claimed"
     });
@@ -341,11 +337,6 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     const occ = db.tables.scheduled_occurrences.find(o => o.id === "occ_no_credit");
     assert.equal(occ.operational_status, "skipped");
     assert.equal(occ.skip_reason, "insufficient_credits");
-
-    // Recurrence must have advanced so future run re-checks balance
-    const nextOcc = db.tables.scheduled_occurrences.find(o => o.id !== "occ_no_credit");
-    assert.ok(nextOcc, "Next occurrence must be inserted for recurring schedule even on credit exhaustion");
-    assert.equal(nextOcc.scheduled_for_utc, "2026-09-14 03:30:00");
   });
 
   await t.test("4. UNKNOWN Network Outcome Semantics (No Auto-Retry, Warning on Manual Retry)", async () => {
@@ -438,8 +429,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
       case_id: "case_closed", // case is 'closed'
       phone_number: "9876543211",
       template_name: "new_convo_1",
-      schedule_type: "recurring",
-      recurrence_interval: "daily",
+      schedule_type: "one_off",
+      recurrence_interval: null,
       status: "active"
     });
 
@@ -510,9 +501,9 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
         json: async () => ({
           phoneNumber: "9876543210",
           templateName: "new_convo_1",
-          scheduleType: "recurring",
-          recurrenceInterval: "weekly",
-          timezone: "Asia/Kolkata"
+          scheduleType: "one_off",
+          timezone: "Asia/Kolkata",
+          scheduledFor: "2026-09-15T10:00:00"
         })
       },
       env: { DB: db },
@@ -527,18 +518,18 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     assert.equal(res.data.occurrence.operationalStatus, "pending");
   });
 
-  await t.test("8. Strict Single Rolling Horizon Invariant", async () => {
+  await t.test("8. One-Off Execution Schedule Finalization Invariant", async () => {
     const db = createInMemoryDb();
     db.tables.users[0].credit_balance = 900;
 
     db.tables.schedules.push({
-      id: "sch_horizon",
+      id: "sch_oneoff_final",
       user_id: "usr_test_1",
       case_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
-      schedule_type: "recurring",
-      recurrence_interval: "daily",
+      schedule_type: "one_off",
+      recurrence_interval: null,
       timezone: "Asia/Kolkata",
       status: "active",
       next_run_utc: "2026-09-13 03:30:00"
@@ -546,26 +537,28 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
 
     db.tables.scheduled_occurrences.push({
       id: "occ_h1",
-      schedule_id: "sch_horizon",
-      occurrence_key: "sch_horizon_2026-09-13 03:30:00",
+      schedule_id: "sch_oneoff_final",
+      occurrence_key: "sch_oneoff_final_2026-09-13 03:30:00",
       scheduled_for_utc: "2026-09-13 03:30:00",
       operational_status: "claimed"
     });
 
     // Before execution, exactly 1 occurrence exists
-    const beforeOccs = db.tables.scheduled_occurrences.filter(o => o.schedule_id === "sch_horizon");
+    const beforeOccs = db.tables.scheduled_occurrences.filter(o => o.schedule_id === "sch_oneoff_final");
     assert.equal(beforeOccs.length, 1);
 
     // Mock successful execution
-    const mockEnv = { ENVIRONMENT: "production" }; // dev pipeline not deducting in mock
+    const mockEnv = { ENVIRONMENT: "development", MOCK_WHATSAPP: "true" };
     const res = await processScheduledOccurrence("occ_h1", mockEnv, db);
     assert.equal(res.handled, true);
 
-    // After execution, exactly 1 new pending occurrence is generated (total = 2: 1 completed, 1 pending)
-    const afterOccs = db.tables.scheduled_occurrences.filter(o => o.schedule_id === "sch_horizon");
-    assert.equal(afterOccs.length, 2);
-    const pendingOccs = afterOccs.filter(o => o.operational_status === "pending");
-    assert.equal(pendingOccs.length, 1, "Strict 1-step rolling horizon: exactly 1 pending occurrence at any time");
+    // After execution, occurrence is completed and schedule status is completed with NO extra occurrences created
+    const afterOccs = db.tables.scheduled_occurrences.filter(o => o.schedule_id === "sch_oneoff_final");
+    assert.equal(afterOccs.length, 1);
+    assert.equal(afterOccs[0].operational_status, "completed");
+
+    const sch = db.tables.schedules.find(s => s.id === "sch_oneoff_final");
+    assert.equal(sch.status, "completed", "One-off schedule must be marked completed upon occurrence execution");
   });
 
   await t.test("9. Concurrent Cron Execution & Race Condition Protection (Pending & Stale Claims)", async () => {

@@ -294,7 +294,7 @@
 
               <div class="field" id="amountRequiredGroup">
                 <label for="amountRequired" id="lblAmountRequired">Amount Required (₹ Lakhs)</label>
-                <input id="amountRequired" name="amountRequired" type="number" step="any" min="0" placeholder="25" required />
+                <input id="amountRequired" name="amountRequired" type="number" step="any" min="0" placeholder="25" />
               </div>
 
               <div id="modalErrorStep1" class="wizard-error-box" hidden></div>
@@ -323,15 +323,6 @@
                   <div class="field" style="margin-bottom: 8px;">
                     <label for="scheduleDatetime" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Date & Time</label>
                     <input type="datetime-local" id="scheduleDatetime" class="form-input" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;" />
-                  </div>
-                  <div class="field" style="margin-bottom: 12px;">
-                    <label for="scheduleRecurrence" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Repeat</label>
-                    <select id="scheduleRecurrence" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;">
-                      <option value="one_off">One-off</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
                   </div>
                   <div id="wizardScheduleError" class="wizard-error-box" hidden style="font-size: 11px; padding: 6px 8px; margin-bottom: 8px;"></div>
                 </div>
@@ -707,15 +698,6 @@
                 <div class="field" style="margin-bottom: 8px;">
                   <label for="bulkScheduleDatetime" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Date & Time</label>
                   <input type="datetime-local" id="bulkScheduleDatetime" class="form-input" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;" />
-                </div>
-                <div class="field" style="margin-bottom: 12px;">
-                  <label for="bulkScheduleRecurrence" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Repeat</label>
-                  <select id="bulkScheduleRecurrence" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;">
-                    <option value="one_off">One-off</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
                 </div>
                 <div id="bulkScheduleError" class="wizard-error-box" hidden style="font-size: 11px; padding: 6px 8px; margin-bottom: 8px;"></div>
               </div>

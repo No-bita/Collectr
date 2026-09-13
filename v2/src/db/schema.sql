@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS loan_cases (
 );
 
 CREATE INDEX IF NOT EXISTS idx_loan_cases_contact ON loan_cases(contact_id);
+CREATE UNIQUE INDEX IF NOT EXISTS unq_active_case_user_phone ON loan_cases(user_id, phone_number) WHERE status NOT IN ('closed', 'completed');
 
 CREATE TABLE IF NOT EXISTS loan_products (
   id TEXT PRIMARY KEY,

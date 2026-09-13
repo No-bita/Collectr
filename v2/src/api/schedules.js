@@ -6,9 +6,6 @@
 import { getDbClient } from "../db/client.js";
 import { toSqliteUtc, isValidTimezone, parseScheduledForToUtc } from "../scheduler/time.js";
 
-const VALID_INTERVALS = ["daily", "weekly", "monthly"];
-const VALID_SCHEDULE_TYPES = ["one_off", "recurring"];
-
 export async function handleCreateSchedule(c) {
   const user = c.get("user");
   if (!user?.id) {
@@ -24,8 +21,6 @@ export async function handleCreateSchedule(c) {
     phoneNumber,
     templateName,
     templateParams = [],
-    scheduleType = "one_off",
-    recurrenceInterval = null,
     timezone = "Asia/Kolkata",
     scheduledFor
   } = body;
@@ -43,15 +38,6 @@ export async function handleCreateSchedule(c) {
     return c.json({ error: "Template name is required" }, 400);
   }
 
-  if (!VALID_SCHEDULE_TYPES.includes(scheduleType)) {
-    return c.json({ error: "Invalid scheduleType. Must be 'one_off' or 'recurring'" }, 400);
-  }
-
-  if (scheduleType === "recurring" && (!recurrenceInterval || !VALID_INTERVALS.includes(recurrenceInterval))) {
-    return c.json({ error: "Recurring schedules require recurrenceInterval: 'daily', 'weekly', or 'monthly'" }, 400);
-  }
-
-  const safeRecurrenceInterval = (scheduleType === "recurring") ? recurrenceInterval : null;
   const safeTz = isValidTimezone(timezone) ? timezone : "Asia/Kolkata";
   const scheduledForUtc = parseScheduledForToUtc(scheduledFor, safeTz);
 
@@ -76,8 +62,8 @@ export async function handleCreateSchedule(c) {
         cleanedPhone,
         templateName,
         JSON.stringify(templateParams),
-        scheduleType,
-        safeRecurrenceInterval,
+        'one_off',
+        null,
         safeTz,
         scheduledForUtc
       ]
@@ -104,8 +90,8 @@ export async function handleCreateSchedule(c) {
     success: true,
     schedule: {
       id: scheduleId,
-      scheduleType,
-      recurrenceInterval: safeRecurrenceInterval,
+      scheduleType: "one_off",
+      recurrenceInterval: null,
       timezone: safeTz,
       scheduledForUtc,
       status: "active"

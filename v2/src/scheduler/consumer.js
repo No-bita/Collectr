@@ -5,10 +5,19 @@
  */
 
 import { executeWhatsAppMessagingPipeline } from "../api/cases.js";
-import { calculateNextRunUtc } from "./time.js";
 import { MESSAGE_COST_PAISE } from "../api/credits.js";
 
 const TERMINAL_CASE_STATUSES = ["closed", "disbursed"];
+
+async function finalizeOneOffSchedule(db, scheduleId) {
+  if (!scheduleId) return;
+  try {
+    await db.execute({
+      sql: "UPDATE schedules SET status = 'completed', next_run_utc = NULL WHERE id = ?",
+      args: [scheduleId]
+    });
+  } catch (_) {}
+}
 
 export async function processScheduledOccurrence(occurrenceId, env, db) {
   if (!occurrenceId) return { handled: false, reason: "missing_id" };
@@ -76,10 +85,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
         sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'case_closed', executed_at = datetime('now') WHERE id = ?",
         args: [occurrenceId]
       });
-      await db.execute({
-        sql: "UPDATE schedules SET status = 'completed', next_run_utc = NULL WHERE id = ?",
-        args: [row.schedule_id]
-      });
+      await finalizeOneOffSchedule(db, row.schedule_id);
       return { handled: true, status: "skipped", reason: "case_closed" };
     }
 
@@ -94,7 +100,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
       sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'invalid_phone', executed_at = datetime('now') WHERE id = ?",
       args: [occurrenceId]
     });
-    await advanceRecurrenceIfApplicable(db, row);
+    await finalizeOneOffSchedule(db, row.schedule_id);
     return { handled: true, status: "skipped", reason: "invalid_phone" };
   }
 
@@ -110,12 +116,12 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     : 900;
 
   if (currentBalance < MESSAGE_COST_PAISE) {
-    // Insufficient credits: skip this occurrence and advance schedule recurrence
+    // Insufficient credits: skip this occurrence and finalize schedule
     await db.execute({
       sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'insufficient_credits', executed_at = datetime('now') WHERE id = ?",
       args: [occurrenceId]
     });
-    await advanceRecurrenceIfApplicable(db, row);
+    await finalizeOneOffSchedule(db, row.schedule_id);
     return { handled: true, status: "skipped", reason: "insufficient_credits" };
   }
 
@@ -164,7 +170,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
       sql: "UPDATE scheduled_occurrences SET operational_status = 'completed', provider_message_id = ?, executed_at = datetime('now') WHERE id = ?",
       args: [pipeRes.providerMsgId || null, occurrenceId]
     });
-    await advanceRecurrenceIfApplicable(db, row);
+    await finalizeOneOffSchedule(db, row.schedule_id);
     return { handled: true, status: "completed", providerMsgId: pipeRes.providerMsgId };
   }
 
@@ -179,7 +185,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
       sql: "UPDATE scheduled_occurrences SET operational_status = 'unknown', last_error = ?, executed_at = datetime('now') WHERE id = ?",
       args: [pipeRes.message || "Provider timeout / ambiguous in-flight dispatch", occurrenceId]
     });
-    await advanceRecurrenceIfApplicable(db, row);
+    await finalizeOneOffSchedule(db, row.schedule_id);
     return { handled: true, status: "unknown", error: pipeRes?.error || "WHATSAPP_TIMEOUT" };
   }
 
@@ -188,7 +194,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
       sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'insufficient_credits', executed_at = datetime('now') WHERE id = ?",
       args: [occurrenceId]
     });
-    await advanceRecurrenceIfApplicable(db, row);
+    await finalizeOneOffSchedule(db, row.schedule_id);
     return { handled: true, status: "skipped", reason: "insufficient_credits" };
   }
 
@@ -197,60 +203,8 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     sql: "UPDATE scheduled_occurrences SET operational_status = 'failed', last_error = ?, executed_at = datetime('now') WHERE id = ?",
     args: [pipeRes?.message || "WhatsApp message delivery failed", occurrenceId]
   });
-  await advanceRecurrenceIfApplicable(db, row);
+  await finalizeOneOffSchedule(db, row.schedule_id);
   return { handled: true, status: "failed", error: pipeRes?.error || "WHATSAPP_FAILED" };
-}
-
-/**
- * Recurrence Advancement
- * Calculates the next occurrence preserving local wall-clock time in the schedule's timezone,
- * and inserts the single next occurrence (strict 1-step rolling horizon).
- */
-async function advanceRecurrenceIfApplicable(db, scheduleRow) {
-  if (scheduleRow.schedule_type === "one_off" || !scheduleRow.recurrence_interval) {
-    // One-off schedule completes once occurrence finishes
-    await db.execute({
-      sql: "UPDATE schedules SET status = 'completed', next_run_utc = NULL WHERE id = ?",
-      args: [scheduleRow.schedule_id]
-    });
-    return null;
-  }
-
-  // Recurring schedule: compute next UTC time preserving local wall-clock hour/minute
-  const nextUtc = calculateNextRunUtc(
-    scheduleRow.scheduled_for_utc,
-    scheduleRow.recurrence_interval,
-    scheduleRow.timezone || "UTC"
-  );
-
-  if (!nextUtc) {
-    await db.execute({
-      sql: "UPDATE schedules SET status = 'completed', next_run_utc = NULL WHERE id = ?",
-      args: [scheduleRow.schedule_id]
-    });
-    return null;
-  }
-
-  // Update schedule next_run_utc
-  await db.execute({
-    sql: "UPDATE schedules SET next_run_utc = ? WHERE id = ?",
-    args: [nextUtc, scheduleRow.schedule_id]
-  });
-
-  // Insert next single occurrence with deterministic key
-  const nextOccId = `occ_${crypto.randomUUID()}`;
-  const nextKey = `${scheduleRow.schedule_id}_${nextUtc}`;
-
-  await db.execute({
-    sql: `
-      INSERT OR IGNORE INTO scheduled_occurrences (
-        id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
-      ) VALUES (?, ?, ?, ?, 'pending')
-    `,
-    args: [nextOccId, scheduleRow.schedule_id, nextKey, nextUtc]
-  });
-
-  return nextOccId;
 }
 
 /**

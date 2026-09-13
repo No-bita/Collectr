@@ -2033,12 +2033,11 @@ if (cpInput) {
 let wizardScheduleState = null;
 let bulkScheduleState = null;
 
-function formatScheduleChipText(isoDateStr, recurrence) {
+function formatScheduleChipText(isoDateStr) {
   const d = new Date(isoDateStr);
   const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const rec = (recurrence && recurrence !== 'one_off') ? ` (${recurrence.charAt(0).toUpperCase() + recurrence.slice(1)})` : '';
-  return `${dateStr}, ${timeStr}${rec}`;
+  return `${dateStr}, ${timeStr}`;
 }
 
 function openWizardSchedulePopup() {
@@ -2104,27 +2103,21 @@ function setWizardSchedule() {
     return;
   }
 
-  const recSelect = el("scheduleRecurrence");
-  const recurrenceVal = recSelect ? recSelect.value : "one_off";
   let userTz = "Asia/Kolkata";
   try {
     userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
   } catch (_) {}
 
-  const isRecurring = (recurrenceVal && recurrenceVal !== 'one_off');
   wizardScheduleState = {
     scheduledFor: dtVal,
-    scheduleType: isRecurring ? 'recurring' : 'one_off',
+    scheduleType: 'one_off',
     timezone: userTz
   };
-  if (isRecurring) {
-    wizardScheduleState.recurrenceInterval = recurrenceVal;
-  }
   wizardState.schedule = wizardScheduleState;
 
   const chip = el("wizardScheduleChip");
   const chipText = el("wizardScheduleChipText");
-  if (chipText) chipText.textContent = formatScheduleChipText(dtVal, recurrenceVal);
+  if (chipText) chipText.textContent = formatScheduleChipText(dtVal);
   if (chip) chip.hidden = false;
 
   const clockBtn = el("btnOpenSchedulePopup");
@@ -2151,8 +2144,6 @@ function clearWizardSchedule() {
 
   const dtInput = el("scheduleDatetime");
   if (dtInput) dtInput.value = "";
-  const recSelect = el("scheduleRecurrence");
-  if (recSelect) recSelect.value = "one_off";
 
   const errBox = el("wizardScheduleError");
   if (errBox) errBox.hidden = true;
@@ -2227,26 +2218,20 @@ function setBulkSchedule() {
     return;
   }
 
-  const recSelect = el("bulkScheduleRecurrence");
-  const recurrenceVal = recSelect ? recSelect.value : "one_off";
   let userTz = "Asia/Kolkata";
   try {
     userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
   } catch (_) {}
 
-  const isRecurring = (recurrenceVal && recurrenceVal !== 'one_off');
   bulkScheduleState = {
     scheduledFor: dtVal,
-    scheduleType: isRecurring ? 'recurring' : 'one_off',
+    scheduleType: 'one_off',
     timezone: userTz
   };
-  if (isRecurring) {
-    bulkScheduleState.recurrenceInterval = recurrenceVal;
-  }
 
   const chip = el("bulkScheduleChip");
   const chipText = el("bulkScheduleChipText");
-  if (chipText) chipText.textContent = formatScheduleChipText(dtVal, recurrenceVal);
+  if (chipText) chipText.textContent = formatScheduleChipText(dtVal);
   if (chip) chip.hidden = false;
 
   const clockBtn = el("btnBulkOpenSchedule");
@@ -2267,8 +2252,6 @@ function clearBulkSchedule() {
 
   const dtInput = el("bulkScheduleDatetime");
   if (dtInput) dtInput.value = "";
-  const recSelect = el("bulkScheduleRecurrence");
-  if (recSelect) recSelect.value = "one_off";
 
   const errBox = el("bulkScheduleError");
   if (errBox) errBox.hidden = true;
@@ -3755,19 +3738,19 @@ async function executeBulkImport() {
     const totalParsedCount = (Array.isArray(parsedBulkClients) ? parsedBulkClients.length : validRows.length);
     const skippedInvalidCount = totalParsedCount - validRows.length;
     const importedCount = data.importedCount || 0;
+    const duplicateCount = data.duplicateCount || 0;
     const backendFailedCount = data.failedCount || 0;
     const actionWord = data.scheduled ? "scheduled" : (data.queued ? "imported (outreach queued)" : "imported");
 
     if (typeof UI !== 'undefined' && UI.toast) {
-      if (skippedInvalidCount > 0 && backendFailedCount > 0) {
-        UI.toast(`${importedCount} clients ${actionWord} (${backendFailedCount} failed) · ${skippedInvalidCount} invalid rows skipped`, "warning");
-      } else if (skippedInvalidCount > 0) {
-        UI.toast(`${importedCount} clients ${actionWord} · ${skippedInvalidCount} invalid rows skipped`, "success");
-      } else if (backendFailedCount > 0) {
-        UI.toast(`${importedCount} clients ${actionWord} · ${backendFailedCount} failed`, "warning");
-      } else {
-        UI.toast(data.queued ? `${importedCount} clients imported · outreach queued for delivery` : `Successfully ${actionWord} ${importedCount} clients!`, "success");
-      }
+      const parts = [`${importedCount} clients ${actionWord}`];
+      if (duplicateCount > 0) parts.push(`${duplicateCount} active duplicates skipped`);
+      if (backendFailedCount > 0) parts.push(`${backendFailedCount} failed`);
+      if (skippedInvalidCount > 0) parts.push(`${skippedInvalidCount} invalid rows skipped`);
+
+      const toastMsg = parts.join(' · ');
+      const toastType = (backendFailedCount > 0) ? "warning" : "success";
+      UI.toast(toastMsg, toastType);
     }
 
     closeBulkImportModal();

@@ -67,7 +67,7 @@ Lekho-Edge/
     ├── wrangler.toml.example          # Example deployment configuration
     ├── .dev.vars.example              # Example local secrets with mock flags
     │
-    ├── migrations/                    # D1 Database Migrations (0001 → 0008)
+    ├── migrations/                    # D1 Database Migrations (0001 → 0009)
     │   ├── 0001_initial_v1_schema.sql
     │   ├── 0002_add_users_and_multi_tenancy.sql
     │   ├── 0003_refactor_lead_to_case_tokens.sql
@@ -75,7 +75,8 @@ Lekho-Edge/
     │   ├── 0005_custom_message_templates.sql
     │   ├── 0006_contacts_and_mini_targets.sql
     │   ├── 0007_loan_product_doc_mappings.sql
-    │   └── 0008_schedules.sql
+    │   ├── 0008_schedules.sql
+    │   └── 0009_active_case_uniqueness.sql
     │
     ├── src/                           # Backend Application Code
     │   ├── index.js                   # Worker entrypoint, router dispatcher & scheduled/queue handlers
@@ -84,9 +85,9 @@ Lekho-Edge/
     │   │   └── cors.js                # CORS headers & preflight handler
     │   ├── api/                       # REST API controllers
     │   │   ├── auth.js                # Login, registration, password hashing
-    │   │   ├── cases.js               # Case CRUD, document checklists, Excel/CSV import
+    │   │   ├── cases.js               # Case CRUD, document checklists, CSV bulk import & deduplication
     │   │   ├── contacts.js            # Contact directory & timeline consolidation
-    │   │   ├── schedules.js           # Schedule creation, listing, cancellation & safe retry
+    │   │   ├── schedules.js           # One-off schedule creation, listing, cancellation & safe retry
     │   │   ├── upload.js              # Token validation, presigned R2 URLs, direct upload
     │   │   ├── ocr.js                 # Gemini 2.5 Flash OCR trigger & mock adapter
     │   │   ├── templates.js           # WhatsApp template CRUD & uniqueness enforcement
@@ -94,7 +95,7 @@ Lekho-Edge/
     │   │   ├── webhook.js             # Meta webhook verification & delivery status parser
     │   │   └── admin.js               # Matrix rule editor & failure log viewer
     │   ├── scheduler/                 # Asynchronous Scheduling Engine
-    │   │   ├── time.js                # Recurrence engine preserving IANA wall-clock times
+    │   │   ├── time.js                # One-off timezone converter preserving IANA wall-clock times
     │   │   ├── scanner.js             # Cron scanner with 10-minute crash-window recovery leases
     │   │   └── consumer.js            # Queue consumer with JIT credit validation & pipeline dispatch
     │   ├── whatsapp/
@@ -107,7 +108,7 @@ Lekho-Edge/
     │
     ├── public/                        # Frontend Static Web Portals
     │   ├── index.html                 # Marketing landing page
-    │   ├── dashboard.html             # Agent operations dashboard (/dashboard.html or /app)
+    │   ├── dashboard.html             # Operations dashboard (/dashboard.html or /app)
     │   ├── case.html                  # Case detail & timeline workspace
     │   ├── upload.html                # Mobile client upload portal
     │   ├── login.html & register.html # Agent authentication views
@@ -136,7 +137,7 @@ Lekho-Edge/
         ├── whatsapp-workflow.test.js  # Template failover & 24h window tests
         ├── templates-ui.test.js       # Template uniqueness & live preview tests
         ├── credits.test.js            # Paise math & recharge ledger tests
-        ├── bulk-import.test.js        # CSV/Excel parsing & auto-mapping tests
+        ├── bulk-import.test.js        # CSV/Excel parsing, deduplication & auto-mapping tests
         ├── persona-overflow.test.js   # CA vs Loan Agent isolation tests
         ├── status-filtering.test.js   # Mode-dependent status presentation & filtering tests
         ├── wizard_ui.test.js          # 3-Screen wizard state machine tests
@@ -144,6 +145,8 @@ Lekho-Edge/
         ├── contact-model.test.js      # Phone normalization & contact relationship tests
         ├── route-auth.test.js         # Hono route auth, role matrix & cross-tenant isolation tests
         ├── magic-link.test.js         # Magic link session lifecycle, fingerprinting & upload tests
+        ├── scheduling.test.js         # Scheduling engine, timezone conversion & queue consumer tests
+        ├── schedule-ui.test.js        # Compact scheduling popovers & bulk dispatch invariants
         └── frontend-syntax.test.js    # JS parse & syntax check
 ```
 
