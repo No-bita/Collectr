@@ -369,7 +369,7 @@ erDiagram
 
 ### Cases & Contacts
 - `GET /api/cases`: Returns cases accessible to user (scoped by `user_id` or `is_demo=1`). Supports filtering by status, product, search text. Returns canonical `templateName` (camelCase).
-- `POST /api/cases`: `{ contactPerson, phoneNumber, loanProduct, amountRequired, templateName, requiredDocIds }` $\rightarrow$ Creates case & triggers WhatsApp.
+- `POST /api/cases`: `{ contactPerson, phoneNumber, loanProduct, amountRequired, templateName, requiredDocIds, schedule }` $\rightarrow$ Creates case & either dispatches WhatsApp immediately or registers a scheduled outreach (sets `loan_cases.whatsapp_delivery_status = 'scheduled'`).
 - `GET /api/cases/:id`: Detailed case view including required documents, uploads, and timeline. Resolves and returns authoritative `template: { name, displayName, renderedBody }` and `templateName`. Frontend components bind against `c.template` as the single source of truth to unify presentation across the info bar, WhatsApp conversation cards, and activity logs.
 - `POST /api/cases/bulk-import`: Parses uploaded CSV/spreadsheet, deduplicates numbers, and generates cases.
 - `GET /api/contacts/:id/timeline`: Consolidated timeline across all mini-targets for a contact.

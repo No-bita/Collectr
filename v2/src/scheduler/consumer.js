@@ -133,13 +133,24 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
   const referenceId = `occ_${occurrenceId}`;
   const contactPerson = caseContactPerson || "Client";
 
+  let caseToken = "verify";
+  if (row.case_id) {
+    const tokenRes = await db.execute({
+      sql: "SELECT token FROM secure_tokens WHERE case_id = ? ORDER BY expires_at DESC LIMIT 1",
+      args: [row.case_id]
+    });
+    if (tokenRes.rows?.[0]?.token) {
+      caseToken = tokenRes.rows[0].token;
+    }
+  }
+
   const pipeRes = await executeWhatsAppMessagingPipeline(
     db,
     user,
     cleanedPhone,
     row.template_name,
     contactPerson,
-    "verify",
+    caseToken,
     env,
     referenceId,
     parsedParams,

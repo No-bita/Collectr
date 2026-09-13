@@ -214,6 +214,8 @@ function formatWhatsAppDeliveryStatus(status) {
     replied: "Replied",
     failed: "Failed",
     pending: "Pending",
+    scheduled: "Scheduled",
+    unknown: "Unknown",
     none: "—"
   };
   const key = String(status || "").toLowerCase().trim();
@@ -245,6 +247,10 @@ function getWhatsAppDeliveryBadgeHtml(status) {
     badgeStyle = "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;";
   } else if (st === 'dispatch_requested' || st === 'pending') {
     badgeStyle = "background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;";
+  } else if (st === 'scheduled') {
+    badgeStyle = "background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE;";
+  } else if (st === 'unknown') {
+    badgeStyle = "background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1;";
   }
   const label = formatWhatsAppDeliveryStatus(st);
   return `<span class="badge" style="${badgeStyle} font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;">${escapeHtml(label)}</span>`;
@@ -1411,6 +1417,7 @@ let wizardState = {
   customer: { contactPerson: '', phone: '' },
   loan: { product: '', amountRequired: null },
   documents: { selectedIds: [] },
+  schedule: null,
   generatedCase: null
 };
 
@@ -1796,6 +1803,11 @@ if (openAddBtn) {
     if (el("modalErrorStep1")) el("modalErrorStep1").hidden = true;
     if (el("modalErrorStep2")) el("modalErrorStep2").hidden = true;
 
+    setDeliveryTiming('now');
+    const recurrenceSelect = el("scheduleRecurrence");
+    if (recurrenceSelect) recurrenceSelect.value = "one_off";
+    wizardState.schedule = null;
+
     const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
     const amountGroup = el("amountRequiredGroup");
     const amountInput = el("amountRequired");
@@ -2016,6 +2028,117 @@ if (cpInput) {
   });
 }
 
+// Schedule Delivery Timing Logic
+let currentDeliveryTiming = 'now'; // 'now' | 'schedule'
+
+function setDeliveryTiming(mode) {
+  currentDeliveryTiming = mode;
+  const btnNow = el("btnDeliveryNow");
+  const btnSchedule = el("btnDeliverySchedule");
+  const scheduleContainer = el("scheduleOptionsContainer");
+  const persona = typeof window.getVariantKey === 'function' ? window.getVariantKey() : 'ca';
+  const continueBtn = el("btnDetailsContinue");
+
+  if (mode === 'schedule') {
+    if (btnNow) {
+      btnNow.classList.remove("active");
+      btnNow.style.background = "#F8FAFC";
+      btnNow.style.color = "#475569";
+      btnNow.style.borderColor = "#CBD5E1";
+    }
+    if (btnSchedule) {
+      btnSchedule.classList.add("active");
+      btnSchedule.style.background = "#0F172A";
+      btnSchedule.style.color = "#FFFFFF";
+      btnSchedule.style.borderColor = "#0F172A";
+    }
+    if (scheduleContainer) {
+      scheduleContainer.hidden = false;
+    }
+    const dtInput = el("scheduleDatetime");
+    if (dtInput) {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      dtInput.min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      if (!dtInput.value) {
+        const d = new Date(Date.now() + 60 * 60 * 1000);
+        d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0);
+        dtInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    }
+    if (persona === 'direct_outreach' && continueBtn) {
+      continueBtn.textContent = "Schedule Message →";
+    }
+  } else {
+    if (btnNow) {
+      btnNow.classList.add("active");
+      btnNow.style.background = "#0F172A";
+      btnNow.style.color = "#FFFFFF";
+      btnNow.style.borderColor = "#0F172A";
+    }
+    if (btnSchedule) {
+      btnSchedule.classList.remove("active");
+      btnSchedule.style.background = "#F8FAFC";
+      btnSchedule.style.color = "#475569";
+      btnSchedule.style.borderColor = "#CBD5E1";
+    }
+    if (scheduleContainer) {
+      scheduleContainer.hidden = true;
+    }
+    if (persona === 'direct_outreach' && continueBtn) {
+      continueBtn.textContent = "Send Message →";
+    }
+  }
+}
+
+const btnDeliveryNow = el("btnDeliveryNow");
+if (btnDeliveryNow) {
+  btnDeliveryNow.addEventListener("click", () => setDeliveryTiming('now'));
+}
+const btnDeliverySchedule = el("btnDeliverySchedule");
+if (btnDeliverySchedule) {
+  btnDeliverySchedule.addEventListener("click", () => setDeliveryTiming('schedule'));
+}
+
+function getSchedulePayloadFromInputs(errorContainerId) {
+  if (currentDeliveryTiming !== 'schedule') return null;
+
+  const dtInput = el("scheduleDatetime");
+  const dtVal = dtInput ? dtInput.value : "";
+  if (!dtVal) {
+    showActionableError("Please select a date and time for the scheduled message.", errorContainerId);
+    if (dtInput) dtInput.focus();
+    return { error: true };
+  }
+
+  const schedDate = new Date(dtVal);
+  if (isNaN(schedDate.getTime())) {
+    showActionableError("Please enter a valid date and time.", errorContainerId);
+    if (dtInput) dtInput.focus();
+    return { error: true };
+  }
+
+  if (schedDate.getTime() <= Date.now()) {
+    showActionableError("Scheduled date and time must be in the future.", errorContainerId);
+    if (dtInput) dtInput.focus();
+    return { error: true };
+  }
+
+  const recurrenceSelect = el("scheduleRecurrence");
+  const recurrenceVal = recurrenceSelect ? recurrenceSelect.value : "one_off";
+  let userTz = "Asia/Kolkata";
+  try {
+    userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+  } catch (_) {}
+
+  return {
+    scheduledFor: schedDate.toISOString(),
+    recurrenceInterval: recurrenceVal,
+    scheduleType: recurrenceVal && recurrenceVal !== 'one_off' ? 'recurring' : 'one_off',
+    timezone: userTz
+  };
+}
+
 // Contact Duplicate Check Helpers
 async function checkContactDuplicate(phone, loanProduct) {
   try {
@@ -2129,6 +2252,14 @@ if (btnDetailsContinue) {
         return;
       }
 
+      // If delivery is scheduled, validate schedule inputs
+      let schedulePayload = null;
+      if (currentDeliveryTiming === 'schedule') {
+        const schedRes = getSchedulePayloadFromInputs("modalErrorStep1");
+        if (schedRes && schedRes.error) return;
+        schedulePayload = schedRes;
+      }
+
       // Pre-check Contact duplicate state
       const checkData = await checkContactDuplicate(rawPhone, selectedTemplate);
       if (checkData.exists && checkData.isBlocked) {
@@ -2144,19 +2275,24 @@ if (btnDetailsContinue) {
         const dynamicParams = [contactPerson, ...dynamicInputs.map(i => i.value.trim())];
 
         try {
+          const reqBody = {
+            contactPerson,
+            phone: rawPhone,
+            loanProduct: selectedTemplate,
+            templateName: selectedTemplate,
+            templateParams: dynamicParams,
+            amountRequired: null,
+            noDocsRequired: true,
+            requiredDocIds: []
+          };
+          if (schedulePayload) {
+            reqBody.schedule = schedulePayload;
+          }
+
           const res = await authFetch("/api/cases", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contactPerson,
-              phone: rawPhone,
-              loanProduct: selectedTemplate,
-              templateName: selectedTemplate,
-              templateParams: dynamicParams,
-              amountRequired: null,
-              noDocsRequired: true,
-              requiredDocIds: []
-            })
+            body: JSON.stringify(reqBody)
           });
 
           const data = await res.json();
@@ -2164,7 +2300,11 @@ if (btnDetailsContinue) {
 
           if (el("modalBackdrop")) el("modalBackdrop").hidden = true;
           if (typeof UI !== 'undefined' && UI.toast) {
-            UI.toast(`Direct message dispatched to ${contactPerson}!`, "success");
+            if (data.scheduled) {
+              UI.toast(`Direct message scheduled for ${contactPerson}!`, "success");
+            } else {
+              UI.toast(`Direct message dispatched to ${contactPerson}!`, "success");
+            }
           }
           await load();
         } catch (err) {
@@ -2246,10 +2386,19 @@ if (btnDetailsContinue) {
       amountRequired = (rawAmount && !isNaN(parseFloat(rawAmount)) && parseFloat(rawAmount) > 0) ? parseFloat(rawAmount) : null;
     }
 
+    // If delivery is scheduled, validate schedule inputs
+    let schedulePayload = null;
+    if (currentDeliveryTiming === 'schedule') {
+      const schedRes = getSchedulePayloadFromInputs("modalErrorStep1");
+      if (schedRes && schedRes.error) return;
+      schedulePayload = schedRes;
+    }
+
     const proceedToDocsScreen = () => {
       // Save to State Machine
       wizardState.customer = { contactPerson, phone: rawPhone };
       wizardState.loan = { product: selectedProduct, amountRequired };
+      wizardState.schedule = schedulePayload;
 
       renderScreen2DocChecklists();
       setWizardScreen('documents');
@@ -2295,7 +2444,10 @@ if (btnDocsCreate) {
     submitBtn.disabled = true;
     submitBtn.style.opacity = "0.7";
     submitBtn.style.cursor = "not-allowed";
-    const spinnerText = persona === 'ca' ? "Creating Request..." : "Creating Loan Case...";
+    const isSched = !!wizardState.schedule;
+    const spinnerText = isSched
+      ? (persona === 'ca' ? "Scheduling Request..." : "Scheduling Loan Case...")
+      : (persona === 'ca' ? "Creating Request..." : "Creating Loan Case...");
     submitBtn.innerHTML = `
       <span class="upload-progress-ring" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 0.5rem; border-color: rgba(255,255,255,0.3); border-top-color: #ffffff;"></span>
       ${spinnerText}
@@ -2309,6 +2461,9 @@ if (btnDocsCreate) {
         amountRequired: wizardState.loan.amountRequired,
         requiredDocIds: wizardState.documents.selectedIds
       };
+      if (wizardState.schedule) {
+        postBody.schedule = wizardState.schedule;
+      }
 
       const res = await authFetch("/api/cases", {
         method: "POST",
@@ -2320,6 +2475,12 @@ if (btnDocsCreate) {
       if (!res.ok) throw new Error(data.error || (persona === 'ca' ? "Failed to create client intake." : "Failed to create collection."));
 
       wizardState.generatedCase = { id: data.caseId, token: data.token };
+
+      if (typeof UI !== 'undefined' && UI.toast) {
+        if (data.scheduled) {
+          UI.toast(persona === 'ca' ? "Client intake scheduled!" : "Loan case scheduled!", "success");
+        }
+      }
 
       // Populate Screen 3 Success UI
       const nameEl = el("successCustomerName");

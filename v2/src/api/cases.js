@@ -6,6 +6,7 @@ import { runGeminiOcr } from "./ocr.js";
 import { getWhatsAppTemplate, renderTemplateBody } from "../whatsapp/templates.js";
 import { sendWhatsAppTemplate as clientSendWhatsAppTemplate, sendWhatsAppText, normalizeIndianPhoneNumber } from "../whatsapp/client.js";
 import { getCustomerReplyWindowStatus } from "../whatsapp/window.js";
+import { toSqliteUtc, isValidTimezone } from "../scheduler/time.js";
 
 const VALID_STATUSES = [
   'lead', 'documents_pending', 'ready_for_review', 
@@ -514,6 +515,86 @@ export async function handleCreateCase(c) {
             VALUES (?, ?, ?, 'case_created', ?, 'agent')`,
       args: [crypto.randomUUID(), contact.id, caseId, isNoDocs ? `Direct outreach message dispatched for ${loanProduct}` : `Filing request created for ${loanProduct}`]
     });
+
+    // Handle Schedule Outreach if requested
+    if (body.schedule && body.schedule.scheduledFor) {
+      const scheduleDate = new Date(body.schedule.scheduledFor);
+      if (!isNaN(scheduleDate.getTime())) {
+        const scheduledForUtc = toSqliteUtc(scheduleDate);
+        const schedType = body.schedule.scheduleType || (body.schedule.recurrenceInterval && body.schedule.recurrenceInterval !== "one_off" ? "recurring" : "one_off");
+        const recurrenceInterval = (schedType === "recurring" && body.schedule.recurrenceInterval) ? body.schedule.recurrenceInterval : null;
+        const timezone = isValidTimezone(body.schedule.timezone) ? body.schedule.timezone : "Asia/Kolkata";
+        const scheduleId = `sch_${crypto.randomUUID()}`;
+        const occId = `occ_${crypto.randomUUID()}`;
+        const occKey = `${scheduleId}_${scheduledForUtc}`;
+
+        // Update case delivery status to scheduled
+        await db.execute({
+          sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'scheduled' WHERE id = ?",
+          args: [caseId]
+        });
+
+        // Insert into schedules
+        await db.execute({
+          sql: `
+            INSERT INTO schedules (
+              id, user_id, case_id, contact_id, phone_number, template_name,
+              template_params, schedule_type, recurrence_interval, timezone,
+              status, next_run_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+          `,
+          args: [
+            scheduleId,
+            userId,
+            caseId,
+            contact.id,
+            canonicalPhone,
+            targetTemplate,
+            JSON.stringify(templateParams),
+            schedType,
+            recurrenceInterval,
+            timezone,
+            scheduledForUtc
+          ]
+        });
+
+        // Insert initial pending occurrence
+        await db.execute({
+          sql: `
+            INSERT INTO scheduled_occurrences (
+              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
+            ) VALUES (?, ?, ?, ?, 'pending')
+          `,
+          args: [occId, scheduleId, occKey, scheduledForUtc]
+        });
+
+        // Log to timeline
+        const intervalNote = recurrenceInterval ? ` (Recurring ${recurrenceInterval})` : "";
+        await db.execute({
+          sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+                VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+          args: [
+            crypto.randomUUID(),
+            contact.id,
+            caseId,
+            targetTemplate,
+            `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`,
+            JSON.stringify({ scheduledForUtc, scheduleType: schedType, recurrenceInterval, timezone })
+          ]
+        });
+
+        return c.json({
+          success: true,
+          caseId,
+          contactId: contact.id,
+          scheduled: true,
+          scheduleId,
+          nextRunUtc: scheduledForUtc,
+          token,
+          uploadUrl: `${env.FRONTEND_URL || "https://collectrr-v2.collectr.workers.dev"}/upload.html?t=${token}`
+        }, 201);
+      }
+    }
 
     // Dispatch WhatsApp Template with Idempotency and State Machine
     let whatsappWarning = null;
