@@ -48,7 +48,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     return { handled: true, status: "skipped", reason: "schedule_paused" };
   }
 
-  if (row.operational_status === "completed" || row.operational_status === "skipped") {
+  if (row.operational_status === "completed" || row.operational_status === "skipped" || row.operational_status === "unknown") {
     return { handled: true, status: row.operational_status, alreadyDone: true };
   }
 
@@ -168,14 +168,19 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     return { handled: true, status: "completed", providerMsgId: pipeRes.providerMsgId };
   }
 
-  if (pipeRes?.error === "WHATSAPP_TIMEOUT") {
+  // Active consumer in-flight duplicate: yield and do not overwrite occurrence to unknown
+  if (pipeRes?.inFlight) {
+    return { handled: true, status: "in_flight_duplicate", inFlight: true };
+  }
+
+  if (pipeRes?.error === "WHATSAPP_TIMEOUT" || pipeRes?.ambiguous) {
     // Ambiguous network outcome: strictly set to unknown, do NOT auto-retry
     await db.execute({
       sql: "UPDATE scheduled_occurrences SET operational_status = 'unknown', last_error = ?, executed_at = datetime('now') WHERE id = ?",
-      args: [pipeRes.message || "Provider timeout", occurrenceId]
+      args: [pipeRes.message || "Provider timeout / ambiguous in-flight dispatch", occurrenceId]
     });
     await advanceRecurrenceIfApplicable(db, row);
-    return { handled: true, status: "unknown", error: "WHATSAPP_TIMEOUT" };
+    return { handled: true, status: "unknown", error: pipeRes?.error || "WHATSAPP_TIMEOUT" };
   }
 
   if (pipeRes?.insufficientCredits) {

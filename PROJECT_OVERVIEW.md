@@ -265,6 +265,41 @@ flowchart TD
 ```
 *Invariant:* **Whatever status the user sees in the Status column is exactly the status they can filter by.** Dropdown, filter evaluation, and table cell rendering all consume the single `getDisplayStatus(c, mode)` abstraction.
 
+### Flow 6: Asynchronous Bulk Import & Delivery Queue Architecture
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Agent / Broker
+    participant API as /api/cases/bulk (Hono Worker)
+    participant D1 as Cloudflare D1 (Execution Ledger)
+    participant Q as Cloudflare Queue (collectrr-schedule-queue)
+    participant Consumer as Queue Consumer (processScheduledOccurrence)
+    participant Meta as Meta WhatsApp Cloud API
+
+    User->>API: POST /api/cases/bulk (up to 200 clients)
+    API->>D1: Atomic batch insert (cases, contacts, schedules, pending occurrences)
+    API->>D1: Atomic claim (pending -> claimed, claimed_at = now, attempts += 1)
+    API->>Q: Chunked dispatch sendBatch() (max 100 messages/batch)
+    API-->>User: Immediate 200 OK (outreach queued, non-blocking)
+    
+    Q->>Consumer: Deliver occurrence message { occurrenceId }
+    alt Occurrence already terminal (completed / skipped / unknown)
+        Consumer->>Q: Ack message immediately, do not invoke Meta
+    else Occurrence claimed & active (lease < 10 min)
+        Consumer->>Meta: Invoke existing executeWhatsAppMessagingPipeline
+        alt Success
+            Consumer->>D1: Settle occurrence = completed, whatsapp_messages = SENT
+        alt Provider Timeout / Ambiguous In-Flight
+            Consumer->>D1: Settle occurrence = unknown, whatsapp_messages = UNKNOWN (no auto-retry)
+        end
+    end
+    Note over D1,Q: Fallback Recovery: If Queue publication partially fails, un-enqueued claimed rows expire after 10-minute lease and are reclaimed by Cron scanner.
+```
+*Invariants:*
+1. **D1 is the durable execution ledger**: Outbound occurrences are atomically claimed before queue enqueue.
+2. **Chunked Queue Publication**: Messages are chunked into slices of $\le 100$ per `sendBatch()` call.
+3. **SENDING Ambiguity Protection**: Active in-flight consumers yield without overwriting to `unknown`; orphaned `SENDING` older than 10 minutes are flagged `unknown` and never blindly re-sent to Meta.
+
 ---
 
 ## 5. Database Schema & Entity Relationships

@@ -196,6 +196,7 @@ function formatStatus(status) {
 }
 
 const WHATSAPP_STATUS_ORDER = [
+  "queued",
   "dispatch_requested",
   "pending",
   "sent",
@@ -207,6 +208,7 @@ const WHATSAPP_STATUS_ORDER = [
 
 function formatWhatsAppDeliveryStatus(status) {
   const map = {
+    queued: "Queued",
     dispatch_requested: "Dispatch Requested",
     sent: "Sent",
     delivered: "Delivered",
@@ -245,7 +247,7 @@ function getWhatsAppDeliveryBadgeHtml(status) {
     badgeStyle = "background: #E0E7FF; color: #3730A3; border: 1px solid #C7D2FE;";
   } else if (st === 'failed') {
     badgeStyle = "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;";
-  } else if (st === 'dispatch_requested' || st === 'pending') {
+  } else if (st === 'queued' || st === 'dispatch_requested' || st === 'pending') {
     badgeStyle = "background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;";
   } else if (st === 'scheduled') {
     badgeStyle = "background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE;";
@@ -3754,7 +3756,7 @@ async function executeBulkImport() {
     const skippedInvalidCount = totalParsedCount - validRows.length;
     const importedCount = data.importedCount || 0;
     const backendFailedCount = data.failedCount || 0;
-    const actionWord = data.scheduled ? "scheduled" : "imported";
+    const actionWord = data.scheduled ? "scheduled" : (data.queued ? "imported (outreach queued)" : "imported");
 
     if (typeof UI !== 'undefined' && UI.toast) {
       if (skippedInvalidCount > 0 && backendFailedCount > 0) {
@@ -3764,7 +3766,7 @@ async function executeBulkImport() {
       } else if (backendFailedCount > 0) {
         UI.toast(`${importedCount} clients ${actionWord} · ${backendFailedCount} failed`, "warning");
       } else {
-        UI.toast(`Successfully ${actionWord} ${importedCount} clients!`, "success");
+        UI.toast(data.queued ? `${importedCount} clients imported · outreach queued for delivery` : `Successfully ${actionWord} ${importedCount} clients!`, "success");
       }
     }
 

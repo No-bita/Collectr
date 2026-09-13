@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { handleBulkImportCases } from '../src/api/cases.js';
+import { handleBulkImportCases, executeWhatsAppMessagingPipeline } from '../src/api/cases.js';
+import { processScheduledOccurrence } from '../src/scheduler/consumer.js';
+import { scanAndClaimDueOccurrences } from '../src/scheduler/scanner.js';
 import { toSqliteUtc, isValidTimezone, parseScheduledForToUtc } from '../src/scheduler/time.js';
 
 const rootDir = path.resolve(process.cwd());
@@ -81,13 +83,20 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
   await t.test('5. Backend Bulk Import Scheduling Execution & Invariants', async (st) => {
     function createMockDb() {
       const records = {
+        users: [
+          { id: 'usr_test_1', username: 'Test Agent', credit_balance: 900 }
+        ],
         contacts: [],
         loan_cases: [],
         secure_tokens: [],
         required_documents: [],
         schedules: [],
         scheduled_occurrences: [],
-        case_timeline: []
+        case_timeline: [],
+        whatsapp_messages: [],
+        credit_reservations: [],
+        credit_transactions: [],
+        message_templates: []
       };
 
       const executeFn = async (query) => {
@@ -127,7 +136,7 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
         if (norm.startsWith('UPDATE loan_cases SET whatsapp_delivery_status =')) {
           const [case_id] = args;
           const item = records.loan_cases.find(x => x.id === case_id);
-          if (item) item.whatsapp_delivery_status = 'scheduled';
+          if (item) item.whatsapp_delivery_status = norm.includes("'sent'") ? 'sent' : (norm.includes("'unknown'") ? 'unknown' : 'scheduled');
           return { rows: [], changes: 1 };
         }
         if (norm.startsWith('INSERT INTO schedules')) {
@@ -142,13 +151,159 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
         if (norm.startsWith('INSERT INTO scheduled_occurrences')) {
           const [id, schedule_id, occurrence_key, scheduled_for_utc] = args;
           records.scheduled_occurrences.push({
-            id, schedule_id, occurrence_key, scheduled_for_utc, operational_status: 'pending'
+            id, schedule_id, occurrence_key, scheduled_for_utc, operational_status: 'pending',
+            claimed_at: null, attempts: 0
           });
           return { rows: [] };
         }
         if (norm.startsWith('INSERT INTO case_timeline')) {
           records.case_timeline.push({ sql, args });
           return { rows: [] };
+        }
+        if (norm.startsWith("UPDATE scheduled_occurrences SET operational_status = 'claimed'")) {
+          const occId = args[0];
+          const occ = records.scheduled_occurrences.find(o => o.id === occId);
+          if (occ) {
+            const now = Date.now();
+            const tenMinsAgo = now - 10 * 60 * 1000;
+            const isPending = occ.operational_status === 'pending';
+            const isStale = occ.operational_status === 'claimed' && occ.claimed_at && (new Date(occ.claimed_at).getTime() < tenMinsAgo);
+            if (isPending || isStale) {
+              occ.operational_status = 'claimed';
+              occ.claimed_at = new Date().toISOString();
+              occ.attempts = (occ.attempts || 0) + 1;
+              return { rows: [{ id: occ.id }], changes: 1 };
+            }
+          }
+          return { rows: [], changes: 0 };
+        }
+        if (norm.includes("FROM scheduled_occurrences") && norm.includes("ORDER BY scheduled_for_utc ASC LIMIT")) {
+          const limit = args[0] || 50;
+          const now = Date.now();
+          const tenMinsAgo = now - 10 * 60 * 1000;
+          const matches = records.scheduled_occurrences.filter(o => {
+            if (o.operational_status === "pending") {
+              const schedTime = new Date(o.scheduled_for_utc.replace(" ", "T") + (o.scheduled_for_utc.endsWith("Z") ? "" : "Z")).getTime();
+              return schedTime <= now + 1000;
+            }
+            if (o.operational_status === "claimed" && o.claimed_at) {
+              const claimTime = new Date(o.claimed_at).getTime();
+              return claimTime < tenMinsAgo;
+            }
+            return false;
+          }).slice(0, limit);
+          return { rows: matches };
+        }
+        if (norm.includes("FROM scheduled_occurrences o JOIN schedules s ON o.schedule_id = s.id WHERE o.id = ?")) {
+          const occId = args[0];
+          const occ = records.scheduled_occurrences.find(o => o.id === occId);
+          if (!occ) return { rows: [] };
+          const sch = records.schedules.find(s => s.id === occ.schedule_id);
+          if (!sch) return { rows: [] };
+          return {
+            rows: [{
+              ...occ,
+              user_id: sch.user_id,
+              case_id: sch.case_id,
+              contact_id: sch.contact_id,
+              phone_number: sch.phone_number,
+              template_name: sch.template_name,
+              template_params: sch.template_params,
+              schedule_type: sch.schedule_type,
+              recurrence_interval: sch.recurrence_interval,
+              timezone: sch.timezone,
+              schedule_status: sch.status
+            }]
+          };
+        }
+        if (norm.startsWith("SELECT id, status, contact_person, phone_number FROM loan_cases WHERE id = ?")) {
+          const c = records.loan_cases.find(x => x.id === args[0]);
+          return { rows: c ? [c] : [] };
+        }
+        if (norm.startsWith("SELECT token FROM secure_tokens WHERE case_id = ?")) {
+          const t = records.secure_tokens.find(x => x.case_id === args[0]);
+          return { rows: t ? [{ token: t.token }] : [] };
+        }
+        if (norm.startsWith("SELECT id, username, credit_balance FROM users WHERE id = ?") || norm.startsWith("SELECT credit_balance FROM users WHERE id = ?")) {
+          const u = records.users.find(x => x.id === args[0]);
+          return { rows: u ? [u] : [] };
+        }
+        if (norm.startsWith("UPDATE users SET credit_balance = ? WHERE id = ?")) {
+          const [newBal, uId] = args;
+          const u = records.users.find(x => x.id === uId);
+          if (u) u.credit_balance = newBal;
+          return { rows: [], changes: 1 };
+        }
+        if (norm.includes("FROM whatsapp_messages WHERE user_id = ? AND idempotency_key = ?")) {
+          const [userId, idempKey] = args;
+          const msg = records.whatsapp_messages.find(m => m.user_id === userId && m.idempotency_key === idempKey);
+          if (!msg) return { rows: [] };
+          const ageSeconds = msg.age_seconds !== undefined
+            ? msg.age_seconds
+            : (msg.created_at ? Math.max(0, Math.floor((Date.now() - new Date(msg.created_at).getTime()) / 1000)) : 0);
+          return {
+            rows: [{
+              status: msg.status,
+              provider_message_id: msg.provider_message_id || null,
+              created_at: msg.created_at,
+              age_seconds: ageSeconds
+            }]
+          };
+        }
+        if (norm.startsWith("INSERT INTO whatsapp_messages")) {
+          const [id, user_id, idempotency_key, status] = args;
+          const existing = records.whatsapp_messages.find(m => m.user_id === user_id && m.idempotency_key === idempotency_key);
+          if (existing) {
+            existing.status = status;
+          } else {
+            records.whatsapp_messages.push({
+              id, user_id, idempotency_key, status, provider_message_id: null, created_at: new Date().toISOString()
+            });
+          }
+          return { rows: [] };
+        }
+        if (norm.startsWith("UPDATE whatsapp_messages SET status = 'SENT'")) {
+          const [providerMsgId, msgId] = args;
+          const m = records.whatsapp_messages.find(x => x.id === msgId);
+          if (m) {
+            m.status = 'SENT';
+            m.provider_message_id = providerMsgId;
+          }
+          return { rows: [], changes: 1 };
+        }
+        if (norm.startsWith("UPDATE whatsapp_messages SET status = 'UNKNOWN'")) {
+          const [userId, idempKey] = args;
+          const m = records.whatsapp_messages.find(x => x.user_id === userId && x.idempotency_key === idempKey);
+          if (m) m.status = 'UNKNOWN';
+          return { rows: [], changes: 1 };
+        }
+        if (norm.startsWith("UPDATE scheduled_occurrences SET operational_status =")) {
+          const lastArg = args[args.length - 1];
+          const occ = records.scheduled_occurrences.find(o => o.id === lastArg);
+          if (occ) {
+            if (norm.includes("operational_status = 'completed'")) {
+              occ.operational_status = 'completed';
+              occ.provider_message_id = args[0];
+            } else if (norm.includes("operational_status = 'unknown'")) {
+              occ.operational_status = 'unknown';
+              occ.last_error = args[0];
+            } else if (norm.includes("operational_status = 'skipped'")) {
+              occ.operational_status = 'skipped';
+              occ.skip_reason = args[0] || 'insufficient_credits';
+            } else if (norm.includes("operational_status = 'failed'")) {
+              occ.operational_status = 'failed';
+              occ.last_error = args[0];
+            }
+            occ.executed_at = new Date().toISOString();
+            return { rows: [{ id: occ.id }], changes: 1 };
+          }
+          return { rows: [], changes: 0 };
+        }
+        if (norm.startsWith("UPDATE schedules SET status = 'completed'")) {
+          const sId = args[0];
+          const sch = records.schedules.find(s => s.id === sId);
+          if (sch) sch.status = 'completed';
+          return { rows: [], changes: 1 };
         }
         if (norm.startsWith('DELETE FROM scheduled_occurrences')) {
           const [caseId] = args;
@@ -510,6 +665,288 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
       const clientBSched = mockDb.records.schedules.find(s => s.phone_number.includes('9876543212'));
       assert.equal(clientBSched, undefined, 'Client B must have no schedule');
       assert.equal(mockDb.records.scheduled_occurrences.length, 1, 'Scanner only sees 1 occurrence (Client A)');
+    });
+
+    await st.test('5.10 200-row bulk import chunks queue publication into batches of <= 100', async () => {
+      const mockDb = createMockDb();
+      const publishedBatches = [];
+      const mockQueue = {
+        sendBatch: async (messages) => {
+          assert.ok(messages.length <= 100, `sendBatch received ${messages.length} messages, exceeding 100 cap`);
+          publishedBatches.push(messages);
+          return { success: true };
+        }
+      };
+      const mockEnv = { DB: mockDb, SCHEDULE_QUEUE: mockQueue };
+      const rawClients = Array.from({ length: 200 }, (_, i) => ({
+        contactPerson: `Bulk Client ${i + 1}`,
+        phoneNumber: `980000${String(i + 1).padStart(4, '0')}`
+      }));
+
+      const mockContext = {
+        req: {
+          json: async () => ({
+            clients: rawClients,
+            sendWhatsApp: true
+          })
+        },
+        env: mockEnv,
+        get: (k) => k === 'user' ? { id: 'usr_test_1', username: 'Test' } : null,
+        json: (data, code = 200) => ({ data, code })
+      };
+
+      const res = await handleBulkImportCases(mockContext);
+      assert.equal(res.code, 200);
+      assert.equal(res.data.importedCount, 200);
+      assert.equal(publishedBatches.length, 2, 'Exactly 2 queue batches must be published for 200 clients');
+      assert.equal(publishedBatches[0].length, 100, 'Batch 1 must contain exactly 100 messages');
+      assert.equal(publishedBatches[1].length, 100, 'Batch 2 must contain exactly 100 messages');
+
+      // Verify all occurrences in D1 are atomically claimed before queue dispatch
+      assert.equal(mockDb.records.scheduled_occurrences.length, 200);
+      const allClaimed = mockDb.records.scheduled_occurrences.every(o => o.operational_status === 'claimed');
+      assert.ok(allClaimed, 'All 200 occurrences must be atomically claimed in D1');
+    });
+
+    await st.test('5.11 Direct bulk queue publication claims occurrence first, preventing concurrent Cron scan race', async () => {
+      const mockDb = createMockDb();
+      const mockQueue = { sendBatch: async () => ({ success: true }) };
+      const mockEnv = { DB: mockDb, SCHEDULE_QUEUE: mockQueue };
+      const rawClients = [
+        { contactPerson: 'Concurrent Test Client', phoneNumber: '9876543201' }
+      ];
+
+      const mockContext = {
+        req: { json: async () => ({ clients: rawClients, sendWhatsApp: true }) },
+        env: mockEnv,
+        get: (k) => k === 'user' ? { id: 'usr_test_1', username: 'Test' } : null,
+        json: (data, code = 200) => ({ data, code })
+      };
+
+      await handleBulkImportCases(mockContext);
+      assert.equal(mockDb.records.scheduled_occurrences.length, 1);
+      assert.equal(mockDb.records.scheduled_occurrences[0].operational_status, 'claimed');
+
+      // Scanner immediately runs concurrently
+      const scannerQueue = { send: async () => {} };
+      const scanResult = await scanAndClaimDueOccurrences(mockDb, scannerQueue);
+      assert.equal(scanResult.claimed, 0, 'Scanner must claim 0 occurrences because bulk import already holds claim lease');
+    });
+
+    await st.test('5.12 Partial queue publication failure keeps occurrences durable in D1 for Cron recovery', async () => {
+      const mockDb = createMockDb();
+      let batchCount = 0;
+      const mockQueue = {
+        sendBatch: async (messages) => {
+          batchCount++;
+          if (batchCount === 2) {
+            throw new Error('Simulated Cloudflare Queue outage on batch 2');
+          }
+          return { success: true };
+        }
+      };
+      const mockEnv = { DB: mockDb, SCHEDULE_QUEUE: mockQueue };
+      const rawClients = Array.from({ length: 200 }, (_, i) => ({
+        contactPerson: `Partial Client ${i + 1}`,
+        phoneNumber: `981000${String(i + 1).padStart(4, '0')}`
+      }));
+
+      const mockContext = {
+        req: { json: async () => ({ clients: rawClients, sendWhatsApp: true }) },
+        env: mockEnv,
+        get: (k) => k === 'user' ? { id: 'usr_test_1', username: 'Test' } : null,
+        json: (data, code = 200) => ({ data, code })
+      };
+
+      const res = await handleBulkImportCases(mockContext);
+      assert.equal(res.code, 200);
+      assert.equal(res.data.importedCount, 200, 'Import succeeds without failing HTTP response');
+      assert.equal(mockDb.records.scheduled_occurrences.length, 200, 'All 200 occurrences durably recorded');
+
+      // Simulate lease expiration for the un-enqueued 100 occurrences (set claimed_at to 15 mins ago)
+      for (let i = 100; i < 200; i++) {
+        mockDb.records.scheduled_occurrences[i].claimed_at = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      }
+
+      // Cron scanner wakes up and claims the expired un-enqueued occurrences
+      const enqueuedRecovery = [];
+      const recoveryQueue = { send: async (msg) => enqueuedRecovery.push(msg) };
+      const scanResult = await scanAndClaimDueOccurrences(mockDb, recoveryQueue, 100);
+      assert.equal(scanResult.claimed, 100, 'Cron scanner must reclaim exactly the 100 orphaned occurrences');
+      assert.equal(enqueuedRecovery.length, 100, 'All 100 reclaimed occurrences dispatched to queue');
+    });
+
+    await st.test('5.13 SENDING ambiguity protection: active in-flight vs orphaned interrupted', async () => {
+      const mockDb = createMockDb();
+      const mockEnv = { ENVIRONMENT: 'development' };
+      const user = { id: 'usr_test_1', username: 'Test Agent' };
+
+      // Case 1: Concurrent active in-flight send (age < 600s)
+      mockDb.records.whatsapp_messages.push({
+        id: 'msg_active',
+        user_id: user.id,
+        idempotency_key: 'idemp_usr_test_1_occ_active',
+        status: 'SENDING',
+        provider_message_id: null,
+        created_at: new Date().toISOString(),
+        age_seconds: 5
+      });
+
+      const activeRes = await executeWhatsAppMessagingPipeline(
+        mockDb, user, '9876543201', 'welcome_template', 'Active Client',
+        'tok_1', mockEnv, 'occ_active'
+      );
+      assert.equal(activeRes.success, false);
+      assert.equal(activeRes.inFlight, true, 'Active in-flight must be flagged as inFlight');
+      assert.equal(activeRes.ambiguous, false, 'Active in-flight must not be marked ambiguous');
+
+      // Consumer handling of active in-flight: yields without setting occurrence to unknown
+      mockDb.records.scheduled_occurrences.push({
+        id: 'active',
+        schedule_id: 'sch_active',
+        occurrence_key: 'key_active',
+        scheduled_for_utc: new Date().toISOString(),
+        operational_status: 'claimed',
+        attempts: 1
+      });
+      mockDb.records.schedules.push({
+        id: 'sch_active',
+        user_id: user.id,
+        phone_number: '9876543201',
+        template_name: 'welcome_template',
+        status: 'active',
+        schedule_type: 'one_off'
+      });
+
+      const consumerRes = await processScheduledOccurrence('active', mockEnv, mockDb);
+      assert.equal(consumerRes.handled, true);
+      assert.equal(consumerRes.status, 'in_flight_duplicate');
+      const activeOcc = mockDb.records.scheduled_occurrences.find(o => o.id === 'active');
+      assert.equal(activeOcc.operational_status, 'claimed', 'Occurrence must NOT be overwritten to unknown during active lease');
+
+      // Case 2: Orphaned SENDING older than lease (age >= 600s)
+      mockDb.records.whatsapp_messages.push({
+        id: 'msg_orphaned',
+        user_id: user.id,
+        idempotency_key: 'idemp_usr_test_1_occ_orphaned',
+        status: 'SENDING',
+        provider_message_id: null,
+        created_at: new Date(Date.now() - 700 * 1000).toISOString(),
+        age_seconds: 700
+      });
+
+      const orphanedRes = await executeWhatsAppMessagingPipeline(
+        mockDb, user, '9876543202', 'welcome_template', 'Orphaned Client',
+        'tok_2', mockEnv, 'occ_orphaned'
+      );
+      assert.equal(orphanedRes.success, false);
+      assert.equal(orphanedRes.ambiguous, true, 'Orphaned execution must be flagged ambiguous');
+      assert.equal(orphanedRes.inFlight, false);
+
+      // Verify whatsapp_messages was updated to UNKNOWN
+      const orphanedMsg = mockDb.records.whatsapp_messages.find(m => m.id === 'msg_orphaned');
+      assert.equal(orphanedMsg.status, 'UNKNOWN');
+    });
+
+    await st.test('5.14 Provider ID reconciliation: SENDING with provider_message_id reconciles as sent without calling Meta', async () => {
+      const mockDb = createMockDb();
+      const mockEnv = { ENVIRONMENT: 'development' };
+      const user = { id: 'usr_test_1', username: 'Test Agent' };
+
+      mockDb.records.whatsapp_messages.push({
+        id: 'msg_reconciled',
+        user_id: user.id,
+        idempotency_key: 'idemp_usr_test_1_occ_reconciled',
+        status: 'SENDING',
+        provider_message_id: 'wamid.HBgM_RECONCILED_TEST',
+        created_at: new Date().toISOString(),
+        age_seconds: 10
+      });
+
+      const res = await executeWhatsAppMessagingPipeline(
+        mockDb, user, '9876543203', 'welcome_template', 'Reconciled Client',
+        'tok_3', mockEnv, 'occ_reconciled'
+      );
+      assert.equal(res.success, true);
+      assert.equal(res.idempotent, true);
+      assert.equal(res.providerMsgId, 'wamid.HBgM_RECONCILED_TEST');
+    });
+
+    await st.test('5.15 Terminal state guards: queue delivery arriving after occurrence terminal immediately acks without Meta call', async () => {
+      const mockDb = createMockDb();
+      const mockEnv = { ENVIRONMENT: 'development' };
+      const user = { id: 'usr_test_1', username: 'Test Agent' };
+
+      const terminalStatuses = ['unknown', 'completed', 'skipped'];
+      for (const tStatus of terminalStatuses) {
+        const occId = `occ_term_${tStatus}`;
+        const schId = `sch_term_${tStatus}`;
+        mockDb.records.schedules.push({
+          id: schId, user_id: user.id, phone_number: '9876543204', template_name: 'test_tpl', status: 'active', schedule_type: 'one_off'
+        });
+        mockDb.records.scheduled_occurrences.push({
+          id: occId, schedule_id: schId, occurrence_key: `key_${tStatus}`, scheduled_for_utc: new Date().toISOString(), operational_status: tStatus
+        });
+
+        const res = await processScheduledOccurrence(occId, mockEnv, mockDb);
+        assert.equal(res.handled, true);
+        assert.equal(res.status, tStatus);
+        assert.equal(res.alreadyDone, true);
+      }
+
+      // Cancelled schedule check
+      const cancOccId = 'occ_canc';
+      const cancSchId = 'sch_canc';
+      mockDb.records.schedules.push({
+        id: cancSchId, user_id: user.id, phone_number: '9876543205', template_name: 'test_tpl', status: 'cancelled', schedule_type: 'one_off'
+      });
+      mockDb.records.scheduled_occurrences.push({
+        id: cancOccId, schedule_id: cancSchId, occurrence_key: 'key_canc', scheduled_for_utc: new Date().toISOString(), operational_status: 'pending'
+      });
+      const cancRes = await processScheduledOccurrence(cancOccId, mockEnv, mockDb);
+      assert.equal(cancRes.handled, true);
+      assert.equal(cancRes.status, 'skipped');
+      assert.equal(cancRes.reason, 'cancelled');
+    });
+
+    await st.test('5.16 Tenant-scoped credit isolation: Tenant A (0 balance) skips while Tenant B (900 balance) delivers', async () => {
+      const mockDb = createMockDb();
+      const mockEnv = { ENVIRONMENT: 'development', MOCK_WHATSAPP: 'true', MOCK_WHATSAPP_STATUS: 'sent' };
+
+      // Tenant A: 0 balance
+      mockDb.records.users.push({ id: 'usr_tenant_a', username: 'Tenant A', credit_balance: 0 });
+      mockDb.records.schedules.push({
+        id: 'sch_tenant_a', user_id: 'usr_tenant_a', phone_number: '9876543206', template_name: 'test_tpl', status: 'active', schedule_type: 'one_off'
+      });
+      mockDb.records.scheduled_occurrences.push({
+        id: 'occ_tenant_a', schedule_id: 'sch_tenant_a', occurrence_key: 'key_tenant_a', scheduled_for_utc: new Date().toISOString(), operational_status: 'claimed'
+      });
+
+      // Tenant B: 900 balance
+      mockDb.records.users.push({ id: 'usr_tenant_b', username: 'Tenant B', credit_balance: 900 });
+      mockDb.records.schedules.push({
+        id: 'sch_tenant_b', user_id: 'usr_tenant_b', phone_number: '9876543207', template_name: 'test_tpl', status: 'active', schedule_type: 'one_off'
+      });
+      mockDb.records.scheduled_occurrences.push({
+        id: 'occ_tenant_b', schedule_id: 'sch_tenant_b', occurrence_key: 'key_tenant_b', scheduled_for_utc: new Date().toISOString(), operational_status: 'claimed'
+      });
+
+      // Process Tenant A
+      const resA = await processScheduledOccurrence('occ_tenant_a', mockEnv, mockDb);
+      assert.equal(resA.handled, true);
+      assert.equal(resA.status, 'skipped');
+      assert.equal(resA.reason, 'insufficient_credits');
+
+      const occA = mockDb.records.scheduled_occurrences.find(o => o.id === 'occ_tenant_a');
+      assert.equal(occA.operational_status, 'skipped');
+
+      // Process Tenant B - should succeed and deduct
+      const resB = await processScheduledOccurrence('occ_tenant_b', mockEnv, mockDb);
+      assert.equal(resB.handled, true);
+      assert.equal(resB.status, 'completed');
+
+      const userB = mockDb.records.users.find(u => u.id === 'usr_tenant_b');
+      assert.equal(userB.credit_balance, 810, 'Tenant B balance must be deducted by 90 paise');
     });
   });
 });

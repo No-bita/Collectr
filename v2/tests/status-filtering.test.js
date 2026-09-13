@@ -170,6 +170,7 @@ test('Mode-Dependent Status Presentation & Filtering Tests', async (t) => {
 
   await t.test('8. WHATSAPP_STATUS_ORDER provides canonical deterministic sorting', () => {
     assert.deepStrictEqual(WHATSAPP_STATUS_ORDER, [
+      'queued',
       'dispatch_requested',
       'pending',
       'sent',

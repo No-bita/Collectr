@@ -138,11 +138,49 @@ export async function executeWhatsAppMessagingPipeline(
   const idempotencyKey = `idemp_${user?.id || 'sys'}_${referenceId}`;
 
   const msgCheck = await db.execute({
-    sql: "SELECT status FROM whatsapp_messages WHERE user_id = ? AND idempotency_key = ?",
+    sql: `SELECT status, provider_message_id, created_at,
+          (strftime('%s', 'now') - strftime('%s', created_at)) as age_seconds
+          FROM whatsapp_messages
+          WHERE user_id = ? AND idempotency_key = ?`,
     args: [user?.id || 'sys', idempotencyKey]
   });
-  if (msgCheck.rows.length > 0 && msgCheck.rows[0].status === 'SENT') {
-    return { success: true, delivered: true, idempotent: true };
+  if (msgCheck.rows.length > 0) {
+    const existingMsg = msgCheck.rows[0];
+    if (existingMsg.status === 'SENT' || existingMsg.provider_message_id) {
+      return {
+        success: true,
+        delivered: true,
+        idempotent: true,
+        providerMsgId: existingMsg.provider_message_id || null
+      };
+    }
+    if (existingMsg.status === 'SENDING') {
+      const ageSeconds = (existingMsg.age_seconds !== undefined && existingMsg.age_seconds !== null)
+        ? Number(existingMsg.age_seconds)
+        : 0;
+      // Active in-flight consumer within 10-minute lease window: yield to active consumer
+      if (ageSeconds < 600) {
+        return {
+          success: false,
+          error: "WHATSAPP_IN_FLIGHT",
+          message: "Message dispatch actively in-flight by concurrent consumer.",
+          inFlight: true,
+          ambiguous: false
+        };
+      }
+      // Orphaned / interrupted SENDING older than lease: ambiguous outcome, mark UNKNOWN and do NOT retry
+      await db.execute({
+        sql: "UPDATE whatsapp_messages SET status = 'UNKNOWN' WHERE user_id = ? AND idempotency_key = ?",
+        args: [user?.id || 'sys', idempotencyKey]
+      }).catch(() => {});
+      return {
+        success: false,
+        error: "WHATSAPP_AMBIGUOUS_SENDING",
+        message: "Message dispatch was interrupted or orphaned. Flagged unknown to prevent duplicate sends.",
+        inFlight: false,
+        ambiguous: true
+      };
+    }
   }
 
   const isDevEnv = (env?.ENVIRONMENT === 'development');
@@ -767,6 +805,7 @@ export async function handleBulkImportCases(c) {
   const results = [];
   let importedCount = 0;
   let failedCount = 0;
+  const immediateJobs = [];
 
   for (let i = 0; i < rawClients.length; i++) {
     const item = rawClients[i];
@@ -804,7 +843,7 @@ export async function handleBulkImportCases(c) {
 
       const rowStatements = [];
       const initialStatus = defaultRequiredDocs.length > 0 ? 'documents_pending' : 'lead';
-      const initialDeliveryStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : 'pending';
+      const initialDeliveryStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : (sendWhatsApp ? 'queued' : 'pending');
       const rowParams = Array.isArray(item.templateParams) ? item.templateParams : (Array.isArray(item.params) ? item.params : []);
 
       rowStatements.push({
@@ -833,10 +872,12 @@ export async function handleBulkImportCases(c) {
         args: [crypto.randomUUID(), contact.id, caseId, `Client imported via bulk list: ${contact.contactPerson}`]
       });
 
-      if (isScheduled && scheduledForUtc) {
+      let occId = null;
+      if (sendWhatsApp) {
         const scheduleId = `sch_${crypto.randomUUID()}`;
-        const occId = `occ_${crypto.randomUUID()}`;
-        const occKey = `${scheduleId}_${scheduledForUtc}`;
+        occId = `occ_${crypto.randomUUID()}`;
+        const occExecutionUtc = (isScheduled && scheduledForUtc) ? scheduledForUtc : toSqliteUtc(new Date());
+        const occKey = (isScheduled && scheduledForUtc) ? `${scheduleId}_${scheduledForUtc}` : `${scheduleId}_immediate`;
 
         rowStatements.push({
           sql: `
@@ -857,7 +898,7 @@ export async function handleBulkImportCases(c) {
             schedType,
             recurrenceInterval,
             timezone,
-            scheduledForUtc
+            occExecutionUtc
           ]
         });
 
@@ -867,10 +908,14 @@ export async function handleBulkImportCases(c) {
               id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
             ) VALUES (?, ?, ?, ?, 'pending')
           `,
-          args: [occId, scheduleId, occKey, scheduledForUtc]
+          args: [occId, scheduleId, occKey, occExecutionUtc]
         });
 
         const intervalNote = recurrenceInterval ? ` (Recurring ${recurrenceInterval})` : "";
+        const timelineContent = (isScheduled && scheduledForUtc)
+          ? `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`
+          : `WhatsApp outreach queued for delivery`;
+
         rowStatements.push({
           sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
                 VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
@@ -879,8 +924,8 @@ export async function handleBulkImportCases(c) {
             contact.id,
             caseId,
             templateName,
-            `WhatsApp outreach scheduled for ${scheduledForUtc} UTC${intervalNote}`,
-            JSON.stringify({ scheduledForUtc, scheduleType: schedType, recurrenceInterval, timezone })
+            timelineContent,
+            JSON.stringify({ scheduledForUtc: occExecutionUtc, scheduleType: schedType, recurrenceInterval, timezone })
           ]
         });
       }
@@ -894,25 +939,11 @@ export async function handleBulkImportCases(c) {
         }
       }
 
-      let whatsappStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : 'not_sent';
-      if (!isScheduled && sendWhatsApp && env?.WHATSAPP_PHONE_ID) {
-        const refId = `bulk_${caseId}`;
-        const pipeRes = await executeWhatsAppMessagingPipeline(
-          db,
-          user,
-          canonicalPhone,
-          templateName,
-          contact.contactPerson,
-          token,
-          env,
-          refId,
-          rowParams,
-          contact.id,
-          caseId
-        );
-        whatsappStatus = pipeRes.delivered ? 'sent' : (pipeRes.error === 'WHATSAPP_TIMEOUT' ? 'unknown' : 'failed');
+      if (!isScheduled && sendWhatsApp && occId) {
+        immediateJobs.push({ occurrenceId: occId, caseId });
       }
 
+      const whatsappStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : (sendWhatsApp ? 'queued' : 'not_sent');
       importedCount++;
       results.push({
         index: i,
@@ -944,15 +975,72 @@ export async function handleBulkImportCases(c) {
     }
   }
 
+  // Atomic claim before queue publication (pending -> claimed with fresh lease)
+  if (immediateJobs.length > 0) {
+    const claimedJobs = [];
+    for (const job of immediateJobs) {
+      try {
+        const claimRes = await db.execute({
+          sql: `UPDATE scheduled_occurrences
+                SET operational_status = 'claimed',
+                    claimed_at = datetime('now'),
+                    attempts = attempts + 1
+                WHERE id = ? AND operational_status = 'pending'
+                RETURNING id`,
+          args: [job.occurrenceId]
+        });
+        const isClaimed = (claimRes?.rows && claimRes.rows.length === 1) || (claimRes?.changes === 1) || (claimRes?.meta?.changes === 1);
+        if (isClaimed) {
+          claimedJobs.push(job);
+        }
+      } catch (claimErr) {
+        console.error(`Failed to claim occurrence ${job.occurrenceId}:`, claimErr);
+      }
+    }
+
+    // Publish to Queue in chunks of <= 100 messages
+    if (claimedJobs.length > 0) {
+      if (env?.SCHEDULE_QUEUE && typeof env.SCHEDULE_QUEUE.sendBatch === "function") {
+        const queueMessages = claimedJobs.map(j => ({
+          body: {
+            occurrenceId: j.occurrenceId,
+            caseId: j.caseId
+          }
+        }));
+        for (let offset = 0; offset < queueMessages.length; offset += 100) {
+          const chunk = queueMessages.slice(offset, offset + 100);
+          try {
+            await env.SCHEDULE_QUEUE.sendBatch(chunk);
+          } catch (queueErr) {
+            console.error(`[BULK IMPORT] Queue sendBatch failure for chunk ${offset / 100}:`, queueErr);
+            // Stale claim lease recovery: un-enqueued claimed occurrences remain durable in D1 with claimed_at = now.
+            // When the 10-minute lease expires, the Cron scanner automatically recovers and reclaims them.
+          }
+        }
+      } else if (typeof env?.INLINE_QUEUE_CONSUMER === "function") {
+        for (const j of claimedJobs) {
+          try {
+            await env.INLINE_QUEUE_CONSUMER({ occurrenceId: j.occurrenceId, caseId: j.caseId });
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  const actionMsg = (isScheduled && scheduledForUtc)
+    ? `Successfully scheduled outreach for ${importedCount} of ${rawClients.length} clients.`
+    : (sendWhatsApp
+      ? `Successfully imported ${importedCount} of ${rawClients.length} clients · outreach queued.`
+      : `Successfully imported ${importedCount} of ${rawClients.length} clients.`);
+
   return c.json({
     success: true,
-    message: isScheduled && scheduledForUtc
-      ? `Successfully scheduled outreach for ${importedCount} of ${rawClients.length} clients.`
-      : `Successfully imported ${importedCount} of ${rawClients.length} clients.`,
+    message: actionMsg,
     total: rawClients.length,
     importedCount,
     failedCount,
     scheduled: !!(isScheduled && scheduledForUtc),
+    queued: !isScheduled && sendWhatsApp,
     nextRunUtc: scheduledForUtc,
     results
   });
