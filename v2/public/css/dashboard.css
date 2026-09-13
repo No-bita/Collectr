@@ -2261,6 +2261,14 @@ tr.case-row:hover .row-copy-btn {
   background: #FEE2E2;
   color: #991B1B;
 }
+.row-status-pill.active-conflict {
+  background: #FEF3C7;
+  color: #92400E;
+}
+.row-status-pill.batch-duplicate {
+  background: #F1F5F9;
+  color: #475569;
+}
 
 /* ==========================================================================
    Segmented Document Progress Bar (Design Brief Decision 1)

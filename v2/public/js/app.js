@@ -2292,21 +2292,6 @@ if (btnSetWizardSchedule) btnSetWizardSchedule.addEventListener("click", setWiza
 const btnClearWizardSchedule = el("btnClearWizardSchedule");
 if (btnClearWizardSchedule) btnClearWizardSchedule.addEventListener("click", clearWizardSchedule);
 
-const btnBulkOpenSchedule = el("btnBulkOpenSchedule");
-if (btnBulkOpenSchedule) btnBulkOpenSchedule.addEventListener("click", openBulkSchedulePopup);
-
-const btnCloseBulkSchedulePopup = el("btnCloseBulkSchedulePopup");
-if (btnCloseBulkSchedulePopup) btnCloseBulkSchedulePopup.addEventListener("click", closeBulkSchedulePopup);
-
-const btnCancelBulkSchedule = el("btnCancelBulkSchedule");
-if (btnCancelBulkSchedule) btnCancelBulkSchedule.addEventListener("click", closeBulkSchedulePopup);
-
-const btnSetBulkSchedule = el("btnSetBulkSchedule");
-if (btnSetBulkSchedule) btnSetBulkSchedule.addEventListener("click", setBulkSchedule);
-
-const btnBulkClearSchedule = el("btnBulkClearSchedule");
-if (btnBulkClearSchedule) btnBulkClearSchedule.addEventListener("click", clearBulkSchedule);
-
 const bulkSendWhatsAppCheckEl = el("bulkSendWhatsAppCheck");
 if (bulkSendWhatsAppCheckEl) {
   bulkSendWhatsAppCheckEl.addEventListener("change", (e) => {
@@ -3444,14 +3429,13 @@ function openBulkImportModal() {
   populateBulkCategoryDropdown();
   updateBulkSampleFormat();
   renderBulkImportPreview([]);
+  closeBulkScheduleDrawer();
   const err = el("bulkImportError");
   if (err) err.hidden = true;
   const fileInput = el("bulkFileInput");
   if (fileInput) fileInput.value = "";
-  clearBulkSchedule();
-  const sendWhatsAppCheck = el("bulkSendWhatsAppCheck");
-  const clockBtn = el("btnBulkOpenSchedule");
-  if (clockBtn) clockBtn.style.display = (sendWhatsAppCheck && sendWhatsAppCheck.checked) ? "inline-flex" : "none";
+  const loading = el("bulkPrecheckLoading");
+  if (loading) loading.style.display = "none";
 }
 
 function updateBulkSampleFormat() {
@@ -3542,6 +3526,15 @@ function populateBulkCategoryDropdown() {
   }
 }
 
+function normalizeIndianPhoneNumber(rawPhone) {
+  if (!rawPhone) return null;
+  const digits = String(rawPhone).replace(/\D/g, "");
+  if (/^\d{10}$/.test(digits)) return "91" + digits;
+  if (/^0\d{10}$/.test(digits)) return "91" + digits.slice(1);
+  if (/^91\d{10}$/.test(digits)) return digits;
+  return null;
+}
+
 function parseCsvOrTextContent(content, hasHeader) {
   if (!content || !content.trim()) return [];
   const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -3553,6 +3546,7 @@ function parseCsvOrTextContent(content, hasHeader) {
     : (el("bulkHasHeaderCheck") ? el("bulkHasHeaderCheck").checked : true);
 
   const startIndex = hasHeaderRow ? 1 : 0;
+  const seenInBatch = new Set();
 
   for (let i = startIndex; i < lines.length; i++) {
     const line = lines[i];
@@ -3567,18 +3561,41 @@ function parseCsvOrTextContent(content, hasHeader) {
     const category = parts[2] || "";
     const amount = parts[3] || "";
 
-    const digits = rawPhone.replace(/\D/g, "");
-    const isValidPhone = digits.length === 10 || (digits.length === 12 && digits.startsWith("91"));
+    const canonical = normalizeIndianPhoneNumber(rawPhone);
+    const digits = canonical ? canonical.slice(2) : rawPhone.replace(/\D/g, "");
     const extraParams = isDirectOutreach ? [contactPerson, ...parts.slice(2)] : [];
 
+    let classification = 'invalid';
+    let statusLabel = 'Invalid format';
+    let isValid = false;
+
+    if (!canonical) {
+      classification = 'invalid';
+      statusLabel = 'Invalid format';
+      isValid = false;
+    } else if (seenInBatch.has(canonical)) {
+      classification = 'in_batch_duplicate';
+      statusLabel = 'Repeated in CSV — skipped';
+      isValid = false;
+    } else {
+      seenInBatch.add(canonical);
+      classification = 'pending_check';
+      statusLabel = 'Checking...';
+      isValid = true;
+    }
+
     rows.push({
+      index: i,
       contactPerson: contactPerson || `Client ${digits.slice(-4) || i + 1}`,
       rawPhone,
+      canonicalPhone: canonical,
       digits,
       category: isDirectOutreach ? "Direct Outreach" : (category || el("bulkCategorySelect")?.value || "Direct Intake"),
       amountRequired: isDirectOutreach ? null : amount,
       templateParams: extraParams,
-      isValid: isValidPhone
+      classification,
+      statusLabel,
+      isValid
     });
   }
 
@@ -3588,21 +3605,32 @@ function parseCsvOrTextContent(content, hasHeader) {
 function renderBulkImportPreview(rows) {
   parsedBulkClients = rows;
   const tbody = el("bulkPreviewTableBody");
-  const badge = el("bulkParsedBadge");
-  const submitBtn = el("btnExecuteBulkImport");
   const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
 
-  const validCount = rows.filter(r => r.isValid).length;
-  const invalidCount = rows.length - validCount;
+  const readyCount = rows.filter(r => r.classification === 'ready').length;
+  const activeCount = rows.filter(r => r.classification === 'active_conflict').length;
+  const batchCount = rows.filter(r => r.classification === 'in_batch_duplicate').length;
+  const invalidCount = rows.filter(r => r.classification === 'invalid').length;
 
-  if (badge) {
-    badge.textContent = `${validCount} valid (${invalidCount} invalid)`;
-    badge.style.color = validCount > 0 ? "#166534" : "#64748B";
+  const chipReady = el("chipReady"); if (chipReady) chipReady.textContent = `${readyCount} Ready`;
+  const chipActive = el("chipActive"); if (chipActive) chipActive.textContent = `${activeCount} Active — skipped`;
+  const chipBatch = el("chipBatch"); if (chipBatch) chipBatch.textContent = `${batchCount} Repeated in CSV — skipped`;
+  const chipInvalid = el("chipInvalid"); if (chipInvalid) chipInvalid.textContent = `${invalidCount} Invalid`;
+
+  const btnSendNow = el("btnBulkSendNow");
+  const btnSchedule = el("btnBulkOpenSchedule");
+  const legacySubmit = el("btnExecuteBulkImport");
+
+  const hasReady = readyCount > 0;
+  if (btnSendNow) {
+    btnSendNow.disabled = !hasReady;
+    btnSendNow.textContent = hasReady ? `🚀 Send Now (${readyCount})` : "🚀 Send Now";
   }
-
-  if (submitBtn) {
-    submitBtn.disabled = (validCount === 0);
-    updateBulkSubmitButtonLabel();
+  if (btnSchedule) {
+    btnSchedule.disabled = !hasReady;
+  }
+  if (legacySubmit) {
+    legacySubmit.disabled = !hasReady;
   }
 
   if (!tbody) return;
@@ -3615,27 +3643,32 @@ function renderBulkImportPreview(rows) {
 
   rows.slice(0, 100).forEach(r => {
     const tr = document.createElement("tr");
+    let pillHtml = "";
+    if (r.classification === 'ready') {
+      pillHtml = `<span class="row-status-pill valid">✓ Ready</span>`;
+    } else if (r.classification === 'active_conflict') {
+      pillHtml = `<span class="row-status-pill active-conflict" title="${escapeHtml(r.statusLabel)}">⚠️ ${escapeHtml(r.statusLabel)}</span>`;
+    } else if (r.classification === 'in_batch_duplicate') {
+      pillHtml = `<span class="row-status-pill batch-duplicate">⚠️ Repeated in CSV</span>`;
+    } else if (r.classification === 'pending_check') {
+      pillHtml = `<span class="row-status-pill batch-duplicate">⏳ Checking...</span>`;
+    } else {
+      pillHtml = `<span class="row-status-pill invalid">✕ Invalid format</span>`;
+    }
+
     if (isDirectOutreach) {
       const paramText = (r.templateParams && r.templateParams.length > 1) 
         ? r.templateParams.slice(1).join(", ") 
         : "—";
       tr.innerHTML = `
-        <td>
-          <span class="row-status-pill ${r.isValid ? 'valid' : 'invalid'}">
-            ${r.isValid ? '✓ Valid' : '✕ Invalid'}
-          </span>
-        </td>
+        <td>${pillHtml}</td>
         <td style="font-weight: 500;">${escapeHtml(r.contactPerson)}</td>
         <td><code style="font-size: 12px; background: #F1F5F9; padding: 2px 6px; border-radius: 4px;">${escapeHtml(r.rawPhone || 'Missing')}</code></td>
         <td colspan="2"><span style="color: #64748B; font-size: 12px;">Params: ${escapeHtml(paramText)}</span></td>
       `;
     } else {
       tr.innerHTML = `
-        <td>
-          <span class="row-status-pill ${r.isValid ? 'valid' : 'invalid'}">
-            ${r.isValid ? '✓ Valid' : '✕ Invalid'}
-          </span>
-        </td>
+        <td>${pillHtml}</td>
         <td style="font-weight: 500;">${escapeHtml(r.contactPerson)}</td>
         <td><code style="font-size: 12px; background: #F1F5F9; padding: 2px 6px; border-radius: 4px;">${escapeHtml(r.rawPhone || 'Missing')}</code></td>
         <td>${escapeHtml(r.category || '—')}</td>
@@ -3652,17 +3685,72 @@ function renderBulkImportPreview(rows) {
   }
 }
 
+async function runBulkPrecheck(rows) {
+  const pendingRows = rows.filter(r => r.classification === 'pending_check' && r.canonicalPhone);
+  if (pendingRows.length === 0) {
+    renderBulkImportPreview(rows);
+    return;
+  }
+
+  const loadingEl = el("bulkPrecheckLoading");
+  if (loadingEl) loadingEl.style.display = "block";
+
+  const btnSendNow = el("btnBulkSendNow");
+  const btnSchedule = el("btnBulkOpenSchedule");
+  if (btnSendNow) btnSendNow.disabled = true;
+  if (btnSchedule) btnSchedule.disabled = true;
+
+  try {
+    const phonesToCheck = Array.from(new Set(pendingRows.map(r => r.canonicalPhone)));
+    const res = await authFetch("/api/cases/bulk-precheck", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phones: phonesToCheck })
+    });
+    const data = await res.json().catch(() => ({}));
+    const activeExisting = data.activeExistingPhones || {};
+
+    for (const r of rows) {
+      if (r.classification === 'pending_check' && r.canonicalPhone) {
+        if (activeExisting[r.canonicalPhone]) {
+          const ext = activeExisting[r.canonicalPhone];
+          r.classification = 'active_conflict';
+          r.statusLabel = `Active — ${ext.contactPerson || 'Contact'} (${formatStatus(ext.status)})`;
+          r.isValid = false;
+        } else {
+          r.classification = 'ready';
+          r.statusLabel = 'Ready';
+          r.isValid = true;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Bulk pre-check error:", err);
+    for (const r of rows) {
+      if (r.classification === 'pending_check') {
+        r.classification = 'ready';
+        r.statusLabel = 'Ready';
+        r.isValid = true;
+      }
+    }
+  } finally {
+    if (loadingEl) loadingEl.style.display = "none";
+    renderBulkImportPreview(rows);
+  }
+}
+
 function handleBulkFileSelected(file) {
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     const text = e.target?.result || "";
     lastBulkFileContent = text;
     const hasHeader = el("bulkHasHeaderCheck") ? el("bulkHasHeaderCheck").checked : true;
     const rows = parseCsvOrTextContent(text, hasHeader);
     renderBulkImportPreview(rows);
+    await runBulkPrecheck(rows);
     if (typeof UI !== 'undefined' && UI.toast) {
-      UI.toast(`Parsed ${rows.length} rows from ${file.name}`, "info");
+      UI.toast(`Loaded ${rows.length} rows from ${file.name}`, "info");
     }
   };
   reader.readAsText(file);
@@ -3693,11 +3781,74 @@ function downloadSampleCsv() {
   document.body.removeChild(link);
 }
 
-async function executeBulkImport() {
-  const validRows = parsedBulkClients.filter(r => r.isValid);
-  if (validRows.length === 0) return;
+function openBulkScheduleDrawer() {
+  const readyCount = parsedBulkClients.filter(r => r.classification === 'ready' && r.isValid).length;
+  if (readyCount === 0) return;
 
-  const submitBtn = el("btnExecuteBulkImport");
+  const mainFooter = el("bulkFooterMain");
+  const schedFooter = el("bulkFooterSchedule");
+  if (mainFooter) mainFooter.style.display = "none";
+  if (schedFooter) schedFooter.style.display = "flex";
+
+  const dtInput = el("bulkScheduleDatetime");
+  if (dtInput) {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + 10);
+    const pad = n => String(n).padStart(2, '0');
+    const localIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    dtInput.min = localIso;
+    dtInput.value = localIso;
+    dtInput.focus();
+  }
+
+  const confirmBtn = el("btnBulkConfirmSchedule");
+  if (confirmBtn) confirmBtn.textContent = `Schedule ${readyCount} Client${readyCount === 1 ? '' : 's'}`;
+}
+
+function closeBulkScheduleDrawer() {
+  const mainFooter = el("bulkFooterMain");
+  const schedFooter = el("bulkFooterSchedule");
+  if (mainFooter) mainFooter.style.display = "flex";
+  if (schedFooter) schedFooter.style.display = "none";
+}
+
+function confirmBulkSchedule() {
+  const dtInput = el("bulkScheduleDatetime");
+  const dtVal = dtInput ? dtInput.value : "";
+  if (!dtVal) {
+    if (typeof UI !== 'undefined' && UI.toast) UI.toast("Please select a date and time to schedule.", "error");
+    if (dtInput) dtInput.focus();
+    return;
+  }
+
+  const schedDate = new Date(dtVal);
+  if (isNaN(schedDate.getTime()) || schedDate.getTime() <= Date.now()) {
+    if (typeof UI !== 'undefined' && UI.toast) UI.toast("Scheduled time must be in the future.", "error");
+    if (dtInput) dtInput.focus();
+    return;
+  }
+
+  let userTz = "Asia/Kolkata";
+  try {
+    userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+  } catch (_) {}
+
+  executeBulkImport({
+    schedule: {
+      scheduledFor: dtVal,
+      scheduleType: 'one_off',
+      timezone: userTz
+    }
+  });
+}
+
+async function executeBulkImport(options = {}) {
+  const readyRows = parsedBulkClients.filter(r => r.classification === 'ready' && r.isValid);
+  if (readyRows.length === 0) return;
+
+  const schedule = options.schedule || null;
+  const btnSendNow = el("btnBulkSendNow");
+  const btnConfirmSched = el("btnBulkConfirmSchedule");
   const errBox = el("bulkImportError");
   if (errBox) errBox.hidden = true;
 
@@ -3707,9 +3858,9 @@ async function executeBulkImport() {
   const sendWhatsApp = el("bulkSendWhatsAppCheck")?.checked !== false;
 
   const payload = {
-    clients: validRows.map(r => ({
+    clients: readyRows.map(r => ({
       contactPerson: r.contactPerson,
-      phoneNumber: r.digits || r.rawPhone,
+      phoneNumber: r.canonicalPhone || r.digits || r.rawPhone,
       loanProduct: r.category || defaultCategory,
       amountRequired: isDirectOutreach ? null : r.amountRequired,
       templateParams: r.templateParams || []
@@ -3720,15 +3871,17 @@ async function executeBulkImport() {
     noDocsRequired: isDirectOutreach
   };
 
-  if (sendWhatsApp && bulkScheduleState) {
-    payload.schedule = bulkScheduleState;
+  if (sendWhatsApp && schedule) {
+    payload.schedule = schedule;
   }
 
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = (sendWhatsApp && bulkScheduleState)
-      ? `Scheduling outreach for ${validRows.length} clients...`
-      : `Importing ${validRows.length} clients...`;
+  if (btnSendNow) {
+    btnSendNow.disabled = true;
+    if (!schedule) btnSendNow.textContent = `Sending to ${readyRows.length} clients...`;
+  }
+  if (btnConfirmSched) {
+    btnConfirmSched.disabled = true;
+    if (schedule) btnConfirmSched.textContent = `Scheduling ${readyRows.length} clients...`;
   }
 
   try {
@@ -3740,18 +3893,15 @@ async function executeBulkImport() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Failed to import client batch.");
 
-    const totalParsedCount = (Array.isArray(parsedBulkClients) ? parsedBulkClients.length : validRows.length);
-    const skippedInvalidCount = totalParsedCount - validRows.length;
     const importedCount = data.importedCount || 0;
     const duplicateCount = data.duplicateCount || 0;
     const backendFailedCount = data.failedCount || 0;
-    const actionWord = data.scheduled ? "scheduled" : (data.queued ? "imported (outreach queued)" : "imported");
+    const actionWord = data.scheduled ? "scheduled" : (data.queued ? "outreach queued" : "imported");
 
     if (typeof UI !== 'undefined' && UI.toast) {
       const parts = [`${importedCount} clients ${actionWord}`];
-      if (duplicateCount > 0) parts.push(`${duplicateCount} active duplicates skipped`);
+      if (duplicateCount > 0) parts.push(`${duplicateCount} became duplicates before sending and were skipped`);
       if (backendFailedCount > 0) parts.push(`${backendFailedCount} failed`);
-      if (skippedInvalidCount > 0) parts.push(`${skippedInvalidCount} invalid rows skipped`);
 
       const toastMsg = parts.join(' · ');
       const toastType = (backendFailedCount > 0) ? "warning" : "success";
@@ -3767,10 +3917,9 @@ async function executeBulkImport() {
       errBox.hidden = false;
     }
   } finally {
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      updateBulkSubmitButtonLabel();
-    }
+    if (btnSendNow) btnSendNow.disabled = false;
+    if (btnConfirmSched) btnConfirmSched.disabled = false;
+    renderBulkImportPreview(parsedBulkClients);
   }
 }
 
@@ -3830,6 +3979,31 @@ if (bulkDropzone) {
   });
 }
 
+const btnBulkSendNow = el("btnBulkSendNow");
+if (btnBulkSendNow) {
+  btnBulkSendNow.addEventListener("click", () => executeBulkImport({ schedule: null }));
+}
+
+const btnBulkOpenSchedule = el("btnBulkOpenSchedule");
+if (btnBulkOpenSchedule) {
+  btnBulkOpenSchedule.addEventListener("click", openBulkScheduleDrawer);
+}
+
+const btnBulkBackFromSchedule = el("btnBulkBackFromSchedule");
+if (btnBulkBackFromSchedule) {
+  btnBulkBackFromSchedule.addEventListener("click", closeBulkScheduleDrawer);
+}
+
+const btnBulkConfirmSchedule = el("btnBulkConfirmSchedule");
+if (btnBulkConfirmSchedule) {
+  btnBulkConfirmSchedule.addEventListener("click", confirmBulkSchedule);
+}
+
+const btnExecuteBulkImport = el("btnExecuteBulkImport");
+if (btnExecuteBulkImport) {
+  btnExecuteBulkImport.addEventListener("click", () => executeBulkImport({ schedule: null }));
+}
+
 // Make functions globally available
 window.openTemplateModal = openTemplateModal;
 window.closeTemplateModal = closeTemplateModal;
@@ -3844,6 +4018,11 @@ window.closeBulkImportModal = closeBulkImportModal;
 window.downloadSampleCsv = downloadSampleCsv;
 window.executeBulkImport = executeBulkImport;
 window.parseCsvOrTextContent = parseCsvOrTextContent;
+window.runBulkPrecheck = runBulkPrecheck;
+window.openBulkScheduleDrawer = openBulkScheduleDrawer;
+window.closeBulkScheduleDrawer = closeBulkScheduleDrawer;
+window.confirmBulkSchedule = confirmBulkSchedule;
+window.normalizeIndianPhoneNumber = normalizeIndianPhoneNumber;
 
 window.getDisplayStatus = getDisplayStatus;
 window.formatWhatsAppDeliveryStatus = formatWhatsAppDeliveryStatus;
@@ -3855,7 +4034,9 @@ if (typeof module !== 'undefined' && module.exports) {
     getDisplayStatus,
     formatWhatsAppDeliveryStatus,
     formatStatus,
-    WHATSAPP_STATUS_ORDER
+    WHATSAPP_STATUS_ORDER,
+    normalizeIndianPhoneNumber,
+    parseCsvOrTextContent
   };
 }
 

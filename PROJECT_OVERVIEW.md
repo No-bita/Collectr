@@ -303,6 +303,57 @@ sequenceDiagram
 2. **Chunked Queue Publication**: Messages are chunked into slices of $\le 100$ per `sendBatch()` call.
 3. **SENDING Ambiguity Protection**: Active in-flight consumers yield without overwriting to `unknown`; orphaned `SENDING` older than 10 minutes are flagged `unknown` and never blindly re-sent to Meta.
 
+### Flow 6.1: Bulk Upload Pre-Check & Action Flow (Send Now vs Schedule for Later)
+```text
+CSV selected
+      │
+      ▼
+Local parse + canonical phone normalization
+      │
+      ├── Invalid format ─────────┐
+      ├── Repeated in CSV ────────┤
+      │                           │
+      ▼                           │
+POST /api/cases/bulk-precheck     │
+      │                           │
+      ▼                           │
+DB active-workflow lookup         │
+      │                           │
+      └──────────────┬────────────┘
+                     ▼
+              Pre-check Result
+                     │
+          ┌──────────┴──────────┐
+          ▼                     ▼
+       Ready                 Skipped
+          │              ┌──────┼──────┐
+          │              ▼      ▼      ▼
+          │           Active  Batch  Invalid
+          │
+          ▼
+   Operator Action Choice
+      │       │
+      │       └───────────────┐
+      ▼                       ▼
+   Send Now             Schedule for Later
+      │                       │
+      │                       ▼
+      │                 Inline Date & Time Picker
+      │                       │
+      │                       ▼
+      │                 [Confirm Schedule]
+      │                       │
+      ▼                       ▼
+ POST /api/cases/bulk-import (Ready rows only)
+      │
+      ▼
+ D1 Atomic Transaction & Partial Unique Index (Authoritative concurrency guard)
+```
+*Invariants:*
+1. **Pre-check is Advisory / UI Validation**: Server uniqueness index `unq_active_case_user_phone` remains the authoritative concurrency guard.
+2. **Exact Ready Definition**: `Ready = valid canonical phone AND first occurrence in batch AND no active workflow at pre-check`. Only `Ready` rows are dispatched to `/api/cases/bulk-import`.
+3. **Action Semantics**: `Send Now` dispatches immediately for `Ready` count; `Schedule for Later` reveals inline Date & Time controls with confirmation before dispatch. Both disabled when `Ready == 0`.
+
 ---
 
 ## 5. Database Schema & Entity Relationships
@@ -409,6 +460,7 @@ erDiagram
 - `GET /api/cases`: Returns cases accessible to user (scoped by `user_id` or `is_demo=1`). Supports filtering by status, product, search text. Returns canonical `templateName` (camelCase).
 - `POST /api/cases`: `{ contactPerson, phoneNumber, loanProduct, amountRequired, templateName, requiredDocIds, schedule }` $\rightarrow$ Creates case & either dispatches WhatsApp immediately or registers a scheduled outreach (sets `loan_cases.whatsapp_delivery_status = 'scheduled'`).
 - `GET /api/cases/:id`: Detailed case view including required documents, uploads, and timeline. Resolves and returns authoritative `template: { name, displayName, renderedBody }` and `templateName`. Frontend components bind against `c.template` as the single source of truth to unify presentation across the info bar, WhatsApp conversation cards, and activity logs.
+- `POST /api/cases/bulk-precheck`: Accepts `{ phones: [...] }`, normalizes canonical Indian phones, and returns `{ activeExistingPhones: { [canonicalPhone]: { existingCaseId, contactPerson, status } } }` for active workflows in D1 without writing records or sending messages.
 - `POST /api/cases/bulk-import`: Parses uploaded CSV/spreadsheet, deduplicates numbers, and generates cases. Optionally accepts `schedule: { scheduledFor, scheduleType, recurrenceInterval, timezone }` with `sendWhatsApp: true` to schedule outreach in batch (creates schedule and exactly one initial pending occurrence per eligible case without upfront credit deduction).
 - `GET /api/contacts/:id/timeline`: Consolidated timeline across all mini-targets for a contact.
 

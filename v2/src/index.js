@@ -32,7 +32,8 @@ import {
   handleSendWhatsAppTemplate,
   handleBulkImportCases,
   handleCheckContact,
-  handleBulkImportPreview
+  handleBulkImportPreview,
+  handleBulkPrecheck
 } from "./api/cases.js";
 import {
   handleGetCredits,
@@ -141,6 +142,7 @@ app.get("/api/cases", handleGetCases);
 app.get("/api/cases/:id", handleGetSingleCase);
 app.post("/api/cases", handleCreateCase);
 app.post("/api/cases/bulk-import", handleBulkImportCases);
+app.post("/api/cases/bulk-precheck", handleBulkPrecheck);
 app.post("/api/cases/bulk-import/preview", handleBulkImportPreview);
 app.patch("/api/cases/:id", handleEditCase);
 app.delete("/api/cases/:id", handleDeleteCase);

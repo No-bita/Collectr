@@ -748,89 +748,65 @@ export async function handleCreateCase(c) {
   }
 }
 
-// 1.1 Bulk Import Clients Preview Handler (0 DB writes, 0 sends)
-export async function handleBulkImportPreview(c) {
+// 1.1 Bulk Import Clients Pre-Check Handler (0 DB writes, 0 sends)
+export async function handleBulkPrecheck(c) {
   const body = await c.req.json().catch(() => ({}));
-  const rawClients = Array.isArray(body.clients) ? body.clients : [];
-  if (rawClients.length === 0) {
-    return c.json({ error: "No client records provided for preview." }, 400);
-  }
+  const rawList = Array.isArray(body.phones)
+    ? body.phones
+    : (Array.isArray(body.clients) ? body.clients.map(cl => (typeof cl === 'string' ? cl : (cl.phoneNumber || cl.phone || ""))) : []);
 
   const env = c.env;
   const db = getDbClient(env);
   const user = c.get("user");
   const userId = user ? (user.id || user.sub || null) : null;
-  const defaultProduct = body.defaultLoanProduct || "Direct Intake";
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
 
-  let validRows = [];
-  let invalidRows = [];
-  let duplicatePhoneRows = [];
-  let existingContactRows = [];
-  let newContactRows = [];
-
-  const seenInBatch = new Map();
-
-  for (let i = 0; i < rawClients.length; i++) {
-    const item = rawClients[i];
-    const rawName = String(item.contactPerson || item.name || item.contact_person || "").trim();
-    const rawPhone = String(item.phoneNumber || item.phone || item.phone_number || item.mobile || "").trim();
-    const product = String(item.loanProduct || item.category || item.product || defaultProduct).trim();
-
-    let canonicalPhone;
+  const canonicalPhones = [];
+  for (const item of rawList.slice(0, 1000)) {
     try {
-      canonicalPhone = normalizeIndianPhoneNumber(rawPhone);
-    } catch (e) {
-      invalidRows.push({ index: i, name: rawName, phone: rawPhone, reason: e.message });
-      continue;
+      const rawStr = typeof item === 'string' ? item : (item?.phoneNumber || item?.phone || "");
+      const canon = normalizeIndianPhoneNumber(rawStr);
+      if (canon && !canonicalPhones.includes(canon)) {
+        canonicalPhones.push(canon);
+      }
+    } catch (_) {
+      // Ignore invalid phones in DB precheck
     }
+  }
 
-    if (seenInBatch.has(canonicalPhone)) {
-      duplicatePhoneRows.push({ index: i, name: rawName, phone: canonicalPhone, firstIndex: seenInBatch.get(canonicalPhone) });
-    } else {
-      seenInBatch.set(canonicalPhone, i);
-    }
+  const activeExistingPhones = {};
 
-    // Check if active workflow exists in database
-    const activeRes = await db.execute({
-      sql: "SELECT id, contact_person, status FROM loan_cases WHERE user_id = ? AND phone_number = ? AND status NOT IN ('closed', 'completed') LIMIT 1",
-      args: [userId, canonicalPhone]
-    });
-
-    if (activeRes.rows && activeRes.rows.length > 0) {
-      const existing = activeRes.rows[0];
-      existingContactRows.push({
-        index: i,
-        nameEntered: rawName,
-        existingContactName: existing.contact_person,
-        phone: canonicalPhone,
-        product,
-        existingCaseId: existing.id
+  if (canonicalPhones.length > 0) {
+    // Chunk in batches of 100 for query parameter safety
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < canonicalPhones.length; i += CHUNK_SIZE) {
+      const chunk = canonicalPhones.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '?').join(',');
+      const res = await db.execute({
+        sql: `SELECT id, phone_number, contact_person, status FROM loan_cases
+              WHERE user_id = ? AND status NOT IN ('closed', 'completed')
+              AND phone_number IN (${placeholders})`,
+        args: [userId, ...chunk]
       });
-    } else {
-      newContactRows.push({
-        index: i,
-        name: rawName || ("Client " + canonicalPhone.slice(-4)),
-        phone: canonicalPhone,
-        product
-      });
+      for (const row of (res.rows || [])) {
+        activeExistingPhones[row.phone_number] = {
+          existingCaseId: row.id,
+          contactPerson: row.contact_person,
+          status: row.status
+        };
+      }
     }
-
-    validRows.push({ index: i, name: rawName, phone: canonicalPhone, product });
   }
 
   return c.json({
     success: true,
-    totalRows: rawClients.length,
-    validCount: validRows.length,
-    invalidCount: invalidRows.length,
-    newContactsCount: newContactRows.length,
-    existingContactsCount: existingContactRows.length,
-    duplicateInBatchCount: duplicatePhoneRows.length,
-    invalidRows,
-    existingContactRows,
-    newContactRows
+    activeExistingPhones
   });
 }
+
+export const handleBulkImportPreview = handleBulkPrecheck;
 
 // 1.2 Bulk Import Clients / Cases Execution Handler
 export async function handleBulkImportCases(c) {

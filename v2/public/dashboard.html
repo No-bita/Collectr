@@ -669,57 +669,42 @@
             </div>
           </div>
 
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; position: relative;">
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
             <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; font-weight: 500; cursor: pointer;">
               <input type="checkbox" id="bulkHasHeaderCheck" checked style="width: 16px; height: 16px;" />
               <span>First row includes header</span>
             </label>
-            <!--
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; font-weight: 500; cursor: pointer; margin: 0;">
-                <input type="checkbox" id="bulkSendWhatsAppCheck" checked style="width: 16px; height: 16px;" />
-                <span>Send WhatsApp onboarding message to all valid contacts</span>
-              </label>
-              <button type="button" class="btn-schedule-clock" id="btnBulkOpenSchedule" title="Schedule message" aria-label="Schedule message">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              </button>
-              <span id="bulkScheduleChip" class="schedule-chip" hidden>
-                <span id="bulkScheduleChipText"></span>
-                <button type="button" id="btnBulkClearSchedule" title="Clear schedule" aria-label="Clear schedule">✕</button>
-              </span>
+            <input type="checkbox" id="bulkSendWhatsAppCheck" checked hidden />
+            <span id="bulkScheduleChip" class="schedule-chip" hidden>
+              <span id="bulkScheduleChipText"></span>
+              <button type="button" id="btnBulkClearSchedule" title="Clear schedule" aria-label="Clear schedule">✕</button>
+            </span>
+            <div id="bulkSchedulePopup" hidden>
+              <button type="button" id="btnCancelBulkSchedule" hidden></button>
+              <button type="button" id="btnSetBulkSchedule" hidden></button>
             </div>
-
-            <div class="schedule-popover-panel" id="bulkSchedulePopup" hidden role="region" aria-label="Schedule message" style="top: calc(100% + 4px); bottom: auto; left: 0; right: auto;">
-              <div class="schedule-popover-header">
-                <span style="font-weight: 600; font-size: 13px; color: #0F172A;">Schedule for Later</span>
-                <button type="button" class="schedule-popover-close" id="btnCloseBulkSchedulePopup" aria-label="Close scheduling panel">✕</button>
-              </div>
-              <div class="schedule-popover-body">
-                <div class="field" style="margin-bottom: 8px;">
-                  <label for="bulkScheduleDatetime" style="font-size: 12px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px;">Date & Time</label>
-                  <input type="datetime-local" id="bulkScheduleDatetime" class="form-input" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;" />
-                </div>
-                <div id="bulkScheduleError" class="wizard-error-box" hidden style="font-size: 11px; padding: 6px 8px; margin-bottom: 8px;"></div>
-              </div>
-              <div class="schedule-popover-footer">
-                <button type="button" class="btn btn-sm" id="btnCancelBulkSchedule" style="padding: 5px 10px; font-size: 12px;">Cancel</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnSetBulkSchedule" style="padding: 5px 12px; font-size: 12px; background: #0F172A; color: #FFFFFF; border-radius: 6px;">Set Schedule</button>
-              </div>
-            </div>
-            -->
           </div>
 
           <!-- Parsed Data Preview Table -->
           <div id="bulkPreviewSection" style="margin-top: 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <span style="font-weight: 600; font-size: 13px; color: #1E293B;">Parsed List Preview</span>
-              <span id="bulkParsedBadge" style="font-size: 12px; font-weight: 600; color: #64748B;">0 clients loaded</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 600; font-size: 13px; color: #1E293B;">Pre-Check & Preview</span>
+              <div id="bulkPrecheckLoading" style="display: none; font-size: 12px; font-weight: 500; color: #2563EB;">⏳ Checking clients against active database...</div>
             </div>
+
+            <!-- Pre-check Breakdown Chips -->
+            <div id="bulkPrecheckChips" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+              <span id="chipReady" class="row-status-pill valid" style="padding: 4px 10px; font-size: 12px;">0 Ready</span>
+              <span id="chipActive" class="row-status-pill active-conflict" style="padding: 4px 10px; font-size: 12px;">0 Active — skipped</span>
+              <span id="chipBatch" class="row-status-pill batch-duplicate" style="padding: 4px 10px; font-size: 12px;">0 Repeated in CSV — skipped</span>
+              <span id="chipInvalid" class="row-status-pill invalid" style="padding: 4px 10px; font-size: 12px;">0 Invalid</span>
+            </div>
+
             <div class="bulk-preview-wrapper">
               <table class="bulk-preview-table">
                 <thead>
                   <tr>
-                    <th style="width: 80px;">Status</th>
+                    <th style="width: 140px;">Status</th>
                     <th>Name</th>
                     <th>Phone</th>
                     <th>Category</th>
@@ -737,8 +722,25 @@
         </div>
 
         <div class="wizard-footer" style="margin-top: 1.5rem;">
-          <button type="button" class="btn" id="cancelBulkImportModal">Cancel</button>
-          <button type="button" class="btn btn-primary" id="btnExecuteBulkImport" onclick="executeBulkImport()" style="background: #2563EB; color: #ffffff; border: none; font-weight: 600;" disabled>📥 Import Valid Clients</button>
+          <!-- Main Action View (Send Now vs Schedule for Later) -->
+          <div id="bulkFooterMain" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <button type="button" class="btn" id="cancelBulkImportModal">Cancel</button>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button type="button" class="btn btn-secondary" id="btnBulkOpenSchedule" style="font-weight: 600;" disabled>📅 Schedule for Later</button>
+              <button type="button" class="btn btn-primary" id="btnBulkSendNow" style="background: #2563EB; color: #ffffff; border: none; font-weight: 600;" disabled>🚀 Send Now</button>
+              <button type="button" id="btnExecuteBulkImport" style="display: none;" disabled></button>
+            </div>
+          </div>
+
+          <!-- Inline Schedule Confirmation View -->
+          <div id="bulkFooterSchedule" style="display: none; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 10px;">
+            <button type="button" class="btn" id="btnBulkBackFromSchedule">← Back</button>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <label for="bulkScheduleDatetime" style="font-size: 13px; font-weight: 500; color: #475569; margin: 0;">Date & Time:</label>
+              <input type="datetime-local" id="bulkScheduleDatetime" class="form-input" style="border: 1px solid #CBD5E1; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #FFFFFF;" />
+              <button type="button" class="btn btn-primary" id="btnBulkConfirmSchedule" style="background: #0F172A; color: #ffffff; border: none; font-weight: 600;">Confirm Schedule</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

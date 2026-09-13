@@ -379,4 +379,240 @@ Priya Patel,9876543210,ITR Filing,250000`;
       assert.equal(mockDb.records.loan_cases.length, 1);
     });
   });
+
+  await t.test('6. Pre-Check Stage & Dual Action Flow Tests', async (st) => {
+    const { handleBulkPrecheck, handleBulkImportCases } = await import('../src/api/cases.js');
+    const { normalizeIndianPhoneNumber } = await import('../src/whatsapp/client.js');
+
+    await st.test('6.1 Canonical phone normalization parity across formatting variants', () => {
+      const v1 = normalizeIndianPhoneNumber('9876543210');
+      const v2 = normalizeIndianPhoneNumber('09876543210');
+      const v3 = normalizeIndianPhoneNumber('+91 98765 43210');
+      const v4 = normalizeIndianPhoneNumber('91 9876543210');
+
+      assert.equal(v1, '919876543210');
+      assert.equal(v2, '919876543210');
+      assert.equal(v3, '919876543210');
+      assert.equal(v4, '919876543210');
+
+      assert.throws(() => normalizeIndianPhoneNumber('12345'), /valid 10-digit Indian mobile number/);
+      assert.throws(() => normalizeIndianPhoneNumber(''), /valid 10-digit Indian mobile number/);
+    });
+
+    await st.test('6.2 /api/cases/bulk-precheck contract: returns active cases keyed by canonical phone', async () => {
+      const mockCases = [
+        { id: 'c_active_1', user_id: 'usr_1', phone_number: '919876543210', contact_person: 'Rahul Active', status: 'documents_pending' },
+        { id: 'c_closed_1', user_id: 'usr_1', phone_number: '919876543211', contact_person: 'Priya Closed', status: 'closed' },
+        { id: 'c_other_1', user_id: 'usr_other', phone_number: '919876543212', contact_person: 'Other Tenant', status: 'lead' }
+      ];
+
+      const mockDb = {
+        execute: async (query) => {
+          const sql = typeof query === 'string' ? query : query.sql;
+          const args = typeof query === 'string' ? [] : (query.args || []);
+          const [userId, ...phones] = args;
+
+          const matched = mockCases.filter(c => 
+            c.user_id === userId && 
+            !['closed', 'completed'].includes(c.status) && 
+            phones.includes(c.phone_number)
+          );
+
+          return {
+            rows: matched.map(m => ({
+              id: m.id,
+              phone_number: m.phone_number,
+              contact_person: m.contact_person,
+              status: m.status
+            }))
+          };
+        }
+      };
+
+      const mockContext = {
+        req: {
+          json: async () => ({
+            phones: [
+              '+91 98765 43210', // Active for usr_1 -> MUST match
+              '09876543211',     // Closed for usr_1 -> MUST NOT match
+              '9876543212',      // Active for usr_other -> MUST NOT match (tenant isolation)
+              '9876543213',      // Brand new -> MUST NOT match
+              'invalid_phone'    // Invalid format -> ignored
+            ]
+          })
+        },
+        env: { DB: mockDb },
+        get: (k) => k === 'user' ? { id: 'usr_1' } : null,
+        json: (data, code = 200) => ({ data, code })
+      };
+
+      const res = await handleBulkPrecheck(mockContext);
+      assert.equal(res.code, 200);
+      assert.equal(res.data.success, true);
+      assert.ok(res.data.activeExistingPhones);
+
+      // Active for usr_1 must be present with details
+      assert.ok(res.data.activeExistingPhones['919876543210']);
+      assert.equal(res.data.activeExistingPhones['919876543210'].contactPerson, 'Rahul Active');
+      assert.equal(res.data.activeExistingPhones['919876543210'].status, 'documents_pending');
+      assert.equal(res.data.activeExistingPhones['919876543210'].existingCaseId, 'c_active_1');
+
+      // Closed, other tenant, and new must NOT be in activeExistingPhones
+      assert.equal(res.data.activeExistingPhones['919876543211'], undefined);
+      assert.equal(res.data.activeExistingPhones['919876543212'], undefined);
+      assert.equal(res.data.activeExistingPhones['919876543213'], undefined);
+    });
+
+    await st.test('6.3 Local in-batch duplicate tagging & zero-ready handling', () => {
+      // Direct emulation of app.js parseCsvOrTextContent
+      function parseAndClassify(csvContent, activeMap = {}) {
+        const lines = csvContent.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const seenInBatch = new Set();
+        const rows = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(',').map(p => p.trim());
+          const name = parts[0];
+          const rawPhone = parts[1];
+
+          let canon = null;
+          try {
+            canon = normalizeIndianPhoneNumber(rawPhone);
+          } catch (_) {}
+
+          let classification = 'invalid';
+          let isValid = false;
+
+          if (!canon) {
+            classification = 'invalid';
+          } else if (seenInBatch.has(canon)) {
+            classification = 'in_batch_duplicate';
+          } else if (activeMap[canon]) {
+            classification = 'active_conflict';
+            seenInBatch.add(canon);
+          } else {
+            classification = 'ready';
+            isValid = true;
+            seenInBatch.add(canon);
+          }
+
+          rows.push({ name, canon, classification, isValid });
+        }
+        return rows;
+      }
+
+      const activeMap = {
+        '919876543210': { contactPerson: 'Existing Rahul', status: 'documents_pending' }
+      };
+
+      const testCsv = `Name,Phone
+Rahul,+91 98765 43210
+Rahul Duplicate,9876543210
+Amit,09876543219
+Amit Repeat,9876543219
+Bad Format,12345`;
+
+      const rows = parseAndClassify(testCsv, activeMap);
+      assert.equal(rows.length, 5);
+
+      // Row 0: Active conflict
+      assert.equal(rows[0].classification, 'active_conflict');
+      assert.equal(rows[0].isValid, false);
+
+      // Row 1: In-batch duplicate (same phone as row 0)
+      assert.equal(rows[1].classification, 'in_batch_duplicate');
+      assert.equal(rows[1].isValid, false);
+
+      // Row 2: Ready
+      assert.equal(rows[2].classification, 'ready');
+      assert.equal(rows[2].isValid, true);
+
+      // Row 3: In-batch duplicate (same phone as row 2)
+      assert.equal(rows[3].classification, 'in_batch_duplicate');
+      assert.equal(rows[3].isValid, false);
+
+      // Row 4: Invalid
+      assert.equal(rows[4].classification, 'invalid');
+      assert.equal(rows[4].isValid, false);
+
+      const readyRows = rows.filter(r => r.classification === 'ready' && r.isValid);
+      assert.equal(readyRows.length, 1);
+      assert.equal(readyRows[0].name, 'Amit');
+
+      // Zero-ready test: CSV with only active duplicates & invalid
+      const zeroReadyCsv = `Name,Phone
+Rahul,9876543210
+Bad,999`;
+      const zeroRows = parseAndClassify(zeroReadyCsv, activeMap);
+      const zeroReadyCount = zeroRows.filter(r => r.classification === 'ready' && r.isValid).length;
+      assert.equal(zeroReadyCount, 0, 'Zero ready rows must result in 0 count');
+    });
+
+    await st.test('6.4 Action Payload Semantics: Send Now vs Schedule for Later', async () => {
+      let receivedSchedule = undefined;
+      let receivedSendWhatsApp = undefined;
+
+      const mockDb = {
+        execute: async (query) => {
+          const sql = typeof query === 'string' ? query : query.sql;
+          if (sql.includes('SELECT id FROM contacts')) return { rows: [] };
+          if (sql.includes('FROM loan_cases WHERE user_id')) return { rows: [] };
+          return { rows: [] };
+        },
+        batch: async (stmts) => {
+          return stmts.map(() => ({ rows: [] }));
+        }
+      };
+
+      const mockEnv = {
+        DB: mockDb,
+        SCHEDULE_QUEUE: { sendBatch: async () => {} }
+      };
+
+      // 1. Send Now execution payload
+      const sendNowContext = {
+        req: {
+          json: async () => ({
+            clients: [{ contactPerson: 'Send Now User', phoneNumber: '919876543299' }],
+            sendWhatsApp: true,
+            schedule: null // null schedule = immediate send now
+          })
+        },
+        env: mockEnv,
+        get: () => ({ id: 'usr_action_test' }),
+        json: (data, code = 200) => ({ data, code })
+      };
+
+      const sendNowRes = await handleBulkImportCases(sendNowContext);
+      assert.equal(sendNowRes.code, 200);
+      assert.equal(sendNowRes.data.importedCount, 1);
+      assert.equal(sendNowRes.data.scheduled, false);
+      assert.equal(sendNowRes.data.queued, true);
+
+      // 2. Schedule for Later execution payload
+      const futureDate = new Date(Date.now() + 86400000).toISOString().slice(0, 16);
+      const schedContext = {
+        req: {
+          json: async () => ({
+            clients: [{ contactPerson: 'Scheduled User', phoneNumber: '919876543298' }],
+            sendWhatsApp: true,
+            schedule: {
+              scheduledFor: futureDate,
+              scheduleType: 'one_off',
+              timezone: 'Asia/Kolkata'
+            }
+          })
+        },
+        env: mockEnv,
+        get: () => ({ id: 'usr_action_test' }),
+        json: (data, code = 200) => ({ data, code })
+      };
+
+      const schedRes = await handleBulkImportCases(schedContext);
+      assert.equal(schedRes.code, 200);
+      assert.equal(schedRes.data.importedCount, 1);
+      assert.equal(schedRes.data.scheduled, true);
+    });
+  });
 });
+
