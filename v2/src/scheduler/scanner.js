@@ -25,7 +25,7 @@ export async function scanAndClaimDueOccurrences(db, queue = null, limit = 50, i
   const claimedOccurrences = [];
 
   for (const item of candidates) {
-    // 2. Atomic claim with lease timestamp
+    // 2. Atomic claim with lease timestamp and RETURNING id
     const claimRes = await db.execute({
       sql: `
         UPDATE scheduled_occurrences
@@ -37,19 +37,22 @@ export async function scanAndClaimDueOccurrences(db, queue = null, limit = 50, i
             operational_status = 'pending' 
             OR (operational_status = 'claimed' AND claimed_at < datetime('now', '-10 minutes'))
           )
+        RETURNING id
       `,
       args: [item.id]
     });
 
-    // Verify row was acquired
-    // In D1 or mock adapters, verify row state
-    const verifyRes = await db.execute({
-      sql: "SELECT id, operational_status, claimed_at FROM scheduled_occurrences WHERE id = ?",
-      args: [item.id]
-    });
-    const verified = verifyRes.rows?.[0];
-    if (verified && verified.operational_status === "claimed") {
-      claimedOccurrences.push(item);
+    // Check if the atomic UPDATE affected exactly one row
+    const isAcquired = (claimRes?.rows && claimRes.rows.length === 1) ||
+                       (claimRes?.changes === 1) ||
+                       (claimRes?.meta?.changes === 1);
+
+    if (!isAcquired) {
+      // Row was claimed concurrently by another execution or lease was refreshed; skip
+      continue;
+    }
+
+    claimedOccurrences.push(item);
 
       // 3. Dispatch to Queue or inline consumer fallback
       const payload = {
@@ -73,7 +76,6 @@ export async function scanAndClaimDueOccurrences(db, queue = null, limit = 50, i
         }
       }
     }
-  }
 
   return {
     scanned: candidates.length,

@@ -20,7 +20,11 @@ export function getDbClient(env) {
         stmt = stmt.bind(...args);
       }
       const res = await stmt.all();
-      return { rows: res.results || [] };
+      return { 
+        rows: res.results || [], 
+        meta: res.meta, 
+        changes: res.meta?.changes ?? (res.results ? res.results.length : 0) 
+      };
     } catch (err) {
       const msg = (err.message || "").toLowerCase();
 

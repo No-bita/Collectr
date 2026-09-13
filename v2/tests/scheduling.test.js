@@ -82,11 +82,19 @@ function createInMemoryDb() {
         const id = args[0];
         const occ = tables.scheduled_occurrences.find(o => o.id === id);
         if (occ) {
-          occ.operational_status = "claimed";
-          occ.claimed_at = new Date().toISOString().replace("T", " ").substring(0, 19);
-          occ.attempts = (occ.attempts || 0) + 1;
+          const now = Date.now();
+          const tenMinsAgo = now - 10 * 60 * 1000;
+          const isPending = occ.operational_status === "pending";
+          const isStale = occ.operational_status === "claimed" && occ.claimed_at && (new Date(occ.claimed_at.replace(" ", "T") + "Z").getTime() < tenMinsAgo);
+
+          if (isPending || isStale) {
+            occ.operational_status = "claimed";
+            occ.claimed_at = new Date().toISOString().replace("T", " ").substring(0, 19);
+            occ.attempts = (occ.attempts || 0) + 1;
+            return { rows: [{ id: occ.id }], changes: 1 };
+          }
         }
-        return { rows: [] };
+        return { rows: [], changes: 0 };
       }
 
       // SELECT occurrence joined with schedule
@@ -558,5 +566,62 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     assert.equal(afterOccs.length, 2);
     const pendingOccs = afterOccs.filter(o => o.operational_status === "pending");
     assert.equal(pendingOccs.length, 1, "Strict 1-step rolling horizon: exactly 1 pending occurrence at any time");
+  });
+
+  await t.test("9. Concurrent Cron Execution & Race Condition Protection (Pending & Stale Claims)", async () => {
+    const db = createInMemoryDb();
+
+    // Setup 1: A due pending occurrence
+    db.tables.scheduled_occurrences.push({
+      id: "occ_race_pending",
+      schedule_id: "sch_race",
+      occurrence_key: "k_race_p",
+      scheduled_for_utc: "2026-09-13 00:00:00",
+      operational_status: "pending",
+      claimed_at: null,
+      attempts: 0
+    });
+
+    // Setup 2: A stale claimed occurrence (claimed 15 min ago)
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString().replace("T", " ").substring(0, 19);
+    db.tables.scheduled_occurrences.push({
+      id: "occ_race_stale",
+      schedule_id: "sch_race",
+      occurrence_key: "k_race_s",
+      scheduled_for_utc: "2026-09-13 00:00:00",
+      operational_status: "claimed",
+      claimed_at: fifteenMinsAgo,
+      attempts: 1
+    });
+
+    const queueWorker1 = [];
+    const queueWorker2 = [];
+
+    const mockQ1 = { send: async (payload) => queueWorker1.push(payload) };
+    const mockQ2 = { send: async (payload) => queueWorker2.push(payload) };
+
+    // Simulate two concurrent Cron executions executing at the same time
+    const [res1, res2] = await Promise.all([
+      scanAndClaimDueOccurrences(db, mockQ1),
+      scanAndClaimDueOccurrences(db, mockQ2)
+    ]);
+
+    const totalEnqueued = queueWorker1.length + queueWorker2.length;
+    assert.equal(totalEnqueued, 2, "Across concurrent Cron runs, each occurrence must be claimed exactly once (2 total)");
+
+    // Check specific occurrence keys in enqueued queues
+    const allEnqueuedIds = [...queueWorker1, ...queueWorker2].map(p => p.occurrenceId);
+    assert.equal(allEnqueuedIds.filter(id => id === "occ_race_pending").length, 1, "occ_race_pending must be enqueued exactly once");
+    assert.equal(allEnqueuedIds.filter(id => id === "occ_race_stale").length, 1, "occ_race_stale must be enqueued exactly once");
+
+    // The stale occurrence must have its attempt count incremented by exactly 1 (1 -> 2)
+    const staleOcc = db.tables.scheduled_occurrences.find(o => o.id === "occ_race_stale");
+    assert.equal(staleOcc.attempts, 2, "Stale occurrence attempts must be incremented by exactly 1");
+
+    // Re-running a third immediate cron run must find 0 candidates to claim
+    const queueWorker3 = [];
+    const res3 = await scanAndClaimDueOccurrences(db, { send: async (p) => queueWorker3.push(p) });
+    assert.equal(res3.claimed, 0, "No occurrences can be claimed while active leases are held");
+    assert.equal(queueWorker3.length, 0);
   });
 });
