@@ -188,4 +188,31 @@ test('Mode-Dependent Status Presentation & Filtering Tests', async (t) => {
     });
     assert.deepStrictEqual(unsorted, ['sent', 'delivered', 'failed']);
   });
+
+  await t.test('9. Cumulative delivery funnel correctly counts cumulative stages', () => {
+    // 38 cases matching user scenario:
+    // 2 failed/pending, 3 sent, 7 delivered, 25 read, 1 replied (total 38)
+    const mockCases = [
+      ...Array(2).fill(null).map((_, i) => ({ id: `p${i}`, whatsappDeliveryStatus: 'pending' })),
+      ...Array(3).fill(null).map((_, i) => ({ id: `s${i}`, whatsappDeliveryStatus: 'sent' })),
+      ...Array(7).fill(null).map((_, i) => ({ id: `d${i}`, whatsappDeliveryStatus: 'delivered' })),
+      ...Array(25).fill(null).map((_, i) => ({ id: `r${i}`, whatsappDeliveryStatus: 'read' })),
+      ...Array(1).fill(null).map((_, i) => ({ id: `rep${i}`, whatsappDeliveryStatus: 'replied' }))
+    ];
+
+    const sentStatuses = new Set(['sent', 'delivered', 'read', 'replied']);
+    const delivStatuses = new Set(['delivered', 'read', 'replied']);
+    const readStatuses = new Set(['read', 'replied']);
+    const repStatuses = new Set(['replied']);
+
+    const sentCount = mockCases.filter(c => sentStatuses.has(getDisplayStatus(c, 'direct_outreach'))).length;
+    const delivCount = mockCases.filter(c => delivStatuses.has(getDisplayStatus(c, 'direct_outreach'))).length;
+    const readCount = mockCases.filter(c => readStatuses.has(getDisplayStatus(c, 'direct_outreach'))).length;
+    const repCount = mockCases.filter(c => repStatuses.has(getDisplayStatus(c, 'direct_outreach'))).length;
+
+    assert.strictEqual(sentCount, 36); // 3 + 7 + 25 + 1 = 36 dispatched successfully
+    assert.strictEqual(delivCount, 33); // 7 + 25 + 1 = 33 delivered to handset
+    assert.strictEqual(readCount, 26); // 25 + 1 = 26 read by recipient
+    assert.strictEqual(repCount, 1); // 1 replied
+  });
 });

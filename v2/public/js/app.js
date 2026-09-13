@@ -1354,10 +1354,15 @@ function updateSummary(summary) {
   const tot = el("statTotal"); if (tot) tot.textContent = total;
 
   if (isDirectOutreach) {
-    const sentCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'sent').length;
-    const delivCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'delivered').length;
-    const readCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'read').length;
-    const repCount = personaCases.filter(c => getDisplayStatus(c, persona) === 'replied').length;
+    const sentStatuses = new Set(['sent', 'delivered', 'read', 'replied']);
+    const delivStatuses = new Set(['delivered', 'read', 'replied']);
+    const readStatuses = new Set(['read', 'replied']);
+    const repStatuses = new Set(['replied']);
+
+    const sentCount = personaCases.filter(c => sentStatuses.has(getDisplayStatus(c, persona))).length;
+    const delivCount = personaCases.filter(c => delivStatuses.has(getDisplayStatus(c, persona))).length;
+    const readCount = personaCases.filter(c => readStatuses.has(getDisplayStatus(c, persona))).length;
+    const repCount = personaCases.filter(c => repStatuses.has(getDisplayStatus(c, persona))).length;
 
     const sSent = el("statSent"); if (sSent) sSent.textContent = sentCount;
     const sDeliv = el("statDelivered"); if (sDeliv) sDeliv.textContent = delivCount;

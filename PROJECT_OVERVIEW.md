@@ -266,7 +266,7 @@ flowchart TD
     LifecycleStatus --> Filter
     LifecycleStatus --> TableBadge
 ```
-*Invariant:* **Whatever status the user sees in the Status column is exactly the status they can filter by.** Dropdown, filter evaluation, and table cell rendering all consume the single `getDisplayStatus(c, mode)` abstraction.
+*Invariant:* **Whatever status the user sees in the Status column is exactly the status they can filter by.** Dropdown, filter evaluation, and table cell rendering all consume the single `getDisplayStatus(c, mode)` abstraction. The top delivery summary triage metrics (Sent, Delivered, Read, Replied) calculate cumulative delivery funnel totals matching WhatsApp Meta reporting (Sent includes all delivered/read/replied, Delivered includes all read/replied, Read includes all replied).
 
 ### Flow 6: Asynchronous Bulk Import & Delivery Queue Architecture
 ```mermaid

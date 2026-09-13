@@ -200,14 +200,22 @@ export async function handleWebhookEvent(c) {
         });
       }
 
-      // Insert Inbound Message with case_id = NULL (Idempotent via provider_message_id)
+      // Find active case for this contact
+      const activeCaseRes = await db.execute({
+        sql: "SELECT id FROM loan_cases WHERE contact_id = ? AND status NOT IN ('closed', 'completed') ORDER BY created_at DESC LIMIT 1",
+        args: [contactId]
+      });
+      const activeCaseId = activeCaseRes.rows.length > 0 ? activeCaseRes.rows[0].id : null;
+
+      // Insert Inbound Message (Idempotent via provider_message_id)
       const timelineEventId = crypto.randomUUID();
       await db.execute({
         sql: `INSERT OR IGNORE INTO case_timeline (id, contact_id, case_id, provider_message_id, event_type, content, metadata, created_by)
-              VALUES (?, ?, NULL, ?, 'whatsapp_reply', ?, ?, 'client')`,
+              VALUES (?, ?, ?, ?, 'whatsapp_reply', ?, ?, 'client')`,
         args: [
           timelineEventId,
           contactId,
+          activeCaseId,
           providerMsgId,
           clientText,
           JSON.stringify({ whatsapp_status: 'replied', phone: canonicalPhone, channel: 'whatsapp' })
@@ -219,6 +227,13 @@ export async function handleWebhookEvent(c) {
         sql: "UPDATE contacts SET last_updated = datetime('now') WHERE id = ?",
         args: [contactId]
       }).catch(() => {});
+
+      if (activeCaseId) {
+        await db.execute({
+          sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'replied', last_updated = datetime('now') WHERE id = ?",
+          args: [activeCaseId]
+        }).catch(() => {});
+      }
 
       // If client asks for upload link, send active token link if available
       if (clientText.toLowerCase().includes("link") || clientText.toLowerCase().includes("upload")) {
