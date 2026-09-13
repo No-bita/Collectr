@@ -186,16 +186,12 @@ window.getVariantKey = function () {
   const urlParams = new URLSearchParams(window.location.search);
   const paramVariant = urlParams.get('variant');
   if (paramVariant && window.VARIANT_COPY[paramVariant]) {
-    if (paramVariant === 'direct_outreach' && !isAdmin && !isDevHost) {
-      // Fallback for non-admin users on production
-    } else {
-      localStorage.setItem('collectr_variant', paramVariant);
-      return paramVariant;
-    }
+    localStorage.setItem('collectr_variant', paramVariant);
+    return paramVariant;
   }
 
   const path = window.location.pathname.toLowerCase();
-  if ((path.includes('/direct-outreach') || path.includes('/outreach')) && (isAdmin || isDevHost)) {
+  if (path.includes('/direct-outreach') || path.includes('/outreach')) {
     localStorage.setItem('collectr_variant', 'direct_outreach');
     return 'direct_outreach';
   }
@@ -210,10 +206,6 @@ window.getVariantKey = function () {
 
   const saved = localStorage.getItem('collectr_variant');
   if (saved && window.VARIANT_COPY[saved]) {
-    if (saved === 'direct_outreach' && !isAdmin && !isDevHost) {
-      localStorage.setItem('collectr_variant', 'ca');
-      return 'ca';
-    }
     return saved;
   }
 
@@ -221,25 +213,6 @@ window.getVariantKey = function () {
 };
 
 window.setVariantKey = function (key) {
-  const isDevHost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  let isAdmin = isDevHost;
-  try {
-    const tokenHeader = localStorage.getItem('collectrr_auth');
-    if (tokenHeader) {
-      const rawToken = tokenHeader.replace(/^Bearer\s+/i, '').trim();
-      const parts = rawToken.split('.');
-      if (parts.length === 3) {
-        const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
-        const userObj = JSON.parse(payloadJson);
-        isAdmin = userObj && (userObj.role === 'admin' || userObj.role === 'Admin');
-      }
-    }
-  } catch (e) {}
-
-  if (key === 'direct_outreach' && !isAdmin && !isDevHost) {
-    return; // Block non-admin users from setting direct_outreach on production
-  }
-
   if (window.VARIANT_COPY[key]) {
     localStorage.setItem('collectr_variant', key);
     window.applyVariantToDOM();

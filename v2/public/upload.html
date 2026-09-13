@@ -360,7 +360,7 @@
         <div class="success-icon-circle" style="width: 32px; height: 32px; background: var(--success); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px;">✓</div>
         <div class="success-text">
           <div style="font-size: 15px; font-weight: 600; color: #1C8C5E;">Everything's ready. Your documents have been received.</div>
-          <div style="font-size: 13px; color: #15803D; margin-top: 0.2rem;">Your loan officer will review the submitted files and notify you on WhatsApp.</div>
+          <div style="font-size: 13px; color: #15803D; margin-top: 0.2rem;">Your coordinator will review the submitted files and notify you on WhatsApp.</div>
         </div>
       </div>
 
@@ -415,7 +415,7 @@
         renderDocumentsStack(data.documents || []);
         setupDropzoneHandlers();
       } catch (err) {
-        errBox.innerHTML = `⚠️ <strong>Link Expired or Invalid</strong><br/>${escapeHtml(err.message)}<br/><span style="font-size: 0.75rem; margin-top: 0.5rem; display: block; color: #475569;">Please contact your loan officer on WhatsApp to receive a fresh upload link.</span>`;
+        errBox.innerHTML = `⚠️ <strong>Link Expired or Invalid</strong><br/>${escapeHtml(err.message)}<br/><span style="font-size: 0.75rem; margin-top: 0.5rem; display: block; color: #475569;">Please contact your coordinator on WhatsApp to receive a fresh upload link.</span>`;
         errBox.hidden = false;
         el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444;">${escapeHtml(err.message)}</p>`;
       }

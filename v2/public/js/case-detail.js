@@ -1334,7 +1334,7 @@ if (editCaseFormEl) {
 
     closeEditCaseModal();
     await init();
-    UI.toast("Loan case updated successfully!", "success");
+    UI.toast("Client updated successfully!", "success");
   } catch (err) {
     errBox.textContent = "Error: " + err.message;
     errBox.hidden = false;
