@@ -5,6 +5,7 @@
  */
 
 import { executeWhatsAppMessagingPipeline } from "../api/cases.js";
+import { executeEmailMessagingPipeline } from "../email/pipeline.js";
 import { MESSAGE_COST_PAISE } from "../api/credits.js";
 
 const TERMINAL_CASE_STATUSES = ["closed", "disbursed"];
@@ -26,8 +27,10 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
   const queryRes = await db.execute({
     sql: `
       SELECT o.id, o.schedule_id, o.occurrence_key, o.scheduled_for_utc, o.operational_status,
-             s.user_id, s.case_id, s.contact_id, s.phone_number, s.template_name, s.template_params,
-             s.schedule_type, s.recurrence_interval, s.timezone, s.status as schedule_status
+             o.channel as occ_channel, o.recipient_phone, o.recipient_email,
+             s.user_id, s.case_id, s.contact_id, s.phone_number, s.channel as schedule_channel,
+             s.template_name, s.template_params, s.schedule_type, s.recurrence_interval,
+             s.timezone, s.status as schedule_status
       FROM scheduled_occurrences o
       JOIN schedules s ON o.schedule_id = s.id
       WHERE o.id = ?
@@ -92,16 +95,42 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     caseContactPerson = caseItem.contact_person;
   }
 
-  // 4. Contact / Phone Validation
-  const rawPhone = row.phone_number || caseItem?.phone_number || "";
-  const cleanedPhone = rawPhone.replace(/\D/g, "");
-  if (!cleanedPhone || cleanedPhone.length < 10) {
-    await db.execute({
-      sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'invalid_phone', executed_at = datetime('now') WHERE id = ?",
-      args: [occurrenceId]
-    });
-    await finalizeOneOffSchedule(db, row.schedule_id);
-    return { handled: true, status: "skipped", reason: "invalid_phone" };
+  // 4. Channel Resolution & Destination Validation
+  const channel = String(row.occ_channel || row.schedule_channel || "whatsapp").toLowerCase();
+
+  let cleanedPhone = "";
+  let recipientEmail = "";
+
+  if (channel === "email") {
+    recipientEmail = String(row.recipient_email || "").trim();
+    if (!recipientEmail && row.contact_id) {
+      const contactRes = await db.execute({
+        sql: "SELECT email FROM contacts WHERE id = ?",
+        args: [row.contact_id]
+      });
+      recipientEmail = String(contactRes.rows?.[0]?.email || "").trim();
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+      await db.execute({
+        sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'invalid_email', executed_at = datetime('now') WHERE id = ?",
+        args: [occurrenceId]
+      });
+      await finalizeOneOffSchedule(db, row.schedule_id);
+      return { handled: true, status: "skipped", reason: "invalid_email" };
+    }
+  } else {
+    // WhatsApp default
+    const rawPhone = row.recipient_phone || row.phone_number || caseItem?.phone_number || "";
+    cleanedPhone = rawPhone.replace(/\D/g, "");
+    if (!cleanedPhone || cleanedPhone.length < 10) {
+      await db.execute({
+        sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'invalid_phone', executed_at = datetime('now') WHERE id = ?",
+        args: [occurrenceId]
+      });
+      await finalizeOneOffSchedule(db, row.schedule_id);
+      return { handled: true, status: "skipped", reason: "invalid_phone" };
+    }
   }
 
   // 5. User & JIT Credit Check (checked immediately before execution)
@@ -135,7 +164,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     }
   }
 
-  // 6. Dispatch via single authoritative WhatsApp messaging pipeline
+  // 6. Dispatch via respective channel adapter
   const referenceId = `occ_${occurrenceId}`;
   const contactPerson = caseContactPerson || "Client";
 
@@ -150,19 +179,36 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     }
   }
 
-  const pipeRes = await executeWhatsAppMessagingPipeline(
-    db,
-    user,
-    cleanedPhone,
-    row.template_name,
-    contactPerson,
-    caseToken,
-    env,
-    referenceId,
-    parsedParams,
-    row.contact_id,
-    row.case_id
-  );
+  let pipeRes;
+  if (channel === "email") {
+    pipeRes = await executeEmailMessagingPipeline(
+      db,
+      user,
+      recipientEmail,
+      row.template_name,
+      contactPerson,
+      caseToken,
+      env,
+      referenceId,
+      parsedParams,
+      row.contact_id,
+      row.case_id
+    );
+  } else {
+    pipeRes = await executeWhatsAppMessagingPipeline(
+      db,
+      user,
+      cleanedPhone,
+      row.template_name,
+      contactPerson,
+      caseToken,
+      env,
+      referenceId,
+      parsedParams,
+      row.contact_id,
+      row.case_id
+    );
+  }
 
   // 7. Settle Terminal Status
   if (pipeRes?.success) {
@@ -179,14 +225,14 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     return { handled: true, status: "in_flight_duplicate", inFlight: true };
   }
 
-  if (pipeRes?.error === "WHATSAPP_TIMEOUT" || pipeRes?.ambiguous) {
+  if (pipeRes?.error === "WHATSAPP_TIMEOUT" || pipeRes?.error === "EMAIL_TIMEOUT" || pipeRes?.ambiguous) {
     // Ambiguous network outcome: strictly set to unknown, do NOT auto-retry
     await db.execute({
       sql: "UPDATE scheduled_occurrences SET operational_status = 'unknown', last_error = ?, executed_at = datetime('now') WHERE id = ?",
       args: [pipeRes.message || "Provider timeout / ambiguous in-flight dispatch", occurrenceId]
     });
     await finalizeOneOffSchedule(db, row.schedule_id);
-    return { handled: true, status: "unknown", error: pipeRes?.error || "WHATSAPP_TIMEOUT" };
+    return { handled: true, status: "unknown", error: pipeRes?.error || "GATEWAY_TIMEOUT" };
   }
 
   if (pipeRes?.insufficientCredits) {
@@ -201,10 +247,10 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
   // Explicit provider failure
   await db.execute({
     sql: "UPDATE scheduled_occurrences SET operational_status = 'failed', last_error = ?, executed_at = datetime('now') WHERE id = ?",
-    args: [pipeRes?.message || "WhatsApp message delivery failed", occurrenceId]
+    args: [pipeRes?.message || "Outreach message delivery failed", occurrenceId]
   });
   await finalizeOneOffSchedule(db, row.schedule_id);
-  return { handled: true, status: "failed", error: pipeRes?.error || "WHATSAPP_FAILED" };
+  return { handled: true, status: "failed", error: pipeRes?.error || "DISPATCH_FAILED" };
 }
 
 /**

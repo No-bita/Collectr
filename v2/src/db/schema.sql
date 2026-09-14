@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS contacts (
   user_id TEXT NOT NULL,
   contact_person TEXT NOT NULL,
   phone_number TEXT NOT NULL,
+  email TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT unq_user_contact_phone UNIQUE(user_id, phone_number)
@@ -138,11 +139,26 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
 
 CREATE UNIQUE INDEX IF NOT EXISTS unq_wa_msg_provider_id ON whatsapp_messages(provider_message_id) WHERE provider_message_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS email_messages (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  recipient_email TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  provider_message_id TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unq_email_msg UNIQUE(user_id, idempotency_key)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS unq_email_msg_provider_id ON email_messages(provider_message_id) WHERE provider_message_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS message_templates (
   id TEXT PRIMARY KEY,
   user_id TEXT,
   name TEXT NOT NULL UNIQUE,
   category TEXT DEFAULT 'UTILITY',
+  channel TEXT NOT NULL DEFAULT 'whatsapp',
+  subject TEXT,
   language TEXT DEFAULT 'en',
   header_type TEXT DEFAULT 'NONE',
   header_text TEXT,
@@ -176,6 +192,7 @@ CREATE TABLE IF NOT EXISTS schedules (
   case_id TEXT,
   contact_id TEXT,
   phone_number TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'whatsapp',
   template_name TEXT NOT NULL,
   template_params JSON,
   schedule_type TEXT NOT NULL,
@@ -198,6 +215,9 @@ CREATE TABLE IF NOT EXISTS scheduled_occurrences (
   schedule_id TEXT NOT NULL,
   occurrence_key TEXT NOT NULL,
   scheduled_for_utc DATETIME NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'whatsapp',
+  recipient_phone TEXT,
+  recipient_email TEXT,
   operational_status TEXT NOT NULL DEFAULT 'pending',
   claimed_at DATETIME,
   attempts INTEGER NOT NULL DEFAULT 0,

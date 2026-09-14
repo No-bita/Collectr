@@ -8,6 +8,8 @@ import { sendWhatsAppTemplate as clientSendWhatsAppTemplate, sendWhatsAppText, n
 import { getCustomerReplyWindowStatus } from "../whatsapp/window.js";
 import { toSqliteUtc, isValidTimezone, parseScheduledForToUtc } from "../scheduler/time.js";
 import { MESSAGE_COST_PAISE } from "./credits.js";
+import { executeEmailMessagingPipeline } from "../email/pipeline.js";
+export { executeEmailMessagingPipeline };
 
 const VALID_STATUSES = [
   'lead', 'documents_pending', 'ready_for_review', 
@@ -94,16 +96,26 @@ export async function authorizeCaseAccess(db, caseId, user) {
 }
 
 // Contact Helper: Ensure Contact exists without overwriting existing name
-export async function ensureContact(db, userId, canonicalPhone, contactPerson) {
+export async function ensureContact(db, userId, canonicalPhone, contactPerson, email = null) {
   const existingRes = await db.execute({
-    sql: "SELECT id, contact_person FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
+    sql: "SELECT id, contact_person, email FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
     args: [userId, canonicalPhone]
   });
 
+  const cleanedEmail = email && typeof email === 'string' && email.trim().length > 0 ? email.trim() : null;
+
   if (existingRes.rows && existingRes.rows.length > 0) {
+    const existing = existingRes.rows[0];
+    if (cleanedEmail && !existing.email) {
+      await db.execute({
+        sql: "UPDATE contacts SET email = ?, last_updated = datetime('now') WHERE id = ?",
+        args: [cleanedEmail, existing.id]
+      }).catch(() => {});
+    }
     return {
-      id: existingRes.rows[0].id,
-      contactPerson: existingRes.rows[0].contact_person,
+      id: existing.id,
+      contactPerson: existing.contact_person,
+      email: existing.email || cleanedEmail,
       isNew: false
     };
   }
@@ -112,24 +124,33 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson) {
   const name = contactPerson || ("Client " + canonicalPhone.slice(-4));
   try {
     await db.execute({
-      sql: "INSERT INTO contacts (id, user_id, contact_person, phone_number, created_at, last_updated) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
-      args: [contactId, userId, name, canonicalPhone]
+      sql: "INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      args: [contactId, userId, name, canonicalPhone, cleanedEmail]
     });
     return {
       id: contactId,
       contactPerson: name,
+      email: cleanedEmail,
       isNew: true
     };
   } catch (insertErr) {
     // If concurrent insert created the contact, fetch the existing record
     const retryRes = await db.execute({
-      sql: "SELECT id, contact_person FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
+      sql: "SELECT id, contact_person, email FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
       args: [userId, canonicalPhone]
     });
     if (retryRes.rows && retryRes.rows.length > 0) {
+      const existing = retryRes.rows[0];
+      if (cleanedEmail && !existing.email) {
+        await db.execute({
+          sql: "UPDATE contacts SET email = ?, last_updated = datetime('now') WHERE id = ?",
+          args: [cleanedEmail, existing.id]
+        }).catch(() => {});
+      }
       return {
-        id: retryRes.rows[0].id,
-        contactPerson: retryRes.rows[0].contact_person,
+        id: existing.id,
+        contactPerson: existing.contact_person,
+        email: existing.email || cleanedEmail,
         isNew: false
       };
     }
@@ -570,9 +591,16 @@ export async function handleCreateCase(c) {
     requiredDocTypes = ['pan', 'bank_statement', 'gst_returns'];
   }
 
+  const outreachChannel = String(body.channel || "whatsapp").toLowerCase();
+  const inputEmail = body.email && typeof body.email === "string" ? body.email.trim() : null;
+
+  if (outreachChannel === "email" && (!inputEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inputEmail))) {
+    return c.json({ error: "A valid email address is required for email outreach." }, 400);
+  }
+
   try {
     // 1. Ensure Contact exists (without silently renaming existing Contact)
-    const contact = await ensureContact(db, userId, canonicalPhone, contactPerson);
+    const contact = await ensureContact(db, userId, canonicalPhone, contactPerson, inputEmail);
 
     // 2. Active workflow duplicate check
     const existingActiveRes = await db.execute({
@@ -607,7 +635,7 @@ export async function handleCreateCase(c) {
 
     const caseStatements = [];
 
-    // 1. Insert Case / Workflow record
+    // 1. Insert Case / Workflow record (preserving existing schema: no email/channel columns on loan_cases)
     caseStatements.push({
       sql: `INSERT INTO loan_cases (id, contact_id, user_id, is_demo, contact_person, phone_number, loan_product, template_name, amount_required, status, whatsapp_delivery_status, created_at, last_updated)
             VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
@@ -637,55 +665,141 @@ export async function handleCreateCase(c) {
       args: [crypto.randomUUID(), contact.id, caseId, isNoDocs ? `Direct outreach message dispatched for ${loanProduct}` : `Workflow request created for ${loanProduct}`]
     });
 
-    // 5. If scheduled, append schedule and initial occurrence statements to the atomic batch
+    // 5. If scheduled, append schedule and occurrence statements with explicit recipient snapshots
     if (isScheduled && scheduledForUtc) {
-      const occId = `occ_${crypto.randomUUID()}`;
-      const occKey = `${scheduleId}_${scheduledForUtc}`;
+      if (outreachChannel === "both") {
+        // Occurrence A: WhatsApp
+        const schWaId = `sch_wa_${crypto.randomUUID()}`;
+        const occWaId = `occ_${crypto.randomUUID()}`;
+        const occWaKey = `${schWaId}_${scheduledForUtc}`;
 
-      caseStatements.push({
-        sql: `
-          INSERT INTO schedules (
-            id, user_id, case_id, contact_id, phone_number, template_name,
-            template_params, schedule_type, recurrence_interval, timezone,
-            status, next_run_utc
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
-        `,
-        args: [
-          scheduleId,
-          userId,
-          caseId,
-          contact.id,
-          canonicalPhone,
-          targetTemplate,
-          JSON.stringify(templateParams),
-          'one_off',
-          null,
-          timezone,
-          scheduledForUtc
-        ]
-      });
+        caseStatements.push({
+          sql: `
+            INSERT INTO schedules (
+              id, user_id, case_id, contact_id, phone_number, channel, template_name,
+              template_params, schedule_type, recurrence_interval, timezone,
+              status, next_run_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+          `,
+          args: [schWaId, userId, caseId, contact.id, canonicalPhone, 'whatsapp', targetTemplate, JSON.stringify(templateParams), 'one_off', null, timezone, scheduledForUtc]
+        });
 
-      caseStatements.push({
-        sql: `
-          INSERT INTO scheduled_occurrences (
-            id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
-          ) VALUES (?, ?, ?, ?, 'pending')
-        `,
-        args: [occId, scheduleId, occKey, scheduledForUtc]
-      });
+        caseStatements.push({
+          sql: `
+            INSERT INTO scheduled_occurrences (
+              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status, channel, recipient_phone, recipient_email
+            ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+          `,
+          args: [occWaId, schWaId, occWaKey, scheduledForUtc, 'whatsapp', canonicalPhone, null]
+        });
 
-      caseStatements.push({
-        sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
-              VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
-        args: [
-          crypto.randomUUID(),
-          contact.id,
-          caseId,
-          targetTemplate,
-          `WhatsApp outreach scheduled for ${scheduledForUtc} UTC`,
-          JSON.stringify({ scheduledForUtc, scheduleType: 'one_off', timezone })
-        ]
-      });
+        caseStatements.push({
+          sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+                VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+          args: [
+            crypto.randomUUID(),
+            contact.id,
+            caseId,
+            targetTemplate,
+            `WhatsApp outreach scheduled for ${scheduledForUtc} UTC`,
+            JSON.stringify({ scheduledForUtc, channel: 'whatsapp', scheduleType: 'one_off', timezone })
+          ]
+        });
+
+        // Occurrence B: Email (if contact has email)
+        const recipientEmail = contact.email || inputEmail;
+        if (recipientEmail) {
+          const schEmId = `sch_em_${crypto.randomUUID()}`;
+          const occEmId = `occ_${crypto.randomUUID()}`;
+          const occEmKey = `${schEmId}_${scheduledForUtc}`;
+
+          caseStatements.push({
+            sql: `
+              INSERT INTO schedules (
+                id, user_id, case_id, contact_id, phone_number, channel, template_name,
+                template_params, schedule_type, recurrence_interval, timezone,
+                status, next_run_utc
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+            `,
+            args: [schEmId, userId, caseId, contact.id, canonicalPhone, 'email', targetTemplate, JSON.stringify(templateParams), 'one_off', null, timezone, scheduledForUtc]
+          });
+
+          caseStatements.push({
+            sql: `
+              INSERT INTO scheduled_occurrences (
+                id, schedule_id, occurrence_key, scheduled_for_utc, operational_status, channel, recipient_phone, recipient_email
+              ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+            `,
+            args: [occEmId, schEmId, occEmKey, scheduledForUtc, 'email', null, recipientEmail]
+          });
+
+          caseStatements.push({
+            sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+                  VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+            args: [
+              crypto.randomUUID(),
+              contact.id,
+              caseId,
+              targetTemplate,
+              `Email outreach scheduled for ${scheduledForUtc} UTC`,
+              JSON.stringify({ scheduledForUtc, channel: 'email', scheduleType: 'one_off', timezone })
+            ]
+          });
+        }
+      } else {
+        // Single channel schedule
+        const occId = `occ_${crypto.randomUUID()}`;
+        const occKey = `${scheduleId}_${scheduledForUtc}`;
+        const recipientEmail = (outreachChannel === "email") ? (contact.email || inputEmail) : null;
+        const recipientPhone = (outreachChannel === "whatsapp") ? canonicalPhone : null;
+
+        caseStatements.push({
+          sql: `
+            INSERT INTO schedules (
+              id, user_id, case_id, contact_id, phone_number, channel, template_name,
+              template_params, schedule_type, recurrence_interval, timezone,
+              status, next_run_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+          `,
+          args: [
+            scheduleId,
+            userId,
+            caseId,
+            contact.id,
+            canonicalPhone,
+            outreachChannel,
+            targetTemplate,
+            JSON.stringify(templateParams),
+            'one_off',
+            null,
+            timezone,
+            scheduledForUtc
+          ]
+        });
+
+        caseStatements.push({
+          sql: `
+            INSERT INTO scheduled_occurrences (
+              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status, channel, recipient_phone, recipient_email
+            ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+          `,
+          args: [occId, scheduleId, occKey, scheduledForUtc, outreachChannel, recipientPhone, recipientEmail]
+        });
+
+        const label = outreachChannel === "email" ? "Email" : "WhatsApp";
+        caseStatements.push({
+          sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+                VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+          args: [
+            crypto.randomUUID(),
+            contact.id,
+            caseId,
+            targetTemplate,
+            `${label} outreach scheduled for ${scheduledForUtc} UTC`,
+            JSON.stringify({ scheduledForUtc, channel: outreachChannel, scheduleType: 'one_off', timezone })
+          ]
+        });
+      }
     }
 
     // Execute all case creation statements atomically
@@ -710,28 +824,56 @@ export async function handleCreateCase(c) {
       }, 201);
     }
 
-    // Dispatch WhatsApp Template with Idempotency and State Machine
+    // Direct Send Now execution
     let whatsappWarning = null;
+    let emailWarning = null;
     const refId = `init_${caseId}`;
 
-    const pipeRes = await executeWhatsAppMessagingPipeline(
-      db,
-      user,
-      canonicalPhone,
-      targetTemplate,
-      contact.contactPerson,
-      token,
-      env,
-      refId,
-      templateParams,
-      contact.id,
-      caseId
-    );
+    if (outreachChannel === "whatsapp" || outreachChannel === "both") {
+      const pipeRes = await executeWhatsAppMessagingPipeline(
+        db,
+        user,
+        canonicalPhone,
+        targetTemplate,
+        contact.contactPerson,
+        token,
+        env,
+        `${refId}_wa`,
+        templateParams,
+        contact.id,
+        caseId
+      );
 
-    if (pipeRes.insufficientCredits) {
-      whatsappWarning = pipeRes.message;
-    } else if (!pipeRes.delivered && pipeRes.error) {
-      whatsappWarning = pipeRes.message || "WhatsApp message delivery failed.";
+      if (pipeRes.insufficientCredits) {
+        whatsappWarning = pipeRes.message;
+      } else if (!pipeRes.delivered && pipeRes.error) {
+        whatsappWarning = pipeRes.message || "WhatsApp message delivery failed.";
+      }
+    }
+
+    if (outreachChannel === "email" || outreachChannel === "both") {
+      const recipientEmail = contact.email || inputEmail;
+      if (recipientEmail) {
+        const emailRes = await executeEmailMessagingPipeline(
+          db,
+          user,
+          recipientEmail,
+          targetTemplate,
+          contact.contactPerson,
+          token,
+          env,
+          `${refId}_em`,
+          templateParams,
+          contact.id,
+          caseId
+        );
+
+        if (emailRes.insufficientCredits) {
+          emailWarning = emailRes.message;
+        } else if (!emailRes.delivered && emailRes.error) {
+          emailWarning = emailRes.message || "Email message delivery failed.";
+        }
+      }
     }
 
     return c.json({
@@ -740,7 +882,8 @@ export async function handleCreateCase(c) {
       contactId: contact.id,
       contactPerson: contact.contactPerson,
       token,
-      whatsappWarning
+      whatsappWarning,
+      emailWarning
     });
   } catch (err) {
     console.error("Failed to create Mini Target / Contact:", err);
@@ -911,7 +1054,8 @@ export async function handleBulkImportCases(c) {
 
     let caseId = null;
     try {
-      const contact = await ensureContact(db, userId, canonicalPhone, contactPerson);
+      const rowEmail = item.email && typeof item.email === "string" && item.email.trim().length > 0 ? item.email.trim() : null;
+      const contact = await ensureContact(db, userId, canonicalPhone, contactPerson, rowEmail);
 
       caseId = crypto.randomUUID();
       const token = crypto.randomUUID();
@@ -922,6 +1066,7 @@ export async function handleBulkImportCases(c) {
       const initialStatus = defaultRequiredDocs.length > 0 ? 'documents_pending' : 'lead';
       const initialDeliveryStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : (sendWhatsApp ? 'queued' : 'pending');
       const rowParams = Array.isArray(item.templateParams) ? item.templateParams : (Array.isArray(item.params) ? item.params : []);
+      const importChannel = String(body.channel || (sendWhatsApp ? "whatsapp" : "none")).toLowerCase();
 
       rowStatements.push({
         sql: `INSERT INTO loan_cases (id, contact_id, user_id, is_demo, contact_person, phone_number, loan_product, template_name, amount_required, status, whatsapp_delivery_status, created_at, last_updated)
@@ -949,20 +1094,109 @@ export async function handleBulkImportCases(c) {
         args: [crypto.randomUUID(), contact.id, caseId, `Client imported via bulk list: ${contact.contactPerson}`]
       });
 
-      let occId = null;
-      if (sendWhatsApp) {
-        const scheduleId = `sch_${crypto.randomUUID()}`;
-        occId = `occ_${crypto.randomUUID()}`;
-        const occExecutionUtc = (isScheduled && scheduledForUtc) ? scheduledForUtc : toSqliteUtc(new Date());
-        const occKey = (isScheduled && scheduledForUtc) ? `${scheduleId}_${scheduledForUtc}` : `${scheduleId}_immediate`;
+      const occExecutionUtc = (isScheduled && scheduledForUtc) ? scheduledForUtc : toSqliteUtc(new Date());
+
+      if (importChannel === "both") {
+        // Occurrence A: WhatsApp
+        const schWaId = `sch_wa_${crypto.randomUUID()}`;
+        const occWaId = `occ_${crypto.randomUUID()}`;
+        const occWaKey = (isScheduled && scheduledForUtc) ? `${schWaId}_${scheduledForUtc}` : `${schWaId}_immediate`;
 
         rowStatements.push({
           sql: `
             INSERT INTO schedules (
-              id, user_id, case_id, contact_id, phone_number, template_name,
+              id, user_id, case_id, contact_id, phone_number, channel, template_name,
               template_params, schedule_type, recurrence_interval, timezone,
               status, next_run_utc
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+          `,
+          args: [schWaId, userId, caseId, contact.id, canonicalPhone, 'whatsapp', templateName, JSON.stringify(rowParams), 'one_off', null, timezone, occExecutionUtc]
+        });
+
+        rowStatements.push({
+          sql: `
+            INSERT INTO scheduled_occurrences (
+              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status, channel, recipient_phone, recipient_email
+            ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+          `,
+          args: [occWaId, schWaId, occWaKey, occExecutionUtc, 'whatsapp', canonicalPhone, null]
+        });
+
+        rowStatements.push({
+          sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+                VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+          args: [
+            crypto.randomUUID(),
+            contact.id,
+            caseId,
+            templateName,
+            (isScheduled && scheduledForUtc) ? `WhatsApp outreach scheduled for ${scheduledForUtc} UTC` : `WhatsApp outreach queued for delivery`,
+            JSON.stringify({ scheduledForUtc: occExecutionUtc, channel: 'whatsapp', scheduleType: 'one_off', timezone })
+          ]
+        });
+
+        if (!isScheduled) {
+          immediateJobs.push({ occurrenceId: occWaId, caseId });
+        }
+
+        // Occurrence B: Email (if contact has email)
+        const recipientEmail = contact.email || rowEmail;
+        if (recipientEmail) {
+          const schEmId = `sch_em_${crypto.randomUUID()}`;
+          const occEmId = `occ_${crypto.randomUUID()}`;
+          const occEmKey = (isScheduled && scheduledForUtc) ? `${schEmId}_${scheduledForUtc}` : `${schEmId}_immediate`;
+
+          rowStatements.push({
+            sql: `
+              INSERT INTO schedules (
+                id, user_id, case_id, contact_id, phone_number, channel, template_name,
+                template_params, schedule_type, recurrence_interval, timezone,
+                status, next_run_utc
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+            `,
+            args: [schEmId, userId, caseId, contact.id, canonicalPhone, 'email', templateName, JSON.stringify(rowParams), 'one_off', null, timezone, occExecutionUtc]
+          });
+
+          rowStatements.push({
+            sql: `
+              INSERT INTO scheduled_occurrences (
+                id, schedule_id, occurrence_key, scheduled_for_utc, operational_status, channel, recipient_phone, recipient_email
+              ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+            `,
+            args: [occEmId, schEmId, occEmKey, occExecutionUtc, 'email', null, recipientEmail]
+          });
+
+          rowStatements.push({
+            sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
+                  VALUES (?, ?, ?, ?, 'outreach_scheduled', ?, ?, 'agent')`,
+            args: [
+              crypto.randomUUID(),
+              contact.id,
+              caseId,
+              templateName,
+              (isScheduled && scheduledForUtc) ? `Email outreach scheduled for ${scheduledForUtc} UTC` : `Email outreach queued for delivery`,
+              JSON.stringify({ scheduledForUtc: occExecutionUtc, channel: 'email', scheduleType: 'one_off', timezone })
+            ]
+          });
+
+          if (!isScheduled) {
+            immediateJobs.push({ occurrenceId: occEmId, caseId });
+          }
+        }
+      } else if (importChannel === "email" || importChannel === "whatsapp") {
+        const scheduleId = `sch_${crypto.randomUUID()}`;
+        const occId = `occ_${crypto.randomUUID()}`;
+        const occKey = (isScheduled && scheduledForUtc) ? `${scheduleId}_${scheduledForUtc}` : `${scheduleId}_immediate`;
+        const recipientEmail = (importChannel === "email") ? (contact.email || rowEmail) : null;
+        const recipientPhone = (importChannel === "whatsapp") ? canonicalPhone : null;
+
+        rowStatements.push({
+          sql: `
+            INSERT INTO schedules (
+              id, user_id, case_id, contact_id, phone_number, channel, template_name,
+              template_params, schedule_type, recurrence_interval, timezone,
+              status, next_run_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
           `,
           args: [
             scheduleId,
@@ -970,6 +1204,7 @@ export async function handleBulkImportCases(c) {
             caseId,
             contact.id,
             canonicalPhone,
+            importChannel,
             templateName,
             JSON.stringify(rowParams),
             'one_off',
@@ -982,15 +1217,16 @@ export async function handleBulkImportCases(c) {
         rowStatements.push({
           sql: `
             INSERT INTO scheduled_occurrences (
-              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
-            ) VALUES (?, ?, ?, ?, 'pending')
+              id, schedule_id, occurrence_key, scheduled_for_utc, operational_status, channel, recipient_phone, recipient_email
+            ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
           `,
-          args: [occId, scheduleId, occKey, occExecutionUtc]
+          args: [occId, scheduleId, occKey, occExecutionUtc, importChannel, recipientPhone, recipientEmail]
         });
 
+        const label = importChannel === "email" ? "Email" : "WhatsApp";
         const timelineContent = (isScheduled && scheduledForUtc)
-          ? `WhatsApp outreach scheduled for ${scheduledForUtc} UTC`
-          : `WhatsApp outreach queued for delivery`;
+          ? `${label} outreach scheduled for ${scheduledForUtc} UTC`
+          : `${label} outreach queued for delivery`;
 
         rowStatements.push({
           sql: `INSERT INTO case_timeline (id, contact_id, case_id, template_name, event_type, content, metadata, created_by)
@@ -1001,9 +1237,13 @@ export async function handleBulkImportCases(c) {
             caseId,
             templateName,
             timelineContent,
-            JSON.stringify({ scheduledForUtc: occExecutionUtc, scheduleType: 'one_off', timezone })
+            JSON.stringify({ scheduledForUtc: occExecutionUtc, channel: importChannel, scheduleType: 'one_off', timezone })
           ]
         });
+
+        if (!isScheduled) {
+          immediateJobs.push({ occurrenceId: occId, caseId });
+        }
       }
 
       // Execute row statements atomically
@@ -1015,11 +1255,7 @@ export async function handleBulkImportCases(c) {
         }
       }
 
-      if (!isScheduled && sendWhatsApp && occId) {
-        immediateJobs.push({ occurrenceId: occId, caseId });
-      }
-
-      const whatsappStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : (sendWhatsApp ? 'queued' : 'not_sent');
+      const deliveryStatus = (isScheduled && scheduledForUtc) ? 'scheduled' : (importChannel !== "none" ? 'queued' : 'not_sent');
       importedCount++;
       results.push({
         index: i,
@@ -1027,8 +1263,10 @@ export async function handleBulkImportCases(c) {
         contactId: contact.id,
         name: contact.contactPerson,
         phone: canonicalPhone,
+        email: contact.email || rowEmail || null,
         loanProduct,
-        whatsappStatus,
+        channel: importChannel,
+        whatsappStatus: deliveryStatus,
         status: "imported",
         success: true
       });

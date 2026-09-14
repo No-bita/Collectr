@@ -67,7 +67,7 @@ Lekho-Edge/
     ├── wrangler.toml.example          # Example deployment configuration
     ├── .dev.vars.example              # Example local secrets with mock flags
     │
-    ├── migrations/                    # D1 Database Migrations (0001 → 0009)
+    ├── migrations/                    # D1 Database Migrations (0001 → 0010)
     │   ├── 0001_initial_v1_schema.sql
     │   ├── 0002_add_users_and_multi_tenancy.sql
     │   ├── 0003_refactor_lead_to_case_tokens.sql
@@ -76,7 +76,8 @@ Lekho-Edge/
     │   ├── 0006_contacts_and_mini_targets.sql
     │   ├── 0007_loan_product_doc_mappings.sql
     │   ├── 0008_schedules.sql
-    │   └── 0009_active_case_uniqueness.sql
+    │   ├── 0009_active_case_uniqueness.sql
+    │   └── 0010_email_outreach_channel.sql
     │
     ├── src/                           # Backend Application Code
     │   ├── index.js                   # Worker entrypoint, router dispatcher & scheduled/queue handlers
@@ -94,10 +95,14 @@ Lekho-Edge/
     │   │   ├── credits.js             # Financial ledger, recharge wallet, paise math
     │   │   ├── webhook.js             # Meta webhook verification & delivery status parser
     │   │   └── admin.js               # Matrix rule editor & failure log viewer
+    │   ├── email/                     # Outbound Email Outreach Module (Resend)
+    │   │   ├── client.js              # Resend REST client with Idempotency-Key support & dev mock
+    │   │   ├── templates.js           # Responsive HTML & plain-text email renderer with upload links
+    │   │   └── pipeline.js            # Authoritative email dispatch pipeline with atomic locks
     │   ├── scheduler/                 # Asynchronous Scheduling Engine
     │   │   ├── time.js                # One-off timezone converter preserving IANA wall-clock times
     │   │   ├── scanner.js             # Cron scanner with 10-minute crash-window recovery leases
-    │   │   └── consumer.js            # Queue consumer with JIT credit validation & pipeline dispatch
+    │   │   └── consumer.js            # Queue consumer with channel routing & JIT credit validation
     │   ├── whatsapp/
     │   │   ├── client.js              # Meta Graph API client & offline mock adapter
     │   │   ├── templates.js           # Template registry, token payload builder
@@ -383,11 +388,15 @@ erDiagram
         string wa_phone_number_id UK
     }
 
+    users ||--o{ email_messages : "dispatches"
+    schedules ||--o{ scheduled_occurrences : "generates"
+
     contacts {
         string id PK
         string user_id FK
         string contact_person
         string phone_number "E.164 (91XXXXXXXXXX)"
+        string email "Optional email address"
         datetime created_at
         datetime last_updated
     }
@@ -405,6 +414,47 @@ erDiagram
         string status "lead | documents_pending | ready_for_review | submitted | approved | disbursed"
         string whatsapp_delivery_status
         json ai_metadata
+    }
+
+    schedules {
+        string id PK
+        string user_id FK
+        string case_id FK
+        string contact_id FK
+        string phone_number
+        string channel "whatsapp | email"
+        string template_name
+        json template_params
+        string schedule_type "one_off"
+        string timezone
+        string status "active | completed | cancelled"
+        datetime next_run_utc
+    }
+
+    scheduled_occurrences {
+        string id PK
+        string schedule_id FK
+        string occurrence_key
+        datetime scheduled_for_utc
+        string channel "whatsapp | email"
+        string recipient_phone "Snapshot: 91XXXXXXXXXX"
+        string recipient_email "Snapshot: email address"
+        string operational_status "pending | claimed | completed | skipped | failed | unknown"
+        datetime claimed_at
+        integer attempts
+        string provider_message_id
+        string skip_reason
+        string last_error
+    }
+
+    email_messages {
+        string id PK
+        string user_id FK
+        string idempotency_key UK
+        string recipient_email
+        string status "PENDING | SENDING | SENT | FAILED | UNKNOWN"
+        string provider_message_id UK
+        datetime created_at
     }
 
     required_documents {
@@ -431,7 +481,7 @@ erDiagram
         string case_id FK
         string provider_message_id
         string template_name
-        string event_type
+        string event_type "case_created | whatsapp_sent | email_sent | outreach_scheduled | etc."
         string content
         json metadata
         string created_by
@@ -442,7 +492,7 @@ erDiagram
         string user_id FK
         integer amount_paise
         integer balance_after_paise
-        string transaction_type
+        string transaction_type "whatsapp_deduction | email_deduction | recharge_topup"
         string reference_id
     }
 ```

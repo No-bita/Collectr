@@ -19,24 +19,36 @@ export async function handleCreateSchedule(c) {
     caseId = null,
     contactId = null,
     phoneNumber,
+    email = null,
+    channel = "whatsapp",
     templateName,
     templateParams = [],
     timezone = "Asia/Kolkata",
     scheduledFor
   } = body;
 
-  if (!phoneNumber) {
-    return c.json({ error: "Phone number is required" }, 400);
-  }
+  const outreachChannel = String(channel || "whatsapp").toLowerCase();
 
-  const cleanedPhone = String(phoneNumber).replace(/\D/g, "");
-  if (cleanedPhone.length < 10) {
-    return c.json({ error: "Valid 10-digit phone number required" }, 400);
+  if (outreachChannel === "email") {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return c.json({ error: "Valid email address is required for email schedule" }, 400);
+    }
+  } else {
+    if (!phoneNumber) {
+      return c.json({ error: "Phone number is required" }, 400);
+    }
+    const cleanedPhone = String(phoneNumber).replace(/\D/g, "");
+    if (cleanedPhone.length < 10) {
+      return c.json({ error: "Valid 10-digit phone number required" }, 400);
+    }
   }
 
   if (!templateName) {
     return c.json({ error: "Template name is required" }, 400);
   }
+
+  const cleanedPhone = phoneNumber ? String(phoneNumber).replace(/\D/g, "") : "";
+  const cleanedEmail = email && typeof email === "string" ? email.trim() : null;
 
   const safeTz = isValidTimezone(timezone) ? timezone : "Asia/Kolkata";
   const scheduledForUtc = parseScheduledForToUtc(scheduledFor, safeTz);
@@ -45,25 +57,27 @@ export async function handleCreateSchedule(c) {
   const occurrenceId = `occ_${crypto.randomUUID()}`;
   const occurrenceKey = `${scheduleId}_${scheduledForUtc}`;
 
+  const recipientPhone = (outreachChannel === "whatsapp") ? cleanedPhone : null;
+  const recipientEmail = (outreachChannel === "email") ? cleanedEmail : null;
+
   const scheduleStatements = [
     {
       sql: `
         INSERT INTO schedules (
-          id, user_id, case_id, contact_id, phone_number, template_name,
+          id, user_id, case_id, contact_id, phone_number, channel, template_name,
           template_params, schedule_type, recurrence_interval, timezone,
           status, next_run_utc
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'one_off', null, ?, 'active', ?)
       `,
       args: [
         scheduleId,
         user.id,
         caseId,
         contactId,
-        cleanedPhone,
+        cleanedPhone || null,
+        outreachChannel,
         templateName,
         JSON.stringify(templateParams),
-        'one_off',
-        null,
         safeTz,
         scheduledForUtc
       ]
@@ -71,10 +85,10 @@ export async function handleCreateSchedule(c) {
     {
       sql: `
         INSERT INTO scheduled_occurrences (
-          id, schedule_id, occurrence_key, scheduled_for_utc, operational_status
-        ) VALUES (?, ?, ?, ?, 'pending')
+          id, schedule_id, occurrence_key, scheduled_for_utc, operational_status, channel, recipient_phone, recipient_email
+        ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
       `,
-      args: [occurrenceId, scheduleId, occurrenceKey, scheduledForUtc]
+      args: [occurrenceId, scheduleId, occurrenceKey, scheduledForUtc, outreachChannel, recipientPhone, recipientEmail]
     }
   ];
 

@@ -210,6 +210,42 @@ export function getDbClient(env) {
         const res = await stmt.all();
         return { rows: res.results || [] };
       }
+      if (msg.includes("no such table: email_messages")) {
+        try {
+          await db.prepare(`
+            CREATE TABLE IF NOT EXISTS email_messages (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              idempotency_key TEXT NOT NULL,
+              recipient_email TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'PENDING',
+              provider_message_id TEXT,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              CONSTRAINT unq_email_msg UNIQUE(user_id, idempotency_key)
+            )
+          `).run();
+          await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS unq_email_msg_provider_id ON email_messages(provider_message_id) WHERE provider_message_id IS NOT NULL").run();
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
+      if (msg.includes("no such column: email") || msg.includes("no such column: channel") || msg.includes("no such column: recipient_phone") || msg.includes("no such column: recipient_email") || msg.includes("no such column: subject")) {
+        try {
+          await db.prepare("ALTER TABLE contacts ADD COLUMN email TEXT").run().catch(() => {});
+          await db.prepare("ALTER TABLE schedules ADD COLUMN channel TEXT NOT NULL DEFAULT 'whatsapp'").run().catch(() => {});
+          await db.prepare("ALTER TABLE scheduled_occurrences ADD COLUMN channel TEXT NOT NULL DEFAULT 'whatsapp'").run().catch(() => {});
+          await db.prepare("ALTER TABLE scheduled_occurrences ADD COLUMN recipient_phone TEXT").run().catch(() => {});
+          await db.prepare("ALTER TABLE scheduled_occurrences ADD COLUMN recipient_email TEXT").run().catch(() => {});
+          await db.prepare("ALTER TABLE message_templates ADD COLUMN channel TEXT NOT NULL DEFAULT 'whatsapp'").run().catch(() => {});
+          await db.prepare("ALTER TABLE message_templates ADD COLUMN subject TEXT").run().catch(() => {});
+        } catch (_) {}
+        let stmt = db.prepare(sql);
+        if (args && args.length > 0) stmt = stmt.bind(...args);
+        const res = await stmt.all();
+        return { rows: res.results || [] };
+      }
       throw err;
     }
   };

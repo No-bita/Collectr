@@ -100,14 +100,14 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
         const args = typeof query === 'string' ? [] : (query.args || []);
         const norm = sql.replace(/\s+/g, ' ').trim();
 
-        if (norm.startsWith('SELECT id, contact_person FROM contacts')) {
+        if (norm.startsWith('SELECT id, contact_person')) {
           const [userId, phone] = args;
           const c = records.contacts.find(x => x.phone_number === phone && x.user_id === userId);
           return { rows: c ? [c] : [] };
         }
         if (norm.startsWith('INSERT INTO contacts')) {
-          const [id, user_id, contact_person, phone_number] = args;
-          records.contacts.push({ id, user_id, contact_person, phone_number });
+          const [id, user_id, contact_person, phone_number, email] = args;
+          records.contacts.push({ id, user_id, contact_person, phone_number, email: email || null });
           return { rows: [] };
         }
         if (norm.startsWith('INSERT INTO loan_cases')) {
@@ -136,19 +136,30 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
           return { rows: [], changes: 1 };
         }
         if (norm.startsWith('INSERT INTO schedules')) {
-          const [id, user_id, case_id, contact_id, phone_number, template_name, template_params, schedule_type, recurrence_interval, timezone, scheduled_for_utc] = args;
+          let id, user_id, case_id, contact_id, phone_number, channel, template_name, template_params, schedule_type, recurrence_interval, timezone, scheduled_for_utc;
+          if (args.length === 12) {
+            [id, user_id, case_id, contact_id, phone_number, channel, template_name, template_params, schedule_type, recurrence_interval, timezone, scheduled_for_utc] = args;
+          } else {
+            [id, user_id, case_id, contact_id, phone_number, template_name, template_params, schedule_type, recurrence_interval, timezone, scheduled_for_utc] = args;
+            channel = 'whatsapp';
+          }
           records.schedules.push({
-            id, user_id, case_id, contact_id, phone_number, template_name,
+            id, user_id, case_id, contact_id, phone_number, channel, template_name,
             template_params, schedule_type, recurrence_interval, timezone,
             status: 'active', next_run_utc: scheduled_for_utc
           });
           return { rows: [] };
         }
         if (norm.startsWith('INSERT INTO scheduled_occurrences')) {
-          const [id, schedule_id, occurrence_key, scheduled_for_utc] = args;
+          let id, schedule_id, occurrence_key, scheduled_for_utc, channel = 'whatsapp', recipient_phone = null, recipient_email = null;
+          if (args.length >= 7) {
+            [id, schedule_id, occurrence_key, scheduled_for_utc, channel, recipient_phone, recipient_email] = args;
+          } else {
+            [id, schedule_id, occurrence_key, scheduled_for_utc] = args;
+          }
           records.scheduled_occurrences.push({
-            id, schedule_id, occurrence_key, scheduled_for_utc, operational_status: 'pending',
-            claimed_at: null, attempts: 0
+            id, schedule_id, occurrence_key, scheduled_for_utc, channel, recipient_phone, recipient_email,
+            operational_status: 'pending', claimed_at: null, attempts: 0
           });
           return { rows: [] };
         }

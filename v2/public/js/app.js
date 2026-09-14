@@ -2442,6 +2442,8 @@ if (btnDetailsContinue) {
           const reqBody = {
             contactPerson,
             phone: rawPhone,
+            email: el("clientEmail")?.value?.trim() || null,
+            channel: el("outreachChannelSelect")?.value || "whatsapp",
             loanProduct: selectedTemplate,
             templateName: selectedTemplate,
             templateParams: dynamicParams,
@@ -2555,7 +2557,12 @@ if (btnDetailsContinue) {
 
     const proceedToDocsScreen = () => {
       // Save to State Machine
-      wizardState.customer = { contactPerson, phone: rawPhone };
+      wizardState.customer = {
+        contactPerson,
+        phone: rawPhone,
+        email: el("clientEmail")?.value?.trim() || null,
+        channel: el("outreachChannelSelect")?.value || "whatsapp"
+      };
       wizardState.loan = { product: selectedProduct, amountRequired };
       wizardState.schedule = schedulePayload;
 
@@ -2616,6 +2623,8 @@ if (btnDocsCreate) {
       const postBody = {
         contactPerson: wizardState.customer.contactPerson,
         phone: wizardState.customer.phone,
+        email: wizardState.customer.email || null,
+        channel: wizardState.customer.channel || "whatsapp",
         loanProduct: wizardState.loan.product,
         amountRequired: wizardState.loan.amountRequired,
         requiredDocIds: wizardState.documents.selectedIds
@@ -3555,11 +3564,21 @@ function parseCsvOrTextContent(content, hasHeader) {
     const parts = line.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
     if (parts.length === 0 || (parts.length === 1 && !parts[0])) continue;
 
-    // Strict column assignment: column 1 = name, column 2 = phone
+    // Strict column assignment with optional email support
     const contactPerson = parts[0] || "";
     const rawPhone = parts[1] || "";
-    const category = parts[2] || "";
-    const amount = parts[3] || "";
+    let email = null;
+    let category = "";
+    let amount = "";
+
+    if (parts.length >= 3 && parts[2].includes("@")) {
+      email = parts[2].trim();
+      category = parts[3] || "";
+      amount = parts[4] || "";
+    } else {
+      category = parts[2] || "";
+      amount = parts[3] || "";
+    }
 
     const canonical = normalizeIndianPhoneNumber(rawPhone);
     const digits = canonical ? canonical.slice(2) : rawPhone.replace(/\D/g, "");
@@ -3588,6 +3607,7 @@ function parseCsvOrTextContent(content, hasHeader) {
       index: i,
       contactPerson: contactPerson || `Client ${digits.slice(-4) || i + 1}`,
       rawPhone,
+      email,
       canonicalPhone: canonical,
       digits,
       category: isDirectOutreach ? "Direct Outreach" : (category || el("bulkCategorySelect")?.value || "Direct Intake"),
@@ -3855,16 +3875,19 @@ async function executeBulkImport(options = {}) {
   const isDirectOutreach = (typeof window.getVariantKey === 'function' && window.getVariantKey() === 'direct_outreach');
   const defaultCategory = isDirectOutreach ? "Direct Outreach" : (el("bulkCategorySelect")?.value || "Direct Intake");
   const templateName = el("bulkTemplateSelect")?.value || "new_convo_1";
-  const sendWhatsApp = el("bulkSendWhatsAppCheck")?.checked !== false;
+  const importChannel = el("bulkChannelSelect")?.value || "whatsapp";
+  const sendWhatsApp = importChannel !== "none";
 
   const payload = {
     clients: readyRows.map(r => ({
       contactPerson: r.contactPerson,
       phoneNumber: r.canonicalPhone || r.digits || r.rawPhone,
+      email: r.email || null,
       loanProduct: r.category || defaultCategory,
       amountRequired: isDirectOutreach ? null : r.amountRequired,
       templateParams: r.templateParams || []
     })),
+    channel: importChannel,
     defaultLoanProduct: defaultCategory,
     templateName: templateName,
     sendWhatsApp: sendWhatsApp,

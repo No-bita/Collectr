@@ -271,6 +271,22 @@
                 </div>
               </div>
 
+              <div class="form-row-2col">
+                <div class="field">
+                  <label for="clientEmail">Email Address (Optional)</label>
+                  <input id="clientEmail" name="email" type="email" placeholder="client@example.com" />
+                </div>
+
+                <div class="field">
+                  <label for="outreachChannelSelect">Outreach Channel</label>
+                  <select id="outreachChannelSelect" name="channel">
+                    <option value="whatsapp" selected>WhatsApp</option>
+                    <option value="email">Email</option>
+                    <option value="both">Both (WhatsApp + Email)</option>
+                  </select>
+                </div>
+              </div>
+
               <div class="field" id="loanProductGroup">
                 <label for="loanProductSelect" data-variant-key="lblCategorySelect">Filing</label>
                 <select id="loanProductSelect" name="loanProduct" required>
@@ -633,9 +649,9 @@
               </button>
             </div>
             <div id="bulkSampleFormatContent" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #334155; background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; padding: 8px 12px; line-height: 1.6; overflow-x: auto;">
-              <div style="color: #64748B; font-weight: 600;">Name, Phone, Category, Amount</div>
-              <div>John Doe, 9876543210, Direct Intake, 500000</div>
-              <div>Priya Patel, 9876543210, ITR Filing, 250000</div>
+              <div style="color: #64748B; font-weight: 600;">Name, Phone, Email (optional), Category, Amount</div>
+              <div>John Doe, 9876543210, john@example.com, Direct Intake, 500000</div>
+              <div>Priya Patel, 9876543211, priya@example.com, ITR Filing, 250000</div>
             </div>
           </div>
 
@@ -650,7 +666,7 @@
           </div>
 
           <!-- Import Configuration Options -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 14px;">
             <div class="form-group" id="bulkCategoryGroup">
               <label for="bulkCategorySelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Default Category</label>
               <select id="bulkCategorySelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 14px;">
@@ -661,10 +677,18 @@
               </select>
             </div>
             <div class="form-group" id="bulkTemplateGroup">
-              <label for="bulkTemplateSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">WhatsApp Message Template</label>
+              <label for="bulkTemplateSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Message Template</label>
               <select id="bulkTemplateSelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 14px;">
                 <option value="new_convo_1">new_convo_1 (Onboarding Intake)</option>
                 <option value="hello_world">hello_world (Meta Default)</option>
+              </select>
+            </div>
+            <div class="form-group" id="bulkChannelGroup">
+              <label for="bulkChannelSelect" style="font-weight: 600; font-size: 13px; color: #1E293B; display: block; margin-bottom: 4px;">Outreach Channel</label>
+              <select id="bulkChannelSelect" class="form-select" style="width: 100%; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 12px; font-size: 14px;">
+                <option value="whatsapp" selected>WhatsApp</option>
+                <option value="email">Email</option>
+                <option value="both">Both (WhatsApp + Email)</option>
               </select>
             </div>
           </div>
