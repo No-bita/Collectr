@@ -79,8 +79,17 @@
   --shadow-popover: 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.10);
 
-  /* Motion */
-  --transition-fast: 150ms ease-out;
+  /* Motion Tokens (transitions.dev) */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+  --duration-smooth: 300ms;
+
+  --transition-fast: var(--duration-fast) var(--ease-in-out-smooth);
+  --transition-normal: var(--duration-normal) var(--ease-out-expo);
 }
 
 * { box-sizing: border-box; }
@@ -342,15 +351,33 @@ html, body {
   background: var(--surface-muted);
   color: var(--text);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: transform var(--duration-fast) var(--ease-out-expo),
+              background-color var(--duration-fast) var(--ease-in-out-smooth),
+              border-color var(--duration-fast) var(--ease-in-out-smooth),
+              box-shadow var(--duration-fast) var(--ease-in-out-smooth),
+              color var(--duration-fast) var(--ease-in-out-smooth);
   box-shadow: var(--shadow-none);
   line-height: 1;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled):not([disabled]):not(.is-loading) {
   background: var(--surface-selected);
   border-color: #D8D3C5;
   color: var(--text);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled):not([disabled]):not(.is-loading) {
+  transform: scale(0.98);
+}
+
+.btn:disabled,
+.btn[disabled],
+.btn.is-loading {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .btn:focus-visible {
@@ -365,9 +392,14 @@ html, body {
   color: var(--btn-primary-text) !important;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled):not([disabled]):not(.is-loading) {
   background: var(--btn-primary-hover) !important;
   border-color: var(--btn-primary-hover) !important;
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled):not([disabled]):not(.is-loading) {
+  transform: scale(0.98);
 }
 
 .btn-ghost {
@@ -549,7 +581,18 @@ tbody tr:hover {
   justify-content: center;
   z-index: 1000;
 }
-.modal-backdrop[hidden] { display: none; }
+.modal-backdrop[hidden] { display: none !important; }
+
+.modal-backdrop:not([hidden]) {
+  animation: modalBackdropFadeIn var(--duration-normal) var(--ease-out-expo) forwards;
+}
+
+.modal-backdrop:not([hidden]) .wizard-modal,
+.modal-backdrop:not([hidden]) .modal-box,
+.modal-backdrop:not([hidden]) .matrix-modal-content {
+  animation: modalScaleFadeIn var(--duration-normal) var(--ease-out-expo) forwards;
+  will-change: transform, opacity;
+}
 
 /* ==========================================================================
    3-Screen Creation Wizard Modal Styles
@@ -1392,19 +1435,29 @@ tr.detail-row td {
   gap: 1.25rem;
   box-shadow: none;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: transform var(--duration-fast) var(--ease-out-expo),
+              border-color var(--duration-fast) var(--ease-in-out-smooth),
+              background-color var(--duration-fast) var(--ease-in-out-smooth),
+              box-shadow var(--duration-fast) var(--ease-in-out-smooth);
   user-select: none;
 }
 
 .stat-card-modern:hover {
   border-color: #CBD5E1;
   background: #FCFBF8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.stat-card-modern:active {
+  transform: scale(0.99);
 }
 
 .stat-card-modern.active-filter {
   border-color: #171717;
   box-shadow: 0 0 0 1px #171717;
   background: #FAF9F6;
+  transform: none;
 }
 
 .stat-icon-circle {
@@ -2022,6 +2075,16 @@ tr.case-row:hover .row-copy-btn {
 .modal-overlay[hidden] {
   display: none !important;
 }
+
+.modal-overlay:not([hidden]) {
+  animation: modalBackdropFadeIn var(--duration-normal) var(--ease-out-expo) forwards;
+}
+
+.modal-overlay:not([hidden]) .modal-container {
+  animation: modalScaleFadeIn var(--duration-normal) var(--ease-out-expo) forwards;
+  will-change: transform, opacity;
+}
+
 .modal-container {
   background: #ffffff;
   border: 1px solid #ECE8DF;
@@ -2530,3 +2593,79 @@ tr.case-row:hover .row-copy-btn {
     width: 100% !important;
   }
 }
+
+/* ==========================================================================
+   Motion System & Keyframe Animations (transitions.dev)
+   ========================================================================== */
+
+/* Wizard Screen Slide & Fade */
+.wizard-screen:not([hidden]) {
+  animation: wizardStepFadeSlide var(--duration-normal) var(--ease-out-expo) forwards;
+  will-change: transform, opacity;
+}
+
+/* Modal Animations */
+@keyframes modalBackdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalScaleFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes wizardStepFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bannerSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Accessibility: Strict Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .modal-backdrop:not([hidden]),
+  .modal-overlay:not([hidden]),
+  .wizard-screen:not([hidden]),
+  .modal-container,
+  .wizard-modal,
+  .stat-card-modern,
+  .btn,
+  .btn-primary {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
