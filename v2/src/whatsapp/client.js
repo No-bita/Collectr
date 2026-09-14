@@ -58,14 +58,16 @@ export async function sendWhatsAppTemplate({
   env,
 }) {
   const isMock =
-    env?.MOCK_WHATSAPP === "true" ||
-    (typeof process !== "undefined" && process.env?.MOCK_WHATSAPP === "true");
+    env?.MOCK_WHATSAPP !== undefined
+      ? env.MOCK_WHATSAPP === "true"
+      : typeof process !== "undefined" && process.env?.MOCK_WHATSAPP === "true";
 
   if (isMock) {
     const mockStatus = (
-      env?.MOCK_WHATSAPP_STATUS ||
-      (typeof process !== "undefined" && process.env?.MOCK_WHATSAPP_STATUS) ||
-      "sent"
+      env?.MOCK_WHATSAPP_STATUS !== undefined
+        ? env.MOCK_WHATSAPP_STATUS
+        : (typeof process !== "undefined" && process.env?.MOCK_WHATSAPP_STATUS) ||
+          "sent"
     ).toLowerCase();
 
     if (mockStatus === "failed") {
@@ -134,14 +136,16 @@ export async function sendWhatsAppTemplate({
  */
 export async function sendWhatsAppText(phone, messageText, env) {
   const isMock =
-    env?.MOCK_WHATSAPP === "true" ||
-    (typeof process !== "undefined" && process.env?.MOCK_WHATSAPP === "true");
+    env?.MOCK_WHATSAPP !== undefined
+      ? env.MOCK_WHATSAPP === "true"
+      : typeof process !== "undefined" && process.env?.MOCK_WHATSAPP === "true";
 
   if (isMock) {
     const mockStatus = (
-      env?.MOCK_WHATSAPP_STATUS ||
-      (typeof process !== "undefined" && process.env?.MOCK_WHATSAPP_STATUS) ||
-      "sent"
+      env?.MOCK_WHATSAPP_STATUS !== undefined
+        ? env.MOCK_WHATSAPP_STATUS
+        : (typeof process !== "undefined" && process.env?.MOCK_WHATSAPP_STATUS) ||
+          "sent"
     ).toLowerCase();
 
     if (mockStatus === "failed") {

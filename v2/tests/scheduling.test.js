@@ -365,7 +365,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     const mockEnv = {
       ENVIRONMENT: "development",
       WHATSAPP_TOKEN: "mock_token",
-      WHATSAPP_PHONE_ID: "12345"
+      WHATSAPP_PHONE_ID: "12345",
+      MOCK_WHATSAPP: "false"
     };
 
     // Override fetch to simulate gateway timeout
