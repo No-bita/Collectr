@@ -617,14 +617,14 @@
         height: auto;
         object-fit: contain;
         border-radius: var(--radius-lg);
-        transform: scale(1.2);
-        transform-origin: center right;
+        transform: scale(1.02);
+        transform-origin: center center;
         filter: drop-shadow(0 16px 40px rgba(15, 23, 41, 0.08));
         transition: transform 0.3s ease, filter 0.3s ease;
       }
 
       .handoff-illustration__img:hover {
-        transform: scale(1.2) translateY(-4px);
+        transform: scale(1.02) translateY(-4px);
         filter: drop-shadow(0 20px 48px rgba(15, 23, 41, 0.12));
       }
 
@@ -1752,6 +1752,12 @@
               <p class="hero__subhead">You asked once. They said they'd send it.<br>Now you're the one who has to remember,<br>check and ask again</p>
               <div class="hero__actions">
                 <a href="/login.html" class="btn btn--primary btn--large">Start Collecting <span class="btn__arrow">→</span></a>
+                <a href="#how" class="hero-bridge__link" aria-label="Scroll to how it works" style="padding: 10px 24px; font-size: 15px;">
+                  <span>See how it works</span>
+                  <div class="hero-bridge__icon" style="width: 26px; height: 26px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                  </div>
+                </a>
               </div>
             </div>
 
@@ -1762,15 +1768,6 @@
           </div>
         </div>
 
-        <!-- Hero to Handoff Bridge (Centered on section boundary line) -->
-        <div class="hero-bridge reveal reveal-delay-3">
-          <a href="#how" class="hero-bridge__link" aria-label="Scroll to how it works">
-            <span>See how it works</span>
-            <div class="hero-bridge__icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
-            </div>
-          </a>
-        </div>
       </section>
 
 
@@ -1779,7 +1776,7 @@
            ============================================ -->
       <section class="handoff" id="how">
         <div class="container">
-          <div class="split-section split-65-35">
+          <div class="split-section split-55-45">
             <!-- Visual Left -->
             <div class="handoff-illustration reveal order-mobile-first" style="margin-top: 0;">
               <img src="/assets/section2-illustration.png" alt="Collectr workflow: set once, use for everyone. Collectr handles individual follow-ups for everyone and tracks all requests in real time." class="handoff-illustration__img" width="1100" height="400" loading="lazy" />
