@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- Primary SEO -->
-    <title>Collectr — Collect client documents without endless follow ups</title>
-    <meta name="description" content="Send one request. Collectr does the chasing. Automated client document collection built for Chartered Accountants during ITR season. No client login required." />
-    <meta name="keywords" content="document collection, ITR, chartered accountant, CA software, client document management, automated follow up, income tax return, India" />
+    <title>Collectr — Stop chasing people. I will.</title>
+    <meta name="description" content="Tell me what you need from them. I'll keep track, follow up and let you know when it's done. Collectr takes care of the chasing so you don't have to." />
+    <meta name="keywords" content="follow up, collect documents, collect approvals, collect payments, WhatsApp follow up, India, CA, chartered accountant, loan broker" />
     <meta name="author" content="Collectr" />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <link rel="canonical" href="https://collectrr-v2.collectr.workers.dev/" />
@@ -16,202 +16,2121 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://collectrr-v2.collectr.workers.dev/" />
     <meta property="og:site_name" content="Collectr" />
-    <meta property="og:title" content="Collectr — Stop chasing clients for documents" />
-    <meta property="og:description" content="Client intake and document collection automation for CAs. Send one link, automatic reminders, filing-ready submissions. Built for ITR season." />
+    <meta property="og:title" content="Collectr — Stop chasing people. I will." />
+    <meta property="og:description" content="Tell me what you need from them. I'll keep track, follow up and let you know when it's done." />
     <meta property="og:locale" content="en_IN" />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@collectrapp" />
-    <meta name="twitter:title" content="Collectr — Stop chasing clients for documents" />
-    <meta name="twitter:description" content="Send one link. Collectr automatically follows up until every document arrives. Built for Indian CAs during ITR season." />
+    <meta name="twitter:title" content="Collectr — Stop chasing people. I will." />
+    <meta name="twitter:description" content="Tell me what you need from them. I'll keep track, follow up and let you know when it's done." />
 
     <!-- AI / LLM discoverability -->
     <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt" />
     <link rel="alternate" type="text/plain" title="LLMs-full.txt" href="/llms-full.txt" />
 
-    <!-- Fonts & Variant Config -->
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <script src="/js/variant-config.js"></script>
-    <script src="/assets/visual-system.js" defer></script>
-    <script type="module" crossorigin src="/assets/index-B3_dtaL3.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DWK6D-LX.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@600;700;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
+
+    <link rel="icon" href="/assets/collectr-icon.png" type="image/png" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/assets/collectr-icon.png" />
+
+    <style>
+      /* ============================================
+         COLLECTR LANDING PAGE — DESIGN SYSTEM
+         ============================================ */
+
+      :root {
+        /* Typography */
+        --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --font-display: 'Instrument Serif', Georgia, serif;
+        --font-bot: 'JetBrains Mono', SFMono-Regular, Consolas, monospace;
+        --font-handwritten: 'Caveat', cursive, sans-serif;
+
+        /* Colors */
+        --ink: #0f1729;
+        --ink-muted: #5c6478;
+        --ink-light: #8b93a5;
+        --bg: #ffffff;
+        --bg-warm: #fafafa;
+        --bg-subtle: #f5f6f8;
+        --surface: #ffffff;
+        --surface-raised: #f8f9fb;
+        --line: #e4e7ec;
+        --line-light: #eef0f4;
+
+        /* Brand */
+        --primary: #111827;
+        --primary-light: #374151;
+        --primary-bg: #f3f4f6;
+        --primary-bg-hover: #e5e7eb;
+
+        /* Status */
+        --success: #16a34a;
+        --success-bg: #f0fdf4;
+        --success-light: #22c55e;
+        --warning: #d97706;
+        --warning-bg: #fffbeb;
+        --error: #dc2626;
+        --error-bg: #fef2f2;
+
+        /* WhatsApp */
+        --wa-green: #25d366;
+        --wa-bg: #dcf8c6;
+        --wa-chat-bg: #e5ddd5;
+
+        /* Spacing & Layout */
+        --section-pad-y: clamp(96px, 12vw, 180px);
+        --section-pad-y-sm: clamp(64px, 8vw, 96px);
+        --container: min(96vw, 1536px);
+        --container-narrow: min(88vw, 840px);
+        --container-pad: clamp(16px, 3.5vw, 40px);
+
+        /* Shadows */
+        --shadow-sm: 0 1px 2px rgba(15, 23, 41, 0.04);
+        --shadow-md: 0 2px 8px rgba(15, 23, 41, 0.06), 0 1px 2px rgba(15, 23, 41, 0.04);
+        --shadow-lg: 0 4px 24px rgba(15, 23, 41, 0.08), 0 2px 8px rgba(15, 23, 41, 0.04);
+        --shadow-xl: 0 8px 40px rgba(15, 23, 41, 0.10), 0 2px 12px rgba(15, 23, 41, 0.04);
+        --shadow-card: 0 1px 0 var(--line-light), 0 2px 12px rgba(15, 23, 41, 0.05);
+        --shadow-float: 0 12px 48px rgba(15, 23, 41, 0.12), 0 2px 8px rgba(15, 23, 41, 0.04);
+
+        /* Radius */
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --radius-xl: 20px;
+        --radius-full: 9999px;
+      }
+
+      /* ============================================
+         RESET & BASE
+         ============================================ */
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+        font-feature-settings: 'ss01', 'cv11';
+      }
+
+      body {
+        font-family: var(--font-sans);
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.6;
+        overflow-x: hidden;
+      }
+
+      img, svg, video { display: block; max-width: 100%; }
+      a { color: inherit; text-decoration: none; }
+      button { cursor: pointer; font: inherit; border: none; background: none; }
+      ul, ol { list-style: none; }
+
+      .container {
+        width: 100%;
+        max-width: var(--container);
+        margin: 0 auto;
+        padding-left: var(--container-pad);
+        padding-right: var(--container-pad);
+      }
+
+      .container--narrow {
+        width: 100%;
+        max-width: var(--container-narrow);
+        margin: 0 auto;
+        padding-left: var(--container-pad);
+        padding-right: var(--container-pad);
+      }
+
+      /* ============================================
+         SHARED TYPOGRAPHY
+         ============================================ */
+
+      .section-eyebrow {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary);
+        margin-bottom: 16px;
+      }
+
+      .section-headline {
+        font-size: clamp(32px, 5vw, 48px);
+        font-weight: 800;
+        line-height: 1.08;
+        letter-spacing: -0.025em;
+        color: var(--ink);
+      }
+
+      .section-subhead {
+        font-size: clamp(16px, 2vw, 19px);
+        line-height: 1.6;
+        color: var(--ink-muted);
+        max-width: 560px;
+      }
+
+      /* ============================================
+         NAVIGATION
+         ============================================ */
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(16px) saturate(1.8);
+        -webkit-backdrop-filter: blur(16px) saturate(1.8);
+        border-bottom: 1px solid var(--line-light);
+      }
+
+      .nav__inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+        width: 100%;
+        max-width: var(--container);
+        margin: 0 auto;
+        padding-left: var(--container-pad);
+        padding-right: var(--container-pad);
+      }
+
+      .nav__logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--ink);
+      }
+
+      .nav__logo-img {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        object-fit: cover;
+        display: block;
+      }
+
+      .nav__tagline {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ink-muted);
+        letter-spacing: -0.01em;
+      }
+
+      .nav__links {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+      }
+
+      .nav__link {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ink-muted);
+        transition: color 0.2s;
+      }
+
+      .nav__link:hover { color: var(--ink); }
+
+      .nav__actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .nav__login {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ink-muted);
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        transition: all 0.2s;
+      }
+
+      .nav__login:hover {
+        color: var(--ink);
+        background: var(--bg-subtle);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 10px 20px;
+        border-radius: var(--radius-sm);
+        transition: all 0.25s ease;
+      }
+
+      .btn--primary {
+        background: var(--primary);
+        color: white;
+        box-shadow: 0 1px 2px rgba(17, 24, 39, 0.2);
+      }
+
+      .btn--primary:hover {
+        background: var(--primary-light);
+        box-shadow: 0 4px 16px rgba(17, 24, 39, 0.3);
+        transform: translateY(-1px);
+      }
+
+      .btn--ghost {
+        color: var(--ink-muted);
+        padding: 10px 16px;
+      }
+
+      .btn--ghost:hover { color: var(--ink); }
+
+      .btn--large {
+        padding: 14px 28px;
+        font-size: 15px;
+        border-radius: var(--radius-md);
+      }
+
+      .btn--dark-primary {
+        background: white;
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      .btn--dark-primary:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        transform: translateY(-1px);
+      }
+
+      .btn--dark-ghost {
+        color: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+
+      .btn--dark-ghost:hover {
+        color: white;
+        border-color: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .btn__arrow {
+        transition: transform 0.2s;
+      }
+
+      .btn:hover .btn__arrow {
+        transform: translateX(3px);
+      }
+
+      .nav__hamburger {
+        display: none;
+        flex-direction: column;
+        gap: 5px;
+        padding: 8px;
+        cursor: pointer;
+      }
+
+      .nav__hamburger span {
+        display: block;
+        width: 20px;
+        height: 2px;
+        background: var(--ink);
+        border-radius: 2px;
+        transition: all 0.3s;
+      }
+
+      /* ============================================
+         SECTION 1 — HERO
+         ============================================ */
+
+      .hero {
+        padding: 72px 0 96px;
+        background: var(--bg);
+        position: relative;
+        border-bottom: 1px solid var(--line-light);
+      }
+
+      .hero::before {
+        content: '';
+        position: absolute;
+        top: -200px;
+        right: -200px;
+        width: 600px;
+        height: 600px;
+        background: radial-gradient(circle, rgba(17, 24, 39, 0.04) 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      .hero__inner {
+        display: grid;
+        grid-template-columns: 40% 60%;
+        gap: clamp(24px, 3vw, 40px);
+        align-items: center;
+      }
+
+      .hero__headline {
+        font-size: clamp(32px, 4.5vw, 68px);
+        font-weight: 900;
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        color: var(--ink);
+        margin-bottom: 20px;
+      }
+
+      .hero__headline-word {
+        display: block;
+        opacity: 0;
+        transform-origin: left center;
+        animation: wordSlam 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.25) forwards;
+      }
+
+      .hero__headline-word--1 { animation-delay: 0.15s; }
+      .hero__headline-word--2 { animation-delay: 0.65s; }
+      .hero__headline-word--3 { animation-delay: 1.15s; }
+
+      .hero__headline-bottom {
+        display: block;
+        color: var(--primary);
+        font-family: var(--font-handwritten);
+        font-weight: 700;
+        font-style: normal;
+        letter-spacing: -0.01em;
+        font-size: 1.25em;
+        opacity: 0;
+        animation: botSlideIn 0.75s cubic-bezier(0.16, 1, 0.3, 1) 1.85s forwards;
+      }
+      
+      .section-handwritten {
+        display: block;
+        color: var(--primary);
+        font-family: var(--font-handwritten);
+        font-weight: 700;
+        font-style: normal;
+        letter-spacing: -0.01em;
+      }
+
+      @keyframes wordSlam {
+        0% {
+          opacity: 0;
+          transform: scale(2.8) translateY(-40px);
+          filter: blur(8px);
+        }
+        70% {
+          opacity: 1;
+          transform: scale(0.96) translateY(2px);
+          filter: blur(0);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+          filter: blur(0);
+        }
+      }
+
+      @keyframes botSlideIn {
+        0% {
+          opacity: 0;
+          transform: translateX(-40px);
+          filter: blur(4px);
+        }
+        100% {
+          opacity: 1;
+          transform: translateX(0);
+          filter: blur(0);
+        }
+      }
+
+      .hero__subhead {
+        font-size: clamp(13px, 1.1vw, 16px);
+        line-height: 1.5;
+        color: var(--ink-muted);
+        max-width: 100%;
+        margin-bottom: 32px;
+      }
+
+      .hero__actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 40px;
+      }
+
+      .hero__channels {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--ink-light);
+      }
+
+      .hero__channels svg {
+        flex-shrink: 0;
+      }
+
+      /* Hero Visual — Product Story Image */
+      .hero-visual {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+      }
+
+      .hero-visual__img {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+        transform: scale(1.05);
+        transform-origin: center right;
+        transition: transform 0.3s ease, filter 0.3s ease;
+      }
+
+      /* Hero Bridge — Scroll to next section (centered 50/50 on section line) */
+      .hero-bridge {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 20;
+        margin-top: 0;
+        width: max-content;
+      }
+
+      .hero-bridge.reveal {
+        opacity: 0;
+        transform: translate(-50%, calc(-50% + 20px));
+        transition: opacity 0.7s ease, transform 0.7s ease;
+      }
+
+      .hero-bridge.reveal.in-view {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
+
+      .hero-bridge__link {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink-muted);
+        padding: 10px 22px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-full);
+        box-shadow: var(--shadow-md);
+        transition: all 0.25s ease;
+        text-decoration: none;
+      }
+
+      .hero-bridge__link:hover {
+        color: var(--primary);
+        border-color: rgba(17, 24, 39, 0.3);
+        box-shadow: var(--shadow-lg);
+        transform: translateY(2px);
+      }
+
+      .hero-bridge__icon {
+        width: 22px;
+        height: 22px;
+        border-radius: var(--radius-full);
+        background: var(--primary-bg);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        transition: transform 0.25s ease;
+      }
+
+      .hero-bridge__link:hover .hero-bridge__icon {
+        transform: translateY(3px);
+      }
+
+      /* ============================================
+         LAYOUT UTILITIES (NARRATIVE SPLITS)
+         ============================================ */
+      .split-section {
+        display: grid;
+        gap: clamp(40px, 6vw, 80px);
+        align-items: center;
+      }
+      
+      @media (min-width: 769px) {
+        .split-35-65 { grid-template-columns: 3.5fr 6.5fr; }
+        .split-40-60 { grid-template-columns: 4fr 6fr; }
+        .split-45-55 { grid-template-columns: 4.5fr 5.5fr; }
+        .split-55-45 { grid-template-columns: 5.5fr 4.5fr; }
+        .split-60-40 { grid-template-columns: 6fr 4fr; }
+        .split-65-35 { grid-template-columns: 6.5fr 3.5fr; }
+      }
+      
+      @media (max-width: 768px) {
+        .split-section { grid-template-columns: 1fr; gap: 40px; }
+        .order-mobile-first { order: -1; }
+      }
+
+      /* ============================================
+         SECTION 2 — THE HANDOFF
+         ============================================ */
+
+      .handoff {
+        padding: var(--section-pad-y) 0;
+        background: var(--bg-warm);
+        border-bottom: 1px solid var(--line-light);
+      }
+
+      .handoff__header {
+        max-width: 640px;
+        margin-bottom: 40px;
+      }
+
+      .handoff__steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 48px;
+        position: relative;
+      }
+
+      .handoff-illustration {
+        margin-top: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .handoff-illustration__img {
+        width: 100%;
+        max-width: 1200px;
+        height: auto;
+        object-fit: contain;
+        border-radius: var(--radius-lg);
+        transform: scale(1.2);
+        transform-origin: center right;
+        filter: drop-shadow(0 16px 40px rgba(15, 23, 41, 0.08));
+        transition: transform 0.3s ease, filter 0.3s ease;
+      }
+
+      .handoff-illustration__img:hover {
+        transform: scale(1.2) translateY(-4px);
+        filter: drop-shadow(0 20px 48px rgba(15, 23, 41, 0.12));
+      }
+
+      .handoff__step {
+        position: relative;
+      }
+
+      .handoff__step-number {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-full);
+        background: var(--primary);
+        color: white;
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 20px;
+      }
+
+      .handoff__step-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 10px;
+        letter-spacing: -0.01em;
+      }
+
+      .handoff__step-desc {
+        font-size: 15px;
+        line-height: 1.6;
+        color: var(--ink-muted);
+        max-width: 300px;
+      }
+
+      /* Connector arrows between steps */
+      .handoff__connector {
+        position: absolute;
+        top: 20px;
+        right: -24px;
+        color: var(--line);
+      }
+
+      /* ============================================
+         SECTION 2 — DELEGATION CARD & FLOW
+         ============================================ */
+
+      .handoff__delegation {
+        margin-top: 64px;
+      }
+
+      .delegation-card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-lg);
+        padding: 36px 40px;
+        position: relative;
+      }
+
+      .delegation-card__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 28px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid var(--line-light);
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .delegation-card__title {
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-muted);
+      }
+
+      .delegation-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--primary);
+        background: var(--primary-bg);
+        padding: 6px 14px;
+        border-radius: var(--radius-full);
+      }
+
+      .delegation-badge__dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--primary);
+        box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.2);
+      }
+
+      .delegation-grid {
+        display: grid;
+        grid-template-columns: 1fr auto 1.35fr auto 1fr;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 32px;
+      }
+
+      .delegation-step {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .delegation-step__label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .delegation-step__box {
+        padding: 18px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--line);
+        background: var(--surface-raised);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: all 0.2s ease;
+      }
+
+      .delegation-step__box--brand {
+        border-color: rgba(17, 24, 39, 0.35);
+        background: #f9fafb;
+        box-shadow: 0 2px 12px rgba(17, 24, 39, 0.06);
+      }
+
+      .delegation-step__icon-wrap {
+        width: 38px;
+        height: 38px;
+        border-radius: var(--radius-md);
+        display: grid;
+        place-items: center;
+        background: var(--surface);
+        border: 1px solid var(--line-light);
+        color: var(--ink);
+        flex-shrink: 0;
+      }
+
+      .delegation-step__icon-wrap--brand {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+      }
+
+      .delegation-step__icon-wrap--success {
+        background: var(--success-bg);
+        color: var(--success);
+        border-color: rgba(22, 163, 74, 0.2);
+      }
+
+      .delegation-step__content {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .delegation-step__title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        line-height: 1.4;
+      }
+
+      .delegation-step__meta {
+        font-size: 12px;
+        color: var(--ink-muted);
+      }
+
+      .delegation-step__tag {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--primary);
+        background: var(--primary-bg);
+        padding: 3px 8px;
+        border-radius: var(--radius-full);
+        white-space: nowrap;
+      }
+
+      .delegation-arrow {
+        color: var(--ink-light);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .delegation-cycle {
+        border-top: 1px solid var(--line-light);
+        padding-top: 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .delegation-cycle__caption {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-light);
+      }
+
+      .delegation-cycle__nodes {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .cycle-node {
+        padding: 8px 18px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-full);
+        font-weight: 600;
+        color: var(--ink);
+        font-size: 13px;
+      }
+
+      .cycle-node--collectr {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+        box-shadow: 0 2px 8px rgba(17, 24, 39, 0.25);
+      }
+
+      .cycle-arrow {
+        color: var(--ink-light);
+        font-size: 16px;
+      }
+
+      /* ============================================
+         SECTION 3 — DASHBOARD
+         ============================================ */
+
+      .dashboard-section {
+        padding: var(--section-pad-y) 0;
+        background: var(--bg);
+      }
+
+      .dashboard-section__header {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: end;
+        margin-bottom: 56px;
+      }
+
+      .dashboard-mock {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-xl);
+        overflow: hidden;
+      }
+
+      .dashboard-mock__bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        background: var(--surface-raised);
+        border-bottom: 1px solid var(--line-light);
+      }
+
+      .dashboard-mock__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: var(--radius-full);
+        background: var(--line);
+      }
+
+      .dashboard-mock__dot--red { background: #ff5f57; }
+      .dashboard-mock__dot--yellow { background: #ffbd2e; }
+      .dashboard-mock__dot--green { background: #28ca42; }
+
+      .dashboard-mock__body {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+      }
+
+      .dashboard-mock__sidebar {
+        padding: 20px 16px;
+        border-right: 1px solid var(--line-light);
+        background: var(--surface-raised);
+      }
+
+      .sidebar-logo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 24px;
+      }
+
+      .sidebar-logo__dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        background: var(--primary);
+        display: grid;
+        place-items: center;
+        color: white;
+        font-size: 10px;
+      }
+
+      .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .sidebar-nav__item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--ink-muted);
+        transition: all 0.2s;
+      }
+
+      .sidebar-nav__item--active {
+        background: var(--primary-bg);
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      .sidebar-nav__item svg {
+        flex-shrink: 0;
+        width: 16px;
+        height: 16px;
+      }
+
+      .dashboard-mock__content {
+        padding: 24px;
+      }
+
+      .dashboard-mock__title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 20px;
+      }
+
+      /* Stat Cards */
+      .stats-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+
+      .stat-card {
+        padding: 14px 16px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--line-light);
+        background: var(--surface);
+      }
+
+      .stat-card__number {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+
+      .stat-card__label {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--ink-muted);
+        margin-top: 2px;
+      }
+
+      .stat--total .stat-card__number { color: var(--ink); }
+      .stat--complete .stat-card__number { color: var(--success); }
+      .stat--waiting .stat-card__number { color: var(--warning); }
+      .stat--review .stat-card__number { color: var(--primary); }
+      .stat--overdue .stat-card__number { color: var(--error); }
+
+      /* Table */
+      .mock-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .mock-table th {
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-light);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line-light);
+      }
+
+      .mock-table td {
+        padding: 14px 12px;
+        font-size: 13px;
+        border-bottom: 1px solid var(--line-light);
+        vertical-align: middle;
+      }
+
+      .mock-table tr:last-child td { border-bottom: none; }
+
+      .person-cell {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .person-cell__avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-full);
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .person-cell__name {
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: var(--radius-full);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .status-badge--complete {
+        background: var(--success-bg);
+        color: var(--success);
+      }
+
+      .status-badge--waiting {
+        background: var(--warning-bg);
+        color: var(--warning);
+      }
+
+      .status-badge--review {
+        background: var(--primary-bg);
+        color: var(--primary);
+      }
+
+      .status-badge--overdue {
+        background: var(--error-bg);
+        color: var(--error);
+      }
+
+      .action-btn {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--primary);
+        cursor: pointer;
+        padding: 4px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--primary-bg);
+        background: var(--primary-bg);
+        transition: all 0.2s;
+      }
+
+      .action-btn:hover {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+      }
+
+      /* ============================================
+         SECTION 4 — NOT JUST DOCUMENTS
+         ============================================ */
+
+      .broaden {
+        padding: var(--section-pad-y) 0;
+        background: var(--bg-warm);
+        border-top: 1px solid var(--line-light);
+        border-bottom: 1px solid var(--line-light);
+      }
+
+      .broaden__header {
+        text-align: center;
+        max-width: 640px;
+        margin: 0 auto 64px;
+      }
+
+      .broaden__header .section-subhead {
+        margin: 20px auto 0;
+        max-width: 520px;
+      }
+
+      .broaden__categories {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+        margin-bottom: 56px;
+      }
+
+      .broaden__cat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 28px 16px;
+        background: var(--surface);
+        border: 1px solid var(--line-light);
+        border-radius: var(--radius-lg);
+        transition: all 0.25s ease;
+      }
+
+      .broaden__cat:hover {
+        border-color: var(--primary-bg-hover);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+      }
+
+      .broaden__cat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-md);
+        display: grid;
+        place-items: center;
+        color: var(--primary);
+      }
+
+      .broaden__cat-icon--docs { background: var(--primary-bg); }
+      .broaden__cat-icon--info { background: #fff7ed; color: var(--warning); }
+      .broaden__cat-icon--approvals { background: var(--success-bg); color: var(--success); }
+      .broaden__cat-icon--forms { background: #fdf4ff; color: #a855f7; }
+      .broaden__cat-icon--payments { background: #fef2f2; color: var(--error); }
+      .broaden__cat-icon--confirmations { background: #f0f9ff; color: #0284c7; }
+
+      .broaden__cat-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      .broaden__bottom {
+        text-align: center;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ink-muted);
+        font-family: var(--font-display);
+        font-style: italic;
+        letter-spacing: -0.01em;
+      }
+
+      /* ============================================
+         SECTION 5 — CHANNELS
+         ============================================ */
+
+      .channels {
+        padding: var(--section-pad-y) 0;
+        background: var(--bg);
+      }
+
+      .channels__inner {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 80px;
+        align-items: center;
+      }
+
+      .channels__visual {
+        display: flex;
+        justify-content: center;
+        gap: 56px;
+      }
+
+      .channel-flow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .channel-flow__node {
+        width: 80px;
+        height: 80px;
+        border-radius: var(--radius-lg);
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        transition: all 0.3s ease;
+      }
+
+      .channel-flow__node:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+      }
+
+      .channel-flow__node--collectr {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+      }
+
+      .channel-flow__node--wa {
+        background: #f0fdf4;
+        border-color: rgba(37, 211, 102, 0.2);
+      }
+
+      .channel-flow__node--email {
+        background: #eff6ff;
+        border-color: rgba(59, 130, 246, 0.2);
+      }
+
+      .channel-flow__node--person {
+        background: var(--surface-raised);
+      }
+
+      .channel-flow__arrow {
+        color: var(--line);
+      }
+
+      .channel-flow__label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink-muted);
+        text-align: center;
+      }
+
+      /* ============================================
+         SECTION 6 — USE CASES
+         ============================================ */
+
+      .use-cases {
+        padding: var(--section-pad-y) 0;
+        background: var(--bg-warm);
+        border-top: 1px solid var(--line-light);
+        border-bottom: 1px solid var(--line-light);
+      }
+
+      .use-cases__header {
+        text-align: center;
+        max-width: 620px;
+        margin: 0 auto 64px;
+      }
+
+      .use-cases__grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+      }
+
+      .use-case {
+        padding: 32px 28px;
+        background: var(--surface);
+        border: 1px solid var(--line-light);
+        border-radius: var(--radius-lg);
+        transition: all 0.25s ease;
+      }
+
+      .use-case:hover {
+        border-color: var(--primary-bg-hover);
+        box-shadow: var(--shadow-lg);
+        transform: translateY(-3px);
+      }
+
+      .use-case__icon {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-md);
+        background: var(--primary-bg);
+        display: grid;
+        place-items: center;
+        color: var(--primary);
+        margin-bottom: 20px;
+      }
+
+      .use-case__title {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 10px;
+        letter-spacing: -0.01em;
+      }
+
+      .use-case__desc {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--ink-muted);
+      }
+
+      /* ============================================
+         SECTION 7 — TEAM VISIBILITY
+         ============================================ */
+
+      .team-section {
+        padding: var(--section-pad-y) 0;
+        background: var(--bg);
+      }
+
+      .team-section__inner {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 80px;
+        align-items: center;
+      }
+
+      .team-section__questions {
+        margin-top: 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .team-q {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        background: var(--surface-raised);
+        border: 1px solid var(--line-light);
+        border-radius: var(--radius-md);
+        font-size: 14px;
+        color: var(--ink);
+        font-style: italic;
+      }
+
+      .team-q__no {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--error);
+        font-style: normal;
+        white-space: nowrap;
+      }
+
+      /* Team visual */
+      .team-visual {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .team-member {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px 24px;
+        background: var(--surface);
+        border: 1px solid var(--line-light);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        transition: all 0.25s ease;
+      }
+
+      .team-member:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateX(4px);
+      }
+
+      .team-member__avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-full);
+        display: grid;
+        place-items: center;
+        font-size: 15px;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+
+      .team-member__info {
+        flex: 1;
+      }
+
+      .team-member__name {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      .team-member__status {
+        font-size: 13px;
+        color: var(--ink-muted);
+        margin-top: 2px;
+      }
+
+      .team-member__count {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--primary);
+      }
+
+      /* ============================================
+         SECTION 8 — EMOTIONAL PAYOFF
+         ============================================ */
+
+      .payoff {
+        padding: 140px 0;
+        background: var(--bg);
+        text-align: center;
+      }
+
+      .payoff__headline {
+        font-size: clamp(36px, 5.5vw, 56px);
+        font-weight: 800;
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        color: var(--ink);
+        max-width: 700px;
+        margin: 0 auto 24px;
+      }
+
+      .payoff__sub {
+        font-size: clamp(17px, 2vw, 20px);
+        line-height: 1.6;
+        color: var(--ink-muted);
+        max-width: 500px;
+        margin: 0 auto;
+      }
+
+      /* ============================================
+         SECTION 9 — FINAL CTA
+         ============================================ */
+
+      .final-cta {
+        padding: 100px 0;
+        background: var(--ink);
+        color: white;
+        text-align: center;
+      }
+
+      .final-cta__headline {
+        font-size: clamp(32px, 5vw, 52px);
+        font-weight: 800;
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        max-width: 700px;
+        margin: 0 auto 20px;
+      }
+
+      .final-cta__headline em {
+        display: block;
+        font-style: normal;
+        color: #818cf8;
+        font-family: var(--font-bot);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        font-size: 0.9em;
+        margin-top: 4px;
+      }
+
+      .final-cta__sub {
+        font-size: 18px;
+        line-height: 1.6;
+        color: rgba(255, 255, 255, 0.6);
+        max-width: 500px;
+        margin: 0 auto 40px;
+      }
+
+      .final-cta__actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      /* ============================================
+         FOOTER
+         ============================================ */
+
+      .footer {
+        background: var(--ink);
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        padding: 40px 0;
+      }
+
+      .footer__inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .footer__brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .footer__logo-img {
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        object-fit: cover;
+        display: block;
+      }
+
+      .footer__name {
+        font-size: 14px;
+        font-weight: 600;
+        color: white;
+      }
+
+      .footer__links {
+        display: flex;
+        gap: 24px;
+      }
+
+      .footer__link {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.4);
+        transition: color 0.2s;
+      }
+
+      .footer__link:hover { color: rgba(255, 255, 255, 0.7); }
+
+      .footer__copy {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.3);
+      }
+
+      /* ============================================
+         SCROLL ANIMATIONS
+         ============================================ */
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 0.7s ease, transform 0.7s ease;
+      }
+
+      .reveal.in-view {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .reveal-delay-1 { transition-delay: 0.1s; }
+      .reveal-delay-2 { transition-delay: 0.2s; }
+      .reveal-delay-3 { transition-delay: 0.3s; }
+      .reveal-delay-4 { transition-delay: 0.4s; }
+      .reveal-delay-5 { transition-delay: 0.5s; }
+
+      /* ============================================
+         RESPONSIVE
+         ============================================ */
+
+      @media (max-width: 1024px) {
+        .hero__inner { grid-template-columns: 1fr; gap: 48px; }
+        .hero-visual { margin: 0 auto; max-width: 720px; width: 100%; }
+        .hero-visual__img { max-width: 720px; }
+
+        .delegation-grid {
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
+
+        .delegation-arrow {
+          transform: rotate(90deg);
+        }
+
+        .dashboard-section__header { grid-template-columns: 1fr; }
+        .dashboard-mock__body { grid-template-columns: 1fr; }
+        .dashboard-mock__sidebar { display: none; }
+        .stats-row { grid-template-columns: repeat(3, 1fr); }
+
+        .channels__inner { grid-template-columns: 1fr; gap: 48px; }
+        .channels__visual { order: -1; }
+
+        .team-section__inner { grid-template-columns: 1fr; gap: 48px; }
+
+        .use-cases__grid { grid-template-columns: repeat(2, 1fr); }
+
+        .broaden__categories { grid-template-columns: repeat(3, 1fr); }
+      }
+
+      @media (max-width: 768px) {
+        :root {
+          --section-pad-y: 80px;
+        }
+
+        .nav__links { display: none; }
+        .nav__tagline { display: none; }
+        .nav__login { display: none; }
+        .nav__hamburger { display: flex; }
+
+        .hero { padding: 48px 0 64px; }
+        .hero__headline { font-size: clamp(32px, 8vw, 48px); }
+        .hero__headline-line { display: block; }
+        .hero__subhead { white-space: normal; }
+        .hero-visual__img { max-width: 580px; }
+
+        .handoff__steps { grid-template-columns: 1fr; gap: 40px; }
+        .handoff__connector { display: none; }
+
+        .delegation-card { padding: 24px 20px; }
+
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+
+        .use-cases__grid { grid-template-columns: 1fr; }
+
+        .broaden__categories { grid-template-columns: repeat(2, 1fr); }
+
+        .channels__visual { gap: 32px; }
+        .channel-flow__node { width: 60px; height: 60px; }
+
+        .cycle-node { padding: 6px 14px; font-size: 12px; }
+
+        .payoff { padding: 80px 0; }
+        .final-cta { padding: 72px 0; }
+      }
+
+      @media (max-width: 480px) {
+        .hero__actions { flex-direction: column; align-items: stretch; }
+        .hero__actions .btn { justify-content: center; }
+        .hero-visual__img { max-width: 100%; }
+
+
+        .broaden__categories { grid-template-columns: 1fr 1fr; }
+
+        .channels__visual { flex-direction: column; align-items: center; }
+
+        .stats-row { grid-template-columns: 1fr 1fr; }
+      }
+
+      /* Mobile Nav Overlay */
+      .mobile-nav {
+        display: none;
+        position: fixed;
+        top: 64px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(20px);
+        z-index: 99;
+        padding: 32px 24px;
+      }
+
+      .mobile-nav.open { display: block; }
+
+      .mobile-nav__links {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .mobile-nav__link {
+        display: block;
+        padding: 14px 16px;
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--ink);
+        border-radius: var(--radius-sm);
+        transition: background 0.2s;
+      }
+
+      .mobile-nav__link:hover { background: var(--bg-subtle); }
+
+      .mobile-nav__cta {
+        margin-top: 24px;
+      }
+    </style>
   </head>
   <body>
-    <div id="root">
-      <div class="min-h-screen bg-background">
-        <header class="sticky top-0 z-50 border-b border-line/70 bg-background/80 backdrop-blur-md">
-          <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-            <a href="/" class="flex items-center gap-2">
-              <div class="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox h-4 w-4" aria-hidden="true">
-                  <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
-                  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
-                </svg>
-              </div>
-              <span class="text-[17px] font-semibold tracking-tight text-ink">Collectr</span>
-            </a>
-            <nav class="hidden items-center gap-8 text-sm text-ink-muted md:flex">
-              <a href="#how" class="hover:text-ink transition-colors">How it works</a>
-              <a href="/dashboard.html" class="hover:text-ink transition-colors font-medium text-primary">Operations Dashboard</a>
-            </nav>
-            <div class="flex items-center gap-2">
-              <a href="/login.html" class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90">Start collecting <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right h-3.5 w-3.5" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a>
-            </div>
-          </div>
-        </header>
 
-        <main>
-          <section class="relative overflow-hidden border-b border-line bg-background">
-            <div class="absolute inset-0 grid-bg [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_70%)] opacity-60"></div>
-            <div class="relative mx-auto max-w-7xl px-6 pt-20 pb-24 lg:pt-28 lg:pb-32">
-              <div class="grid gap-16 lg:grid-cols-[1.05fr_1fr] lg:items-center">
-                <div>
-                  <div class="inline-flex items-center gap-2 rounded-full border border-line bg-surface-raised px-3 py-1 text-xs font-medium text-ink-muted">
-                    <span class="h-1.5 w-1.5 rounded-full bg-success"></span><span data-variant-key="heroBadge">Built for ITR season</span>
-                  </div>
-                  <h1 id="variantHeroTitle" class="mt-6 text-4xl font-medium leading-[1.05] tracking-tight text-ink sm:text-5xl lg:text-[64px]">
-                    Collect documents from <span class="font-display italic text-primary">hundreds of clients</span> without endless follow ups.
-                  </h1>
-                  <p data-variant-key="heroSubtitle" class="mt-6 max-w-xl text-lg leading-relaxed text-ink-muted">
-                    Send one request, automatically follow up, and receive filing-ready submissions without chasing clients across WhatsApp and email.
-                  </p>
-                  <div class="mt-8 flex flex-wrap items-center gap-3">
-                    <a href="/login.html" class="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90">Start collecting <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right h-4 w-4" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a>
-                    <a href="/dashboard.html" class="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-surface-raised px-5 text-sm font-medium text-ink transition hover:bg-surface">Launch Dashboard →</a>
-                  </div>
-                  <div class="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-ink-muted">
-                    <span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-3.5 w-3.5 text-success" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> <span data-variant-key="bullet1">No client logins</span></span>
-                    <span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-3.5 w-3.5 text-success" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> <span data-variant-key="bullet2">WhatsApp + Email reminders</span></span>
-                    <span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check h-3.5 w-3.5 text-success" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> <span data-variant-key="bullet3">Reusable checklists</span></span>
-                  </div>
-                </div>
-                <div class="relative">
-                  <div class="relative rounded-2xl border border-line bg-surface-raised p-5 shadow-[var(--shadow-pop)]">
-                    <div class="space-y-4">
-                      <!-- Workspace Header -->
-                      <div class="flex items-center justify-between border-b border-line pb-3">
-                        <div class="flex items-center gap-2">
-                          <span class="h-2 w-2 rounded-full bg-success"></span>
-                          <span class="text-xs font-semibold text-ink">Sample Workspace · ITR FY 2026</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                          <span class="text-[11px] font-mono text-ink-muted">42 Clients</span>
-                          <span class="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">78% Complete</span>
-                        </div>
-                      </div>
+    <!-- ============================================
+         NAVIGATION
+         ============================================ -->
+    <header class="nav" id="nav">
+      <div class="nav__inner">
+        <a href="/" class="nav__logo">
+          <img src="/assets/collectr-icon.png" alt="Collectr" class="nav__logo-img" width="32" height="32" />
+          Collectr
+        </a>
 
-                      <!-- Metric Summary Chips -->
-                      <div class="grid grid-cols-3 gap-2 text-center text-[11px]" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem;">
-                        <div class="rounded-lg bg-surface p-2 border border-line/60">
-                          <div class="font-bold text-success">31</div>
-                          <div class="text-[10px] text-ink-muted">Complete</div>
-                        </div>
-                        <div class="rounded-lg bg-surface p-2 border border-line/60">
-                          <div class="font-bold text-warning">7</div>
-                          <div class="text-[10px] text-ink-muted">Pending</div>
-                        </div>
-                        <div class="rounded-lg bg-surface p-2 border border-line/60">
-                          <div class="font-bold text-ink">4</div>
-                          <div class="text-[10px] text-ink-muted">Review</div>
-                        </div>
-                      </div>
+        <div class="nav__links">
+          <a href="#use-cases" class="nav__link">Use cases</a>
+        </div>
 
-                      <!-- Client Intake Rows -->
-                      <div class="space-y-2">
-                        <div tabindex="0" class="workspace-row group flex items-center justify-between rounded-lg border border-line/70 bg-background p-3 transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary">
-                          <div>
-                            <div class="text-xs font-semibold text-ink">Rahul Sharma</div>
-                            <div class="text-[10px] text-ink-muted group-hover:hidden">8 of 8 documents</div>
-                            <div class="hidden text-[10px] text-success group-hover:block font-medium">Last updated 2 min ago • All verified</div>
-                          </div>
-                          <span class="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">✓ Ready</span>
-                        </div>
-
-                        <div tabindex="0" class="workspace-row group flex items-center justify-between rounded-lg border border-line/70 bg-background p-3 transition hover:border-warning/40 focus-visible:ring-2 focus-visible:ring-warning">
-                          <div>
-                            <div class="text-xs font-semibold text-ink">Priya Mehta</div>
-                            <div class="text-[10px] text-ink-muted group-hover:hidden">6 of 8 documents</div>
-                            <div class="hidden text-[10px] text-warning group-hover:block font-medium">2 docs missing • Reminder sent 2h ago</div>
-                          </div>
-                          <div class="flex items-center gap-2">
-                            <button type="button" onclick="alert('Demo: Automated WhatsApp reminder sent to Priya Mehta!')" class="hidden rounded bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition hover:bg-primary hover:text-white group-hover:inline-block">Send reminder →</button>
-                            <span class="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">○ Pending</span>
-                          </div>
-                        </div>
-
-                        <div tabindex="0" class="workspace-row group flex items-center justify-between rounded-lg border border-line/70 bg-background p-3 transition hover:border-ink/40 focus-visible:ring-2 focus-visible:ring-ink">
-                          <div>
-                            <div class="text-xs font-semibold text-ink">Amit Shah</div>
-                            <div class="text-[10px] text-ink-muted group-hover:hidden">7 of 8 documents</div>
-                            <div class="hidden text-[10px] text-ink group-hover:block font-medium">Form 26AS mismatch • Needs review</div>
-                          </div>
-                          <span class="rounded-full bg-surface-selected px-2 py-0.5 text-[10px] font-medium text-ink">⚠ Review</span>
-                        </div>
-
-                        <div tabindex="0" class="workspace-row group flex items-center justify-between rounded-lg border border-line/70 bg-background p-3 transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary">
-                          <div>
-                            <div class="text-xs font-semibold text-ink">Neha Kapoor</div>
-                            <div class="text-[10px] text-ink-muted group-hover:hidden">8 of 8 documents</div>
-                            <div class="hidden text-[10px] text-success group-hover:block font-medium">Last updated 1h ago • Filing ready</div>
-                          </div>
-                          <span class="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">✓ Ready</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section id="how" class="border-b border-line bg-background">
-            <div class="mx-auto max-w-7xl px-6 py-24">
-              <div class="flex flex-wrap items-end justify-between gap-6">
-                <div class="max-w-2xl">
-                  <div class="text-xs font-medium uppercase tracking-wider text-ink-muted">How it works</div>
-                  <h2 class="mt-3 text-4xl font-medium tracking-tight text-ink sm:text-5xl">Four steps. <span class="font-display italic">Zero chasing.</span></h2>
-                </div>
-                <p class="max-w-sm text-sm text-ink-muted">Replace dozens of WhatsApp threads and email chains with a single repeatable workflow.</p>
-              </div>
-            </div>
-          </section>
-
-          <section id="cta" class="relative overflow-hidden bg-ink">
-            <div class="relative mx-auto max-w-7xl px-6 py-24 text-center">
-              <h2 data-variant-key="ctaHeading" class="mx-auto max-w-3xl text-4xl font-medium tracking-tight text-background sm:text-6xl">
-                Ready to stop <span class="font-display italic">reminding clients?</span>
-              </h2>
-              <p data-variant-key="ctaSubheading" class="mx-auto mt-5 max-w-xl text-lg text-background/70">Start your next collection in under 2 minutes.</p>
-              <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
-                <a href="/login.html" class="inline-flex h-12 items-center gap-2 rounded-lg bg-background px-6 text-sm font-medium text-ink shadow-sm transition hover:opacity-90">Start collecting <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right h-4 w-4" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a>
-                <a href="#demo" id="demoFakeDoorBtn" onclick="event.preventDefault(); this.innerText='Interest recorded!'; this.style.pointerEvents='none'; this.style.opacity='0.8'; fetch('/api/events/track', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({event:'click_fake_door_demo'})}).catch(()=>{});" class="inline-flex h-12 items-center gap-2 rounded-lg border border-background/20 px-6 text-sm font-medium text-background hover:bg-background/5">Book a 10-min demo</a>
-              </div>
-            </div>
-          </section>
-        </main>
-
-        <footer class="border-t border-line bg-background">
-          <div class="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center">
-            <div class="flex items-center gap-2">
-              <div class="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox h-4 w-4" aria-hidden="true">
-                  <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
-                  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
-                </svg>
-              </div>
-              <span class="text-sm font-medium text-ink">Collectr</span>
-              <span class="ml-2 text-xs text-ink-muted">Client intake &amp; document collection automation</span>
-            </div>
-            <div class="flex items-center gap-6">
-              <a href="/privacy" class="text-xs text-ink-muted hover:text-ink transition-colors">Privacy Policy</a>
-              <div class="text-xs text-ink-muted">© 2026 Collectr. Made for CAs & MSME Lenders.</div>
-            </div>
-          </div>
-        </footer>
+        <div class="nav__actions">
+          <a href="/login.html" class="btn btn--primary">Start Collecting <span class="btn__arrow">→</span></a>
+        </div>
       </div>
-    </div>
+    </header>
+
+    <main>
+
+      <!-- ============================================
+           SECTION 1 — HERO
+           ============================================ -->
+      <section class="hero" id="hero">
+        <div class="container">
+          <div class="hero__inner">
+            <div class="hero__copy">
+              <h1 class="hero__headline">
+                <span class="hero__headline-word hero__headline-word--1">STOP</span>
+                <span class="hero__headline-word hero__headline-word--2">CHASING</span>
+                <span class="hero__headline-word hero__headline-word--3">PEOPLE</span>
+              </h1>
+              <p class="hero__subhead">You asked once. They said they'd send it.<br>Now you're the one who has to remember,<br>check and ask again</p>
+              <div class="hero__actions">
+                <a href="/login.html" class="btn btn--primary btn--large">Start Collecting <span class="btn__arrow">→</span></a>
+              </div>
+            </div>
+
+            <!-- Hero Visual — Product Story Image -->
+            <div class="hero-visual">
+              <img src="/assets/hero-visual.png" alt="Collectr handles follow-ups: you tell Collectr what you need from Rahul, Collectr follows up on WhatsApp, Rahul sends the document, Collectr confirms everything is received." class="hero-visual__img" width="1024" height="686" loading="eager" fetchpriority="high" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Hero to Handoff Bridge (Centered on section boundary line) -->
+        <div class="hero-bridge reveal reveal-delay-3">
+          <a href="#how" class="hero-bridge__link" aria-label="Scroll to how it works">
+            <span>See how it works</span>
+            <div class="hero-bridge__icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+            </div>
+          </a>
+        </div>
+      </section>
+
+
+      <!-- ============================================
+           SECTION 2 — THE HANDOFF
+           ============================================ -->
+      <section class="handoff" id="how">
+        <div class="container">
+          <div class="split-section split-65-35">
+            <!-- Visual Left -->
+            <div class="handoff-illustration reveal order-mobile-first" style="margin-top: 0;">
+              <img src="/assets/section2-illustration.png" alt="Collectr workflow: set once, use for everyone. Collectr handles individual follow-ups for everyone and tracks all requests in real time." class="handoff-illustration__img" width="1100" height="400" loading="lazy" />
+            </div>
+
+            <!-- Text Right -->
+            <div class="handoff__header reveal reveal-delay-2" style="margin-bottom: 0;">
+              <em class="section-handwritten" style="font-size: clamp(32px, 4vw, 48px); margin-bottom: 8px;">I WILL</em>
+              <h2 class="section-headline" style="font-size: clamp(36px, 4.5vw, 56px); line-height: 1.1;">YOU ASK ONCE<br>I TAKE IT FROM HERE</h2>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+
+
+      <!-- ============================================
+           SECTION 4 — NOT JUST DOCUMENTS
+           ============================================ -->
+      <section class="broaden" id="broaden">
+        <div class="container">
+          <div class="broaden__header reveal">
+            <h2 class="section-headline">IT'S NOT JUST DOCUMENTS</h2>
+            <p class="section-subhead">
+              Documents are only one kind of thing I can help you get
+            </p>
+          </div>
+
+          <div class="broaden__categories">
+            <div class="broaden__cat reveal reveal-delay-1">
+              <div class="broaden__cat-icon broaden__cat-icon--docs">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <div class="broaden__cat-label">Documents</div>
+            </div>
+            <div class="broaden__cat reveal reveal-delay-2">
+              <div class="broaden__cat-icon broaden__cat-icon--info">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              </div>
+              <div class="broaden__cat-label">Information</div>
+            </div>
+            <div class="broaden__cat reveal reveal-delay-3">
+              <div class="broaden__cat-icon broaden__cat-icon--approvals">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+              </div>
+              <div class="broaden__cat-label">Approvals</div>
+            </div>
+            <div class="broaden__cat reveal reveal-delay-4">
+              <div class="broaden__cat-icon broaden__cat-icon--forms">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 13H8"/><path d="M16 17H8"/><path d="M16 13h-2"/></svg>
+              </div>
+              <div class="broaden__cat-label">Forms</div>
+            </div>
+            <div class="broaden__cat reveal reveal-delay-5">
+              <div class="broaden__cat-icon broaden__cat-icon--payments">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <div class="broaden__cat-label">Payments</div>
+            </div>
+            <div class="broaden__cat reveal reveal-delay-5">
+              <div class="broaden__cat-icon broaden__cat-icon--confirmations">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="broaden__cat-label">Confirmations</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+
+
+      <!-- ============================================
+           SECTION 6 — USE CASES
+           ============================================ -->
+      <section class="use-cases" id="use-cases">
+        <div class="container">
+          <div class="split-section split-35-65">
+            <!-- Text Left -->
+            <div class="use-cases__header reveal">
+              <h2 class="section-headline" style="font-size: clamp(32px, 4vw, 42px); line-height: 1.1; margin-bottom: 24px;">DIFFERENT WORK.<br>SAME PROBLEM.</h2>
+              <p class="section-subhead">Your work depends on people getting back to you. Collectr keeps it moving.</p>
+            </div>
+
+            <!-- Grid Right -->
+            <div class="use-cases__grid">
+            <div class="use-case reveal reveal-delay-1">
+              <div class="use-case__icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+              </div>
+              <h3 class="use-case__title">CA firms</h3>
+              <p class="use-case__desc">Stop chasing clients for ITR documents</p>
+            </div>
+            <div class="use-case reveal reveal-delay-2">
+              <div class="use-case__icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <h3 class="use-case__title">Loan teams</h3>
+              <p class="use-case__desc">Stop chasing applicants for the next document</p>
+            </div>
+            <div class="use-case reveal reveal-delay-3">
+              <div class="use-case__icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+              </div>
+              <h3 class="use-case__title">Event teams</h3>
+              <p class="use-case__desc">Stop chasing clients and vendors for every approval</p>
+            </div>
+            <div class="use-case reveal reveal-delay-4">
+              <div class="use-case__icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <h3 class="use-case__title">Operations teams</h3>
+              <p class="use-case__desc">Stop chasing people for the information your work depends on</p>
+            </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ============================================
+           SECTION 7 — TEAM VISIBILITY
+           ============================================ -->
+      <section class="team-section" id="team">
+        <div class="container">
+          <div class="team-section__inner">
+            <div class="reveal">
+              <div class="section-eyebrow">Shared visibility</div>
+              <h2 class="section-headline">EVERYONE SEES THE SAME THING</h2>
+              <div class="team-section__questions">
+                <div class="team-q">
+                  <span class="team-q__no">No more</span>
+                  "Did Rahul send it?"
+                </div>
+                <div class="team-q">
+                  <span class="team-q__no">No more</span>
+                  "Who's following up?"
+                </div>
+                <div class="team-q">
+                  <span class="team-q__no">No more</span>
+                  "What's still pending?"
+                </div>
+              </div>
+            </div>
+
+            <div class="team-visual reveal reveal-delay-2">
+              <div class="team-member">
+                <div class="team-member__avatar" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#7c3aed;">A</div>
+                <div class="team-member__info">
+                  <div class="team-member__name">Aditi</div>
+                  <div class="team-member__status">Following up with 8 people</div>
+                </div>
+                <div class="team-member__count">8</div>
+              </div>
+              <div class="team-member">
+                <div class="team-member__avatar" style="background:linear-gradient(135deg,#e0f2fe,#bae6fd);color:#0284c7;">R</div>
+                <div class="team-member__info">
+                  <div class="team-member__name">Rohan</div>
+                  <div class="team-member__status">Reviewing 4 submissions</div>
+                </div>
+                <div class="team-member__count">4</div>
+              </div>
+              <div class="team-member">
+                <div class="team-member__avatar" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);color:var(--success);">P</div>
+                <div class="team-member__info">
+                  <div class="team-member__name">Priya</div>
+                  <div class="team-member__status">3 requests completed</div>
+                </div>
+                <div class="team-member__count">3</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+
+      <!-- ============================================
+           SECTION 9 — FINAL CTA
+           ============================================ -->
+      <section class="final-cta" id="cta">
+        <div class="container reveal">
+          <h2 class="final-cta__headline">YOU'VE GOT WORK TO DO<br><em>I'VE GOT THIS</em></h2>
+          <div class="final-cta__actions">
+            <a href="/login.html" class="btn btn--dark-primary btn--large">Start Collecting <span class="btn__arrow">→</span></a>
+            <a href="mailto:hello@collectr.com" class="btn btn--dark-ghost btn--large">Contact</a>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+
+    <!-- ============================================
+         FOOTER
+         ============================================ -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer__inner">
+          <div class="footer__brand">
+            <img src="/assets/collectr-icon.png" alt="Collectr" class="footer__logo-img" width="26" height="26" />
+            <span class="footer__name">Collectr</span>
+          </div>
+          <div class="footer__links">
+            <a href="/privacy" class="footer__link">Privacy</a>
+            <a href="#" class="footer__link">Terms</a>
+            <a href="mailto:hello@collectrr.com" class="footer__link">Contact</a>
+          </div>
+          <div class="footer__copy">© 2026 Collectr</div>
+        </div>
+      </div>
+    </footer>
+
+
+    <!-- ============================================
+         SCRIPTS
+         ============================================ -->
+    <script>
+      // ---- Scroll Reveal ----
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (!prefersReducedMotion && 'IntersectionObserver' in window) {
+        const revealElements = document.querySelectorAll('.reveal');
+        const revealObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('in-view');
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.05, rootMargin: '0px 0px 100px 0px' });
+
+        revealElements.forEach(el => revealObserver.observe(el));
+      } else {
+        document.querySelectorAll('.reveal').forEach(el => el.classList.add('in-view'));
+      }
+
+      // Failsafe: reveal all elements after load to ensure no content stays hidden
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          document.querySelectorAll('.reveal').forEach(el => el.classList.add('in-view'));
+        }, 300);
+      });
+      // ---- Smooth scroll for anchor links ----
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function(e) {
+          const targetId = this.getAttribute('href');
+          if (targetId === '#') return;
+          const target = document.querySelector(targetId);
+          if (target) {
+            e.preventDefault();
+            const nav = document.getElementById('nav');
+            const navHeight = nav ? nav.offsetHeight : 0;
+            const targetPos = target.getBoundingClientRect().top + window.pageYOffset - navHeight - 20;
+            window.scrollTo({ top: targetPos, behavior: 'smooth' });
+          }
+        });
+      });
+
+      // ---- Web Audio API — Slam Sound Effects ----
+      let audioCtx = null;
+
+      function playSlamSound(isFinal = false) {
+        try {
+          if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            audioCtx = new AudioContext();
+          }
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          if (audioCtx.state !== 'running') return;
+
+          const now = audioCtx.currentTime;
+
+          // Sub-bass thump
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = 'sine';
+          const startFreq = isFinal ? 150 : 120;
+          const endFreq = 28;
+
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.16);
+
+          gain.gain.setValueAtTime(isFinal ? 0.6 : 0.45, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.18);
+
+          // Punchy transient noise snap
+          const bufferSize = Math.floor(audioCtx.sampleRate * 0.035);
+          const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = audioCtx.createBufferSource();
+          noise.buffer = buffer;
+
+          const noiseFilter = audioCtx.createBiquadFilter();
+          noiseFilter.type = 'lowpass';
+          noiseFilter.frequency.setValueAtTime(350, now);
+
+          const noiseGain = audioCtx.createGain();
+          noiseGain.gain.setValueAtTime(isFinal ? 0.3 : 0.18, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+          noise.connect(noiseFilter);
+          noiseFilter.connect(noiseGain);
+          noiseGain.connect(audioCtx.destination);
+
+          noise.start(now);
+        } catch (e) {
+          // Ignore audio errors gracefully
+        }
+      }
+
+      function scheduleSlamSounds() {
+        // Timed precisely to the landing impact of each word keyframe
+        setTimeout(() => playSlamSound(false), 550);  // STOP slam impact
+        setTimeout(() => playSlamSound(false), 1050); // CHASING slam impact
+        setTimeout(() => playSlamSound(true), 1550);  // PEOPLE slam impact
+      }
+
+      // Unlock AudioContext & play on page interaction or load
+      const unlockAudio = () => {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) audioCtx = new AudioContext();
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        scheduleSlamSounds();
+      };
+
+      window.addEventListener('pointerdown', unlockAudio, { once: true });
+      window.addEventListener('keydown', unlockAudio, { once: true });
+      window.addEventListener('load', scheduleSlamSounds);
+    </script>
   </body>
 </html>
