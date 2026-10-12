@@ -38,6 +38,9 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson, e
 
   const contactId = "cnt_" + crypto.randomUUID();
   const firmId = await getFirmIdForUser(db, userId);
+  if (!firmId) {
+    throw new Error("NO_FIRM_MEMBERSHIP: refusing to create a contact without firm ownership");
+  }
   await db.execute({
     sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated, firm_id)
           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
@@ -135,7 +138,10 @@ export async function handleBulkImportCases(c) {
   const db = getDbClient(env);
   const user = c.get("user");
   const userId = user ? (user.id || user.sub || null) : null;
-  const firmId = c.get("firmId");
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const sendWhatsApp = body.sendWhatsApp !== false;
   const templateName = body.templateName || env?.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
   const defaultProduct = body.defaultLoanProduct || "Direct Intake";
@@ -475,6 +481,11 @@ export async function handleCreateCase(c) {
   const templateName = body.templateName || "new_convo_1";
   const templateParams = body.templateParams || [];
   const isScheduled = !!(body.schedule && body.schedule.scheduledFor);
+
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
 
   const contact = await ensureContact(db, userId, canonicalPhone, contactPerson, email);
   const caseId = crypto.randomUUID();
