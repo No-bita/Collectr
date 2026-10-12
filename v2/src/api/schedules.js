@@ -4,6 +4,7 @@
  */
 
 import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
 import { isValidTimezone, parseScheduledForToUtc } from "../scheduler/time.js";
 import { normalizeIndianPhoneNumber } from "../whatsapp/client.js";
 import { renderTemplateBody } from "../whatsapp/templates.js";
@@ -11,8 +12,11 @@ import { renderTemplateBody } from "../whatsapp/templates.js";
 export async function handleCreateSchedule(c) {
   const user = c.get("user");
   const userId = user.id;
-  const firmId = c.get("firmId");
   const db = getDbClient(c.env);
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
 
   const body = await c.req.json().catch(() => ({}));
   const {
