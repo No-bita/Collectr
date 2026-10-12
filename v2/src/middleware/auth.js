@@ -1,4 +1,20 @@
 import { verify } from "hono/jwt";
+import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
+
+/**
+ * Resolves the caller's firm through firm_members and puts it on the request
+ * context as "firmId" (null when the user has no membership). Never throws:
+ * a missing firm_members table (pre-migration database) degrades to null.
+ */
+const resolveFirmContext = async (c, userId) => {
+  try {
+    c.set("firmId", await getFirmIdForUser(getDbClient(c.env), userId));
+  } catch (err) {
+    console.error("Firm resolution failed:", err);
+    c.set("firmId", null);
+  }
+};
 
 /**
  * Authentication Middleware (JWT & Local Dev Bypass).
@@ -12,6 +28,7 @@ export const authMiddleware = async (c, next) => {
 
   if (isDev && (!authHeader || authHeader === "Bearer dev_token" || authHeader === "dev_token")) {
     c.set("user", { user_id: "dev-user-1", username: "DevAgent", role: "admin" });
+    await resolveFirmContext(c, "dev-user-1");
     return next();
   }
 
@@ -24,6 +41,7 @@ export const authMiddleware = async (c, next) => {
     const secret = c.env.JWT_SECRET || "default_unsafe_secret_for_dev_only";
     const payload = await verify(token, secret, "HS256");
     c.set("user", payload);
+    await resolveFirmContext(c, payload.id);
     return next();
   } catch (err) {
     return c.json({ error: "Invalid or expired session. Please log in again." }, 401);
