@@ -51,10 +51,10 @@ describe("WhatsApp Workflow Integration Tests", () => {
   });
 
   test("3. Webhook Subscription Verification (verifyWebhookSubscription)", () => {
-    const expectedVerifyToken = "CollectrWhatsappTokenAuth2026";
+    const expectedVerifyToken = "test-verify-token";
 
     assert.deepEqual(
-      verifyWebhookSubscription("subscribe", "CollectrWhatsappTokenAuth2026", "11582014", expectedVerifyToken),
+      verifyWebhookSubscription("subscribe", "test-verify-token", "11582014", expectedVerifyToken),
       { verified: true, challenge: "11582014" }
     );
 
@@ -155,3 +155,4 @@ describe("WhatsApp Workflow Integration Tests", () => {
     assert.ok(rendered.includes("Rahul"));
   });
 });
+
