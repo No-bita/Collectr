@@ -111,10 +111,12 @@ test("link routes: revoke, regenerate, expired, unknown and closed stable failur
   const f = fixture();
   try {
     const id = await f.request();
+    const start = Date.now();
     const a = await f.call(STAFF_PATH(id), { method: "POST", body: {} });
     const b = await f.call(STAFF_PATH(id), { method: "POST", body: {} });
     const regenerated = await f.call(`${STAFF_PATH(id)}/regenerate`, { method: "POST", body: {} });
     assert.equal(regenerated.status, 201); assert.equal(regenerated.body.revokedCount, 2);
+    assert.ok(Date.parse(regenerated.body.link.expires_at) >= start + 14 * 86400000);
     for (const old of [a, b]) { const r = await f.call(SESSION(old.body.token), { user: null }); assert.equal(r.status, 410); assert.deepEqual(r.body, { error: "revoked" }); privateHeaders(r); }
     const token = regenerated.body.token;
     assert.equal((await f.call(SESSION(token), { user: null })).status, 200);
@@ -167,6 +169,11 @@ test("link routes: due date + 7 days, default 14 days and explicit expiry valida
     assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n, before);
     assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links WHERE revoked_at IS NOT NULL").get().n, 0);
     const noBodyRegen = await f.call(`${STAFF_PATH(id)}/regenerate`, { method: "POST" }); assert.equal(noBodyRegen.status, 201);
+    assert.equal(noBodyRegen.body.link.expires_at, "2099-03-08T00:00:00.000Z");
+    f.raw.prepare("UPDATE requests SET due_date=NULL WHERE id=?").run(id);
+    const noDueRegen = await f.call(`${STAFF_PATH(id)}/regenerate`, { method: "POST" });
+    assert.equal(noDueRegen.status, 201);
+    assert.ok(Date.parse(noDueRegen.body.link.expires_at) >= start + 14 * 86400000);
   } finally { f.raw.close(); }
 });
 
