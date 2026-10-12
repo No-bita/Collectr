@@ -242,8 +242,8 @@ function createMockDb() {
       }
 
       // SELECT id, name FROM contacts WHERE user_id = ? AND phone_number = ?
-      if (sql.includes("SELECT id, name FROM contacts WHERE user_id = ? AND phone_number = ?")) {
-        const contact = tables.contacts.find(c => c.user_id === args[0] && c.phone_number === args[1]);
+      if (sql.includes("SELECT id, name FROM contacts WHERE") && sql.includes("phone_number = ?")) {
+        const contact = tables.contacts.find(c => (c.firm_id === args[0] || c.user_id === args[0]) && c.phone_number === args[1]);
         return { rows: contact ? [contact] : [] };
       }
 
@@ -298,6 +298,7 @@ test("WhatsApp Non-Negotiable Regression Gate (All 15 Invariants)", async (t) =>
   const contact = {
     id: "cnt_rahul",
     user_id: user.id,
+    firm_id: "firm_mock",
     name: "Rahul Sharma",
     phone_number: "919876543210",
     email: "rahul@example.com",
