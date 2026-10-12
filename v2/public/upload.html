@@ -389,8 +389,7 @@
     let activeTargetItemId = null;
     let lastFailedFile = null;
     let lastFailedItemId = null;
-    // Items whose file reached storage during this visit. The server only flips an item to
-    // "received" once the completion step exists (issue #7), so we remember it locally.
+    // Items confirmed during this visit, so the row reads "Sent" even before the next refresh.
     const sentThisVisit = new Set();
 
     const TYPE_TOKEN_TO_MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
@@ -410,6 +409,12 @@
       rate_limited: "That's a lot of uploads in a short time. Take a breather and try again in a bit.",
       storage_not_configured: "Uploads aren't switched on just yet. Please let your CA team know.",
       session_expired: "That upload timed out. Please try again.",
+      session_not_found: "That upload timed out. Please try again.",
+      session_failed: "That upload didn't go through. Please try again.",
+      object_missing: "The file didn't finish uploading. Please try again.",
+      object_mismatch: "That file didn't arrive intact. Please try again.",
+      storage_unavailable: "Storage is having a moment. Please try again shortly.",
+      upload_complete_unavailable: "We couldn't confirm that upload. Please try again.",
       session_not_active: "That upload timed out. Please try again.",
       upload_url_unavailable: "We couldn't start that upload. Please try again in a moment.",
       upload_unavailable: "We couldn't start that upload. Please try again in a moment.",
@@ -763,8 +768,17 @@
         // 2. Send the file straight to storage with live progress.
         await putToStorage(file, urlData, targetItemId);
 
-        // The file is in storage. Marking the item "received" is the server's job
-        // (verified completion step, issue #7), so for now we only say it was sent.
+        // 3. Tell the server the file is in storage. It checks R2, records the document and
+        // moves the item to "received" (stored, not reviewed).
+        const confirmRes = await fetch(`/api/upload-complete/${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uploadSessionId: urlData.uploadSessionId })
+        });
+        let confirmData = {};
+        try { confirmData = await confirmRes.json(); } catch (e) { /* non-JSON error body */ }
+        if (!confirmRes.ok) throw new Error(friendlyError(confirmData.error, "We couldn't confirm that upload."));
+
         sentThisVisit.add(targetItemId);
         lastFailedFile = null;
         lastFailedItemId = null;
