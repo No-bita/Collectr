@@ -145,14 +145,17 @@ Deploy directly to your Cloudflare account with Wrangler:
 
 ```bash
 cd v2
-npx wrangler deploy
+cp wrangler.toml wrangler.local.toml   # gitignored; fill in your real D1 database_id and WhatsApp phone IDs
+npx wrangler deploy --config wrangler.local.toml
 ```
+
+The committed `v2/wrangler.toml` holds placeholders only. Do not put real IDs or tokens in it.
 
 For production secret setup (e.g. `WHATSAPP_ACCESS_TOKEN`, `GEMINI_API_KEY`):
 ```bash
 npx wrangler secret put WHATSAPP_ACCESS_TOKEN
 npx wrangler secret put GEMINI_API_KEY
-npx wrangler secret put WHATSAPP_WEBHOOK_VERIFY_TOKEN
+npx wrangler secret put WHATSAPP_VERIFY_TOKEN
 ```
 
 ---
@@ -172,3 +175,4 @@ Please report vulnerabilities confidentially according to our [**Security Policy
 ## License
 
 Collectrr is open-source software licensed under the [**MIT License**](LICENSE).
+
