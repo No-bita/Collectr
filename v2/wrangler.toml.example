@@ -36,4 +36,3 @@ invocation_logs = true
 [observability.traces]
 enabled = true
 persist = true
-
