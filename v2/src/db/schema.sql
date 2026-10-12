@@ -80,11 +80,13 @@ CREATE TABLE IF NOT EXISTS requests (
   contact_id TEXT NOT NULL,
   title TEXT NOT NULL, -- e.g. "Send PAN", "Confirm meeting for Friday", "Approve design"
   description TEXT,
-  status TEXT NOT NULL DEFAULT 'open', -- 'open', 'waiting_on_them', 'needs_follow_up', 'waiting_on_me', 'completed', 'cancelled'
+  status TEXT NOT NULL DEFAULT 'open', -- 'draft', 'open', 'waiting_on_them', 'needs_follow_up', 'waiting_on_me', 'completed', 'closed', 'cancelled'
   due_date DATETIME,
   completed_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  service_type TEXT, -- e.g. "GST filing"
+  period_label TEXT, -- e.g. "Q2 FY26-27"
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE
 );
@@ -93,18 +95,25 @@ CREATE INDEX IF NOT EXISTS idx_requests_contact_status ON requests(contact_id, s
 CREATE INDEX IF NOT EXISTS idx_requests_user_status ON requests(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_requests_firm ON requests(firm_id);
 
--- 5. Request Items (Generic Multi-item Checklist)
+-- 5. Request Items (Document-collection Checklist)
 CREATE TABLE IF NOT EXISTS request_items (
   id TEXT PRIMARY KEY,
   request_id TEXT NOT NULL,
+  firm_id TEXT NOT NULL DEFAULT '',
   title TEXT NOT NULL, -- e.g. "PAN Copy", "Signed NDA", "Meeting time confirmed"
-  status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'done' | 'waived'
-  file_url TEXT,
-  s3_key TEXT,
+  description TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
+  required INTEGER NOT NULL DEFAULT 1 CHECK (required IN (0, 1)),
+  allowed_types TEXT NOT NULL DEFAULT 'pdf,jpg,png',
+  max_bytes INTEGER NOT NULL DEFAULT 15728640,
+  status TEXT NOT NULL DEFAULT 'missing'
+    CHECK (status IN ('missing', 'received', 'under_review', 'accepted', 'needs_replacement', 'waived')),
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_request_items_request_position ON request_items(request_id, position);
 
 -- 6. Message Templates (Clean Generic Registry)
 CREATE TABLE IF NOT EXISTS message_templates (
@@ -304,12 +313,12 @@ CREATE TABLE IF NOT EXISTS client_links (
   token_hash TEXT NOT NULL UNIQUE,
   expires_at TEXT NOT NULL,
   revoked_at TEXT,
-  created_by TEXT NOT NULL,
+  created_by TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   last_used_at TEXT,
   FOREIGN KEY(firm_id) REFERENCES firms(id) ON DELETE CASCADE,
   FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE,
-  FOREIGN KEY(created_by) REFERENCES users(id)
+  FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_client_links_request ON client_links(request_id);
