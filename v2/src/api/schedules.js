@@ -11,6 +11,7 @@ import { renderTemplateBody } from "../whatsapp/templates.js";
 export async function handleCreateSchedule(c) {
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
   const db = getDbClient(c.env);
 
   const body = await c.req.json().catch(() => ({}));
@@ -73,9 +74,9 @@ export async function handleCreateSchedule(c) {
     } else {
       targetContactId = "cnt_" + crypto.randomUUID();
       await db.execute({
-        sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated)
-              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-        args: [targetContactId, userId, body.name || `Contact ${canonicalPhone.slice(-4)}`, canonicalPhone, email],
+        sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
+              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+        args: [targetContactId, userId, body.name || `Contact ${canonicalPhone.slice(-4)}`, canonicalPhone, email, firmId],
       });
     }
   }
@@ -165,9 +166,9 @@ export async function handleCreateSchedule(c) {
   if (targetContactId) {
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'schedule_created', 'Outreach Scheduled', ?, ?, datetime('now'))`,
-      args: [actId, userId, targetContactId, requestId, `Scheduled for ${scheduledForUtc} UTC`, JSON.stringify({ scheduleId, scheduledForUtc })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'schedule_created', 'Outreach Scheduled', ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, targetContactId, requestId, `Scheduled for ${scheduledForUtc} UTC`, JSON.stringify({ scheduleId, scheduledForUtc }), firmId],
     });
   }
 
