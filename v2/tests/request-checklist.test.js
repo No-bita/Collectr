@@ -2,12 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import {
   handleCreateRequest,
   handleAddRequestItem,
   handleUpdateRequestItem,
 } from "../src/api/requests.js";
+
+// node:sqlite needs Node 22.5+. CI also runs Node 20, where this suite is skipped.
+let DatabaseSync;
+try {
+  ({ DatabaseSync } = await import("node:sqlite"));
+} catch {
+  /* unsupported runtime */
+}
+const SKIP = DatabaseSync ? false : "node:sqlite is not available on this Node version (needs 22.5+)";
 
 const v2Dir = fs.existsSync(path.join(process.cwd(), "src", "db", "schema.sql"))
   ? process.cwd()
@@ -46,11 +54,11 @@ function adapter(raw) {
   };
 }
 
-function ctx(db, { params = {}, body = {} } = {}) {
+function ctx(db, { params = {}, body = {}, userId = "u1" } = {}) {
   let out;
   return {
     env: { DB: db },
-    get: () => ({ id: "u1" }),
+    get: () => ({ id: userId }),
     req: { param: (k) => params[k], json: async () => body },
     json: (payload, status = 200) => ((out = { status, payload }), out),
   };
@@ -61,7 +69,7 @@ function seed(raw) {
             INSERT INTO contacts (id, user_id, name, phone_number) VALUES ('c1', 'u1', 'Client', '919999999999');`);
 }
 
-test("Migration 0003: request checklist model", async (t) => {
+test("Migration 0003: request checklist model", { skip: SKIP }, async (t) => {
   await t.test("applies on an empty database and sets the new item defaults", () => {
     const raw = dbFromMigrations(migrationFiles());
     seed(raw);
@@ -108,7 +116,7 @@ test("Migration 0003: request checklist model", async (t) => {
   });
 });
 
-test("Request checklist handlers", async (t) => {
+test("Request checklist handlers", { skip: SKIP }, async (t) => {
   function setup() {
     const raw = dbFromMigrations(migrationFiles());
     seed(raw);
@@ -199,5 +207,19 @@ test("Request checklist handlers", async (t) => {
     const { request } = (await createRequest(db, { items: ["A"] })).payload;
     assert.equal((await handleUpdateRequestItem(ctx(db, { params: { requestId: request.id, itemId: "nope" }, body: { title: "x" } }))).status, 404);
     assert.equal((await handleUpdateRequestItem(ctx(db, { params: { requestId: request.id, itemId: request.items[0].id }, body: {} }))).status, 400);
+  });
+
+  await t.test("another user cannot add or edit items on someone else's request (404, nothing changes)", async () => {
+    const { db, raw } = setup();
+    raw.exec("INSERT INTO users (id, username, password_hash) VALUES ('u2', 'b', 'x');");
+    const { request } = (await createRequest(db, { items: ["A"] })).payload;
+    const add = await handleAddRequestItem(ctx(db, { userId: "u2", params: { id: request.id }, body: { title: "Sneaky" } }));
+    assert.equal(add.status, 404);
+    const edit = await handleUpdateRequestItem(
+      ctx(db, { userId: "u2", params: { requestId: request.id, itemId: request.items[0].id }, body: { title: "Hijacked" } })
+    );
+    assert.equal(edit.status, 404);
+    const rows = raw.prepare("SELECT title FROM request_items WHERE request_id = ?").all(request.id);
+    assert.deepEqual(rows.map((r) => r.title), ["A"]);
   });
 });
