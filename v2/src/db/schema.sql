@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS firm_members (
   role TEXT NOT NULL DEFAULT 'staff', -- 'owner' | 'staff'
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT unq_firm_member UNIQUE(firm_id, user_id),
+  FOREIGN KEY(firm_id) REFERENCES firms(id) ON DELETE CASCADE,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
