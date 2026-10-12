@@ -36,6 +36,7 @@ function createMockDb() {
       const sql = (typeof query === "string" ? query : query.sql).trim();
       const args = (typeof query === "string" ? [] : query.args) || [];
 
+      if (sql.includes("FROM firm_members")) return { rows: [{ firm_id: "firm_mock" }] };
       // SELECT credit_balance FROM users WHERE id = ?
       if (sql.includes("SELECT credit_balance FROM users WHERE id = ?")) {
         const user = tables.users.find(u => u.id === args[0]);
