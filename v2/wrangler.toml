@@ -23,8 +23,8 @@ database_id = "YOUR_D1_DATABASE_ID"
 
 [[r2_buckets]]
 binding = "DOCUMENT_BUCKET"
-bucket_name = "lekho-documents"
-preview_bucket_name = "lekho-documents"
+bucket_name = "YOUR_DOCUMENT_BUCKET_NAME"
+preview_bucket_name = "YOUR_DOCUMENT_BUCKET_NAME"
 
 [assets]
 directory = "./public"
@@ -56,4 +56,3 @@ queue = "collectrr-schedule-queue"
 max_batch_size = 1
 max_batch_timeout = 0
 max_concurrency = 10
-
