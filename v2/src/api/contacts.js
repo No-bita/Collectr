@@ -400,6 +400,11 @@ export async function handleCreateContact(c) {
     }, 201);
   } catch (err) {
     console.error("handleCreateContact error:", err);
+    // Concurrent staff inserts race past the app-level check: the
+    // (firm_id, phone_number) unique index decides, loser gets 409.
+    if (String(err?.message || "").includes("UNIQUE constraint failed")) {
+      return c.json({ error: "A contact with this phone number already exists." }, 409);
+    }
     return c.json({ error: "Failed to create contact", details: err.message }, 500);
   }
 }
