@@ -175,4 +175,3 @@ Please report vulnerabilities confidentially according to our [**Security Policy
 ## License
 
 Collectrr is open-source software licensed under the [**MIT License**](LICENSE).
-
