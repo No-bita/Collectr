@@ -99,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_requests_firm ON requests(firm_id);
 CREATE TABLE IF NOT EXISTS request_items (
   id TEXT PRIMARY KEY,
   request_id TEXT NOT NULL,
-  firm_id TEXT, -- nullable, no FK until firms exist
+  firm_id TEXT NOT NULL DEFAULT '',
   title TEXT NOT NULL, -- e.g. "PAN Copy", "Signed NDA", "Meeting time confirmed"
   description TEXT,
   position INTEGER NOT NULL DEFAULT 0,
