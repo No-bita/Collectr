@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS requests (
   due_date DATETIME,
   completed_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, firm_id TEXT NOT NULL DEFAULT '', service_type TEXT, period_label TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, firm_id TEXT NOT NULL DEFAULT '', service_type TEXT, period_label TEXT, client_id TEXT REFERENCES clients(id) ON DELETE RESTRICT,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE
 );
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS activities (
   title TEXT NOT NULL,
   description TEXT,
   metadata JSON,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP, firm_id TEXT NOT NULL DEFAULT '',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP, firm_id TEXT NOT NULL DEFAULT '', client_id TEXT REFERENCES clients(id) ON DELETE RESTRICT,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
   FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE SET NULL
@@ -322,3 +322,50 @@ CREATE TABLE IF NOT EXISTS documents (
     REFERENCES upload_sessions(id, item_id, request_id, firm_id, object_key) ON DELETE CASCADE
 );
 CREATE INDEX idx_documents_item ON documents(firm_id, request_id, item_id, version);
+CREATE TABLE IF NOT EXISTS clients (
+  id TEXT PRIMARY KEY,
+  firm_id TEXT NOT NULL REFERENCES firms(id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  phone_number TEXT NOT NULL,
+  email TEXT,
+  company TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (id, firm_id),
+  UNIQUE (firm_id, phone_number)
+);
+CREATE INDEX idx_requests_client ON requests(firm_id, client_id);
+CREATE INDEX idx_activities_client ON activities(firm_id, client_id, created_at);
+CREATE TRIGGER contacts_client_bridge AFTER INSERT ON contacts BEGIN
+  INSERT INTO clients (id, firm_id, name, phone_number, email, company)
+  SELECT NEW.id, NEW.firm_id, NEW.name, NEW.phone_number, NEW.email, NEW.company
+  WHERE NOT EXISTS (SELECT 1 FROM clients WHERE id = NEW.id AND firm_id = NEW.firm_id);
+END;
+CREATE TRIGGER requests_client_guard_insert BEFORE INSERT ON requests BEGIN
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM clients
+    WHERE id = COALESCE(NEW.client_id, NEW.contact_id) AND firm_id = NEW.firm_id)
+    OR COALESCE(NEW.client_id, NEW.contact_id) != NEW.contact_id
+    THEN RAISE(ABORT, 'invalid_request_client') END;
+END;
+CREATE TRIGGER requests_client_guard_update BEFORE UPDATE OF client_id, contact_id, firm_id ON requests BEGIN
+  SELECT CASE WHEN NEW.client_id IS NULL OR NEW.client_id != NEW.contact_id
+    OR NOT EXISTS (SELECT 1 FROM clients WHERE id = NEW.client_id AND firm_id = NEW.firm_id)
+    THEN RAISE(ABORT, 'invalid_request_client') END;
+END;
+CREATE TRIGGER requests_client_bridge AFTER INSERT ON requests WHEN NEW.client_id IS NULL BEGIN
+  UPDATE requests SET client_id = NEW.contact_id WHERE id = NEW.id;
+END;
+CREATE TRIGGER activities_client_guard_insert BEFORE INSERT ON activities BEGIN
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM clients
+    WHERE id = COALESCE(NEW.client_id, NEW.contact_id) AND firm_id = NEW.firm_id)
+    OR COALESCE(NEW.client_id, NEW.contact_id) != NEW.contact_id
+    THEN RAISE(ABORT, 'invalid_activity_client') END;
+END;
+CREATE TRIGGER activities_client_guard_update BEFORE UPDATE OF client_id, contact_id, firm_id ON activities BEGIN
+  SELECT CASE WHEN NEW.client_id IS NULL OR NEW.client_id != NEW.contact_id
+    OR NOT EXISTS (SELECT 1 FROM clients WHERE id = NEW.client_id AND firm_id = NEW.firm_id)
+    THEN RAISE(ABORT, 'invalid_activity_client') END;
+END;
+CREATE TRIGGER activities_client_bridge AFTER INSERT ON activities WHEN NEW.client_id IS NULL BEGIN
+  UPDATE activities SET client_id = NEW.contact_id WHERE id = NEW.id;
+END;
