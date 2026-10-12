@@ -16,12 +16,12 @@ CREATE TABLE IF NOT EXISTS client_links (
   token_hash TEXT NOT NULL UNIQUE, -- SHA-256 hex of the bearer token; the raw token is never stored
   expires_at TEXT NOT NULL, -- ISO-8601 UTC instant after which the link stops resolving
   revoked_at TEXT, -- set when staff revokes (or regenerates) the link; NULL while active
-  created_by TEXT NOT NULL, -- users.id of the staff member who created the link
+  created_by TEXT, -- users.id of the staff member who created the link; NULL survives creator deletion
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   last_used_at TEXT, -- set on each successful public resolution; NULL until first use
   FOREIGN KEY(firm_id) REFERENCES firms(id) ON DELETE CASCADE,
   FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE,
-  FOREIGN KEY(created_by) REFERENCES users(id)
+  FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_client_links_request ON client_links(request_id);
