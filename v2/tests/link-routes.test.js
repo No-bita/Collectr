@@ -170,7 +170,7 @@ test("session upload counts exclude rejected/superseded and scope firm, request 
   try {
     const id = await f.request();
     // Read-only contract fixture for issue #5, no production schema change here.
-    f.raw.exec("CREATE TABLE documents (id TEXT PRIMARY KEY, firm_id TEXT, request_id TEXT, item_id TEXT, state TEXT)");
+    f.raw.exec("DROP TABLE IF EXISTS documents; CREATE TABLE documents (id TEXT PRIMARY KEY, firm_id TEXT, request_id TEXT, item_id TEXT, state TEXT)");
     const item = f.raw.prepare("SELECT id FROM request_items WHERE request_id=? ORDER BY position").get(id).id;
     const insert = f.raw.prepare("INSERT INTO documents VALUES (?,?,?,?,?)");
     for (const [doc, firm, req, state] of [["d1", "f1", id, "received"], ["d2", "f1", id, "accepted"], ["d3", "f1", id, "rejected"], ["d4", "f1", id, "superseded"], ["d5", "f2", id, "received"], ["d6", "f1", "other", "received"]]) insert.run(doc, firm, req, item, state);
