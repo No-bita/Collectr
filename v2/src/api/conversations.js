@@ -1,4 +1,5 @@
 import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
 import { sendWhatsAppText, sendWhatsAppTemplate } from "../whatsapp/client.js";
 import { getWhatsAppTemplate, renderTemplateBody } from "../whatsapp/templates.js";
 import { isWithin24HourServiceWindow } from "../whatsapp/window.js";
@@ -14,7 +15,10 @@ export async function handleSendContactText(c, passedBody = null) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
-  const firmId = c.get("firmId");
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const contactId = c.req.param("id");
 
   const body = passedBody || (await c.req.json().catch(() => ({})));
@@ -122,7 +126,10 @@ export async function handleSendContactTemplate(c, passedBody = null) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
-  const firmId = c.get("firmId");
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const contactId = c.req.param("id");
 
   const body = passedBody || (await c.req.json().catch(() => ({})));
@@ -285,7 +292,10 @@ export async function handleSendContactEmail(c, passedBody = null) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
-  const firmId = c.get("firmId");
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const contactId = c.req.param("id");
 
   const body = passedBody || (await c.req.json().catch(() => ({})));
