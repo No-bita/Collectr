@@ -170,7 +170,7 @@ Supporting Ledgers:
 
 ### Dual Deployment Standard
 Whenever deploying changes:
-1. **Deploy to Cloudflare Workers**: Run `npx wrangler deploy` inside `v2/`.
+1. **Deploy to Cloudflare Workers**: From `v2/`, run `npx wrangler deploy --config ./wrangler.toml` using your real local `v2/wrangler.toml`. The committed `v2/wrangler.toml` contains placeholders only; keep the real config local and gitignored (see #19).
 2. **Push to GitHub**: Stage changes, commit with clear semantic message, and run `git push origin main`.
 
 ### Offline Test Standard
