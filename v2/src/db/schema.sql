@@ -13,10 +13,30 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE UNIQUE INDEX IF NOT EXISTS unq_users_wa_phone_id ON users(wa_phone_number_id) WHERE wa_phone_number_id IS NOT NULL;
 
+
+-- 1b. Firms & Staff Memberships (Tenancy Boundary)
+CREATE TABLE IF NOT EXISTS firms (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS firm_members (
+  firm_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'staff', -- 'owner' | 'staff'
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unq_firm_member UNIQUE(firm_id, user_id),
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_firm_members_user ON firm_members(user_id);
+
 -- 2. Contacts (Primary Entity)
 CREATE TABLE IF NOT EXISTS contacts (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  firm_id TEXT NOT NULL DEFAULT '',
   name TEXT NOT NULL,
   phone_number TEXT NOT NULL, -- E.164 digits without leading '+' (e.g. 919876543210)
   email TEXT,
@@ -32,6 +52,7 @@ CREATE TABLE IF NOT EXISTS contacts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_contacts_user_phone ON contacts(user_id, phone_number);
+CREATE INDEX IF NOT EXISTS idx_contacts_firm ON contacts(firm_id);
 
 -- 3. Conversations (One per Contact per Channel)
 CREATE TABLE IF NOT EXISTS conversations (
@@ -53,6 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_contact ON conversations(contact_id
 CREATE TABLE IF NOT EXISTS requests (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  firm_id TEXT NOT NULL DEFAULT '',
   contact_id TEXT NOT NULL,
   title TEXT NOT NULL, -- e.g. "Send PAN", "Confirm meeting for Friday", "Approve design"
   description TEXT,
@@ -67,6 +89,7 @@ CREATE TABLE IF NOT EXISTS requests (
 
 CREATE INDEX IF NOT EXISTS idx_requests_contact_status ON requests(contact_id, status);
 CREATE INDEX IF NOT EXISTS idx_requests_user_status ON requests(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_requests_firm ON requests(firm_id);
 
 -- 5. Request Items (Generic Multi-item Checklist)
 CREATE TABLE IF NOT EXISTS request_items (
@@ -173,6 +196,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS unq_email_msg_provider_id ON email_messages(pr
 CREATE TABLE IF NOT EXISTS activities (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  firm_id TEXT NOT NULL DEFAULT '',
   contact_id TEXT NOT NULL,
   request_id TEXT, -- NULLABLE
   activity_type TEXT NOT NULL, -- 'outreach_sent' | 'contact_replied' | 'request_created' | 'request_item_done' | 'request_completed' | 'note_added' | 'schedule_created'
@@ -186,6 +210,7 @@ CREATE TABLE IF NOT EXISTS activities (
 );
 
 CREATE INDEX IF NOT EXISTS idx_activities_contact ON activities(contact_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activities_firm ON activities(firm_id);
 
 -- 11. Schedules & Occurrences
 CREATE TABLE IF NOT EXISTS schedules (
