@@ -155,4 +155,3 @@ describe("WhatsApp Workflow Integration Tests", () => {
     assert.ok(rendered.includes("Rahul"));
   });
 });
-
