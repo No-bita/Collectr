@@ -72,11 +72,14 @@ cp v2/.dev.vars.example v2/.dev.vars
 > [!NOTE]
 > For offline local development, you do not need real WhatsApp or Gemini credentials. The built-in mock adapters (`MOCK_WHATSAPP=true` and `MOCK_GEMINI=true`) enable complete end-to-end local testing.
 
-### 4. Initialize Local D1 Database
+### 4. Initialize Local D1 Database from Migrations
 
 ```bash
 npm run db:init:local
 ```
+
+Migrations in `v2/migrations/` are the schema source of truth. `db:init:local`
+is an alias for `db:migrate:local`; neither loads the generated schema snapshot.
 
 ### 5. Start Development Server
 
@@ -97,13 +100,25 @@ Open `http://localhost:8787` (or `http://localhost:8788`) to access:
 Collectrr includes an automated TAP test suite enforcing deep schema parity, WhatsApp state machines, and network isolation:
 
 ```bash
-# Run all 81 tests across 12 suites
+# Run the full test suite
 npm test
 
 # Run tests in strict offline mode (outbound network traffic blocked)
 npm run test:offline
 
-# Verify SQLite D1 schema parity between schema.sql and migrations
+# Rebuild schema.sql after adding a migration (requires sqlite3 CLI)
+npm run db:schema:generate
+
+# Check the generated snapshot has not drifted
+npm run db:schema:check
+
+# Create a throwaway local D1, apply ALL migrations, check foreign keys,
+# compare its schema with the snapshot, then run the full offline suite.
+# No Cloudflare credentials, real resources or persistent local DB are used.
+npm run test:fresh-db
+# Requires Node 22+ (Wrangler requirement). Node 20 runs test:offline instead.
+
+# Verify deep schema parity between the generated snapshot and migrations
 node --test v2/tests/schema-parity.test.js
 ```
 
