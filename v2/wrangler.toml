@@ -2,19 +2,24 @@ name = "collectrr-v2"
 compatibility_date = "2026-05-24"
 main = "src/index.js"
 
+# Committed file: placeholders only. Real production IDs live in v2/wrangler.local.toml
+# (gitignored). Deploy with: npx wrangler deploy --config wrangler.local.toml
+
 [vars]
 ENVIRONMENT = "production"
 FRONTEND_URL = "https://collectrr-v2.collectr.workers.dev"
-WHATSAPP_PROD_PHONE_ID = "1073272059211357"
-WHATSAPP_PHONE_ID = "1078210008704696"
-WHATSAPP_VERIFY_TOKEN = "CollectrWhatsappTokenAuth2026"
+WHATSAPP_PROD_PHONE_ID = "YOUR_PROD_PHONE_ID"
+WHATSAPP_PHONE_ID = "YOUR_TEST_PHONE_ID"
+# WHATSAPP_VERIFY_TOKEN is a secret. Never put it here. Set it with:
+#   npx wrangler secret put WHATSAPP_VERIFY_TOKEN
+# (local dev: v2/.dev.vars)
 WHATSAPP_NEW_LEAD_TEMPLATE = "new_convo_1"
 WHATSAPP_TEMPLATE_LANG = "en"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "lekho-db"
-database_id = "d2bb5eeb-85ea-4f2d-842a-4d04570d0c21"
+database_id = "YOUR_D1_DATABASE_ID"
 
 [[r2_buckets]]
 binding = "DOCUMENT_BUCKET"
@@ -51,4 +56,3 @@ queue = "collectrr-schedule-queue"
 max_batch_size = 1
 max_batch_timeout = 0
 max_concurrency = 10
-
