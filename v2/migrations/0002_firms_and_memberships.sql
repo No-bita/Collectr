@@ -7,6 +7,9 @@
 -- DEFAULT '' (SQLite cannot add a NOT NULL column without a default) and then
 -- backfilled. Application code always sets firm_id explicitly on insert; the
 -- empty-string default exists only to make the migration possible.
+-- Rows whose user_id has no membership (orphans from the FK-off era)
+-- fall back to 'firm_' || user_id via COALESCE so the NOT NULL
+-- assignment cannot abort the migration.
 
 -- 1. Firms & Memberships
 CREATE TABLE IF NOT EXISTS firms (
@@ -43,21 +46,24 @@ WHERE NOT EXISTS (
 
 -- 3. contacts: firm ownership + index
 ALTER TABLE contacts ADD COLUMN firm_id TEXT NOT NULL DEFAULT '';
-UPDATE contacts SET firm_id = (
-  SELECT fm.firm_id FROM firm_members fm WHERE fm.user_id = contacts.user_id LIMIT 1
+UPDATE contacts SET firm_id = COALESCE(
+  (SELECT fm.firm_id FROM firm_members fm WHERE fm.user_id = contacts.user_id LIMIT 1),
+  'firm_' || contacts.user_id
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_firm ON contacts(firm_id);
 
 -- 4. requests: firm ownership + index
 ALTER TABLE requests ADD COLUMN firm_id TEXT NOT NULL DEFAULT '';
-UPDATE requests SET firm_id = (
-  SELECT fm.firm_id FROM firm_members fm WHERE fm.user_id = requests.user_id LIMIT 1
+UPDATE requests SET firm_id = COALESCE(
+  (SELECT fm.firm_id FROM firm_members fm WHERE fm.user_id = requests.user_id LIMIT 1),
+  'firm_' || requests.user_id
 );
 CREATE INDEX IF NOT EXISTS idx_requests_firm ON requests(firm_id);
 
 -- 5. activities: firm ownership + index
 ALTER TABLE activities ADD COLUMN firm_id TEXT NOT NULL DEFAULT '';
-UPDATE activities SET firm_id = (
-  SELECT fm.firm_id FROM firm_members fm WHERE fm.user_id = activities.user_id LIMIT 1
+UPDATE activities SET firm_id = COALESCE(
+  (SELECT fm.firm_id FROM firm_members fm WHERE fm.user_id = activities.user_id LIMIT 1),
+  'firm_' || activities.user_id
 );
 CREATE INDEX IF NOT EXISTS idx_activities_firm ON activities(firm_id);
