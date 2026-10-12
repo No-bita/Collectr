@@ -41,7 +41,7 @@ export const authMiddleware = async (c, next) => {
     const secret = c.env.JWT_SECRET || "default_unsafe_secret_for_dev_only";
     const payload = await verify(token, secret, "HS256");
     c.set("user", payload);
-    await resolveFirmContext(c, payload.id);
+    await resolveFirmContext(c, payload.id ?? payload.sub);
     return next();
   } catch (err) {
     return c.json({ error: "Invalid or expired session. Please log in again." }, 401);
