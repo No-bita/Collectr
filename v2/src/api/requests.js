@@ -19,6 +19,10 @@ export async function handleCreateRequest(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const contactId = c.req.param("id");
 
   const body = await c.req.json().catch(() => ({}));
@@ -32,10 +36,10 @@ export async function handleCreateRequest(c) {
   }
 
   try {
-    // Verify contact ownership
+    // Verify contact is owned by the caller's firm
     const contactRes = await db.execute({
-      sql: "SELECT id, name FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT id, name FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -45,9 +49,9 @@ export async function handleCreateRequest(c) {
     const requestId = "req_" + crypto.randomUUID();
 
     await db.execute({
-      sql: `INSERT INTO requests (id, user_id, contact_id, title, description, status, due_date, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'open', ?, datetime('now'), datetime('now'))`,
-      args: [requestId, userId, contactId, title, description, dueDate],
+      sql: `INSERT INTO requests (id, user_id, contact_id, title, description, status, due_date, created_at, updated_at, firm_id)
+            VALUES (?, ?, ?, ?, ?, 'open', ?, datetime('now'), datetime('now'), ?)`,
+      args: [requestId, userId, contactId, title, description, dueDate, firmId],
     });
 
     // Insert checklist items
@@ -68,9 +72,9 @@ export async function handleCreateRequest(c) {
     // Log Activity
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'request_created', 'Request Created', ?, ?, datetime('now'))`,
-      args: [actId, userId, contactId, requestId, title, JSON.stringify({ itemsCount: createdItems.length, dueDate })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'request_created', 'Request Created', ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, contactId, requestId, title, JSON.stringify({ itemsCount: createdItems.length, dueDate }), firmId],
     });
 
     return c.json({
@@ -99,6 +103,10 @@ export async function handleUpdateRequestStatus(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const requestId = c.req.param("id");
 
   const body = await c.req.json().catch(() => ({}));
@@ -112,8 +120,8 @@ export async function handleUpdateRequestStatus(c) {
 
   try {
     const reqRes = await db.execute({
-      sql: "SELECT * FROM requests WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [requestId, userId],
+      sql: "SELECT * FROM requests WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [requestId, firmId],
     });
 
     if (reqRes.rows.length === 0) {
@@ -124,26 +132,17 @@ export async function handleUpdateRequestStatus(c) {
     const completedAt = targetStatus === "completed" ? new Date().toISOString() : null;
 
     await db.execute({
-      sql: `UPDATE requests SET status = ?, completed_at = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`,
-      args: [targetStatus, completedAt, requestId, userId],
+      sql: `UPDATE requests SET status = ?, completed_at = ?, updated_at = datetime('now') WHERE id = ? AND firm_id = ?`,
+      args: [targetStatus, completedAt, requestId, firmId],
     });
 
     // Log Activity
     const actId = "act_" + crypto.randomUUID();
     const actType = targetStatus === "completed" ? "request_completed" : "request_status_updated";
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-      args: [
-        actId,
-        userId,
-        currentReq.contact_id,
-        requestId,
-        actType,
-        `Request marked ${targetStatus.replace(/_/g, " ")}`,
-        currentReq.title,
-        JSON.stringify({ previousStatus: currentReq.status, newStatus: targetStatus }),
-      ],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, currentReq.contact_id, requestId, actType, `Request marked ${targetStatus.replace(/_/g, " ")}`, currentReq.title, JSON.stringify({ previousStatus: currentReq.status, newStatus: targetStatus }), firmId],
     });
 
     return c.json({
@@ -168,6 +167,10 @@ export async function handleUpdateRequestItem(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const requestId = c.req.param("requestId");
   const itemId = c.req.param("itemId");
 
@@ -181,10 +184,10 @@ export async function handleUpdateRequestItem(c) {
   }
 
   try {
-    // Verify request ownership
+    // Verify request is owned by the caller's firm
     const reqRes = await db.execute({
-      sql: "SELECT * FROM requests WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [requestId, userId],
+      sql: "SELECT * FROM requests WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [requestId, firmId],
     });
 
     if (reqRes.rows.length === 0) {
@@ -194,8 +197,10 @@ export async function handleUpdateRequestItem(c) {
     const currentReq = reqRes.rows[0];
 
     const res = await db.execute({
-      sql: "UPDATE request_items SET status = ?, updated_at = datetime('now') WHERE id = ? AND request_id = ?",
-      args: [status, itemId, requestId],
+      sql: `UPDATE request_items SET status = ?, updated_at = datetime('now')
+            WHERE id = ? AND request_id = ?
+              AND EXISTS (SELECT 1 FROM requests r WHERE r.id = request_items.request_id AND r.firm_id = ?)`,
+      args: [status, itemId, requestId, firmId],
     });
 
     if (res.rowsAffected === 0) {
@@ -205,9 +210,9 @@ export async function handleUpdateRequestItem(c) {
     // Log Activity
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'request_item_done', 'Item Updated', ?, ?, datetime('now'))`,
-      args: [actId, userId, currentReq.contact_id, requestId, `Item marked ${status}`, JSON.stringify({ itemId, status })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'request_item_done', 'Item Updated', ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, currentReq.contact_id, requestId, `Item marked ${status}`, JSON.stringify({ itemId, status }), firmId],
     });
 
     return c.json({ success: true, itemId, status });
@@ -225,6 +230,10 @@ export async function handleAddRequestItem(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const requestId = c.req.param("id");
 
   const body = await c.req.json().catch(() => ({}));
@@ -236,8 +245,8 @@ export async function handleAddRequestItem(c) {
 
   try {
     const reqRes = await db.execute({
-      sql: "SELECT * FROM requests WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [requestId, userId],
+      sql: "SELECT * FROM requests WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [requestId, firmId],
     });
 
     if (reqRes.rows.length === 0) {
