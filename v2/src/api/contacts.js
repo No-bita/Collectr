@@ -639,4 +639,4 @@ export async function handleCheckContactPhone(c) {
   }
 
   return c.json({ exists: false, canonicalPhone });
-                                            }
+}
