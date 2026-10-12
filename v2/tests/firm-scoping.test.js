@@ -5,9 +5,29 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
-import { DatabaseSync } from "node:sqlite";
 import { sign } from "hono/jwt";
 import app from "../src/index.js";
+
+// node:sqlite requires Node >= 22.5 and the sqlite3 CLI may be absent on some
+// runners (CI matrix includes Node 20.x). Detect both and skip cleanly instead
+// of failing the whole job with ERR_UNKNOWN_BUILTIN_MODULE.
+let DatabaseSync = null;
+try {
+  ({ DatabaseSync } = await import("node:sqlite"));
+} catch {
+  // unavailable on this runtime; tests below skip
+}
+let sqliteCliAvailable = true;
+try {
+  execFileSync("sqlite3", ["--version"], { encoding: "utf8" });
+} catch {
+  sqliteCliAvailable = false;
+}
+const PREREQ_SKIP = !DatabaseSync
+  ? "node:sqlite is unavailable (requires Node >= 22.5)"
+  : !sqliteCliAvailable
+    ? "sqlite3 CLI is unavailable"
+    : false;
 
 const JWT_SECRET = "test_firm_scoping_secret_key_12345";
 const BASE = "https://collectrr.workers.dev";
@@ -61,7 +81,7 @@ function tmpDb(name) {
   return path.join(os.tmpdir(), `firm_scoping_${name}_${Date.now()}_${Math.random().toString(36).slice(2)}.db`);
 }
 
-test("Migration 0002: firms, memberships, backfill and NOT NULL firm ownership", async (t) => {
+test("Migration 0002: firms, memberships, backfill and NOT NULL firm ownership", { skip: PREREQ_SKIP }, async (t) => {
   await t.test("1. Applies cleanly to an empty database", () => {
     const dbPath = tmpDb("empty");
     try {
@@ -126,7 +146,7 @@ test("Migration 0002: firms, memberships, backfill and NOT NULL firm ownership",
   });
 });
 
-test("Firm tenancy isolation across requests.js and contact routes", async (t) => {
+test("Firm tenancy isolation across requests.js and contact routes", { skip: PREREQ_SKIP }, async (t) => {
   const dbPath = tmpDb("tenancy");
   for (const f of migrationFiles()) applyMigration(dbPath, f);
 
