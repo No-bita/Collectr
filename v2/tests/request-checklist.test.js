@@ -204,7 +204,9 @@ test("Request checklist handlers", { skip: SKIP }, async (t) => {
       assert.equal(res.status, 400, status);
     }
     assert.equal(raw.prepare("SELECT status FROM request_items WHERE id = ?").get(params.itemId).status, "missing");
-    assert.equal((await handleUpdateRequestItem(ctx(db, { params, body: { status: "waived" } }))).status, 200);
+    // waiving needs a reason; waived to missing is the staff undo
+    assert.equal((await handleUpdateRequestItem(ctx(db, { params, body: { status: "waived" } }))).status, 409);
+    assert.equal((await handleUpdateRequestItem(ctx(db, { params, body: { status: "waived", reason: "Not applicable" } }))).status, 200);
     assert.equal((await handleUpdateRequestItem(ctx(db, { params, body: { status: "missing" } }))).status, 200);
   });
 
@@ -219,7 +221,7 @@ test("Request checklist handlers", { skip: SKIP }, async (t) => {
     const { db, raw } = setup();
     const { request } = (await createRequest(db, { items: ["A"] })).payload;
     await handleAddRequestItem(ctx(db, { params: { id: request.id }, body: { title: "B" } }));
-    await handleUpdateRequestItem(ctx(db, { params: { requestId: request.id, itemId: request.items[0].id }, body: { status: "waived" } }));
+    await handleUpdateRequestItem(ctx(db, { params: { requestId: request.id, itemId: request.items[0].id }, body: { status: "waived", reason: "n/a" } }));
     assert.equal(raw.prepare("SELECT firm_id FROM requests WHERE id = ?").get(request.id).firm_id, "firm_u1");
     const itemFirms = raw.prepare("SELECT DISTINCT firm_id FROM request_items WHERE request_id = ?").all(request.id);
     assert.deepEqual(itemFirms.map((r) => r.firm_id), ["firm_u1"]);
