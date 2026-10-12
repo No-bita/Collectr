@@ -320,6 +320,7 @@
       <div class="portal-header">
         <div class="header-icon-circle">📄</div>
         <h1 id="clientGreeting">Namaste,</h1>
+        <p id="requestSubtitle" style="margin: 0.25rem 0 0; font-size: 14px; color: var(--text-muted);" hidden></p>
       </div>
 
       <!-- Network Failure & Retry Banner -->
@@ -347,11 +348,11 @@
       </div>
 
       <!-- Drag and Drop Additional Upload Box -->
-      <div class="dropzone-box" id="dropzoneBox" onclick="triggerGenericFileInput()">
-        <div class="dropzone-title">Need to add any additional document?</div>
+      <div class="dropzone-box" id="dropzoneBox" >
+        <div class="dropzone-title">Got a file handy? Drop it in.</div>
         <div class="dropzone-sub">
           Drag & drop your file here or <a href="javascript:void(0)">browse / snap photo</a><br/>
-          PDF, JPG, PNG up to 15MB
+          We'll pop it on the next item that still needs one
         </div>
       </div>
 
@@ -359,8 +360,8 @@
       <div class="success-banner" id="allDoneBanner" hidden style="background: var(--success-light); border: 1px solid var(--success-border); border-radius: 12px; padding: 1.25rem; display: flex; align-items: center; gap: 1rem;">
         <div class="success-icon-circle" style="width: 32px; height: 32px; background: var(--success); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px;">✓</div>
         <div class="success-text">
-          <div style="font-size: 15px; font-weight: 600; color: #1C8C5E;">Everything's ready. Your documents have been received.</div>
-          <div style="font-size: 13px; color: #15803D; margin-top: 0.2rem;">Your coordinator will review the submitted files and notify you on WhatsApp.</div>
+          <div style="font-size: 15px; font-weight: 600; color: #1C8C5E;">Everything's sent. Nicely done.</div>
+          <div style="font-size: 13px; color: #15803D; margin-top: 0.2rem;">Your CA team will take it from here.</div>
         </div>
       </div>
 
@@ -381,178 +382,250 @@
     const params = new URLSearchParams(window.location.search);
     const token = params.get("t");
 
+    // GET /api/session/:token returns { firm_name, client_name, service_type, due_date,
+    // items: [{ id, title, description, required, status, allowed_types, max_bytes, upload_count }] }.
+    // Item status is one of: missing, received, under_review, accepted, needs_replacement, waived.
     let currentSession = null;
-    let activeTargetDocId = null;
+    let activeTargetItemId = null;
     let lastFailedFile = null;
-    let lastFailedTargetDocId = null;
+    let lastFailedItemId = null;
+    let uploadInFlight = false;
+    // Items confirmed during this visit, so the row reads "Sent" even before the next refresh.
+    const sentThisVisit = new Set();
+
+    const TYPE_TOKEN_TO_MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
+    const EXT_TO_MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
+    const TYPE_TOKEN_LABEL = { pdf: "PDF", jpg: "JPG", jpeg: "JPG", png: "PNG" };
+
+    const ERROR_COPY = {
+      not_found: "We can't find this link. Please ask your CA team for a fresh one.",
+      expired: "This link has expired. Please ask your CA team for a fresh one.",
+      revoked: "This link has been switched off. Please ask your CA team for a fresh one.",
+      request_closed: "This request has been closed, so uploads are paused.",
+      item_not_found: "That item is no longer on your list. Please refresh the page.",
+      item_closed: "That item is already sorted, so no more files are needed for it.",
+      type_not_allowed: "That file type isn't accepted for this item.",
+      invalid_size: "That file looks empty. Please pick another one.",
+      file_too_large: "That file is too big for this item.",
+      rate_limited: "That's a lot of uploads in a short time. Take a breather and try again in a bit.",
+      storage_not_configured: "Uploads aren't switched on just yet. Please let your CA team know.",
+      session_expired: "That upload timed out. Please try again.",
+      session_not_found: "That upload timed out. Please try again.",
+      session_failed: "That upload didn't go through. Please try again.",
+      object_missing: "The file didn't finish uploading. Please try again.",
+      object_mismatch: "That file didn't arrive intact. Please try again.",
+      storage_unavailable: "Storage is having a moment. Please try again shortly.",
+      upload_complete_unavailable: "We couldn't confirm that upload. Please try again.",
+      session_not_active: "That upload timed out. Please try again.",
+      upload_url_unavailable: "We couldn't start that upload. Please try again in a moment.",
+      upload_unavailable: "We couldn't start that upload. Please try again in a moment.",
+      session_unavailable: "We couldn't load your list. Please try again in a moment.",
+      invalid_request: "Something went wrong with that file. Please try another one."
+    };
+    const friendlyError = (code, fallback) => ERROR_COPY[code] || fallback;
+
+    function allowedMimes(item) {
+      const out = [];
+      String(item.allowed_types || "").split(",").forEach(t => {
+        const mime = TYPE_TOKEN_TO_MIME[t.trim().toLowerCase()];
+        if (mime && !out.includes(mime)) out.push(mime);
+      });
+      return out;
+    }
+
+    function formatMB(bytes) {
+      const mb = Number(bytes) / (1024 * 1024);
+      if (!isFinite(mb) || mb <= 0) return "";
+      return mb >= 10 ? `${Math.round(mb)} MB` : `${Math.round(mb * 10) / 10} MB`;
+    }
+
+    function itemHint(item) {
+      const labels = [];
+      String(item.allowed_types || "").split(",").forEach(t => {
+        const label = TYPE_TOKEN_LABEL[t.trim().toLowerCase()];
+        if (label && !labels.includes(label)) labels.push(label);
+      });
+      const size = formatMB(item.max_bytes);
+      if (!labels.length) return size ? `Up to ${size}` : "";
+      return `${labels.join(", ")}${size ? `, up to ${size}` : ""}`;
+    }
+
+    function contentTypeFor(file) {
+      if (file.type) return file.type;
+      const ext = (file.name || "").split(".").pop().toLowerCase();
+      return EXT_TO_MIME[ext] || "";
+    }
+
+    // "done" = the client has nothing more to do for this item right now.
+    function itemState(item) {
+      if (item.status === "waived") return "waived";
+      if (item.status === "accepted") return "accepted";
+      if (item.status === "needs_replacement") return sentThisVisit.has(item.id) ? "sent" : "replace";
+      if (item.status === "received" || item.status === "under_review" || Number(item.upload_count) > 0) return "received";
+      if (sentThisVisit.has(item.id)) return "sent";
+      return "open";
+    }
+
+    function isClosed(item) {
+      const s = itemState(item);
+      return s === "accepted" || s === "waived";
+    }
+
+    function nextOpenItem() {
+      const items = (currentSession && currentSession.items) || [];
+      return items.find(i => itemState(i) === "open" || itemState(i) === "replace")
+        || items.find(i => !isClosed(i)) || null;
+    }
+
+    async function loadSession() {
+      const res = await fetch(`/api/session/${encodeURIComponent(token)}`);
+      let data = {};
+      try { data = await res.json(); } catch (e) { /* non-JSON error body */ }
+      if (!res.ok) throw new Error(friendlyError(data.error, "This upload link isn't working."));
+      currentSession = data;
+      return data;
+    }
+
+    function renderHeader() {
+      const greet = el("clientGreeting");
+      if (!greet || !currentSession) return;
+      greet.textContent = currentSession.client_name ? `Namaste ${currentSession.client_name},` : "Namaste,";
+      const sub = el("requestSubtitle");
+      if (sub) {
+        const bits = [];
+        if (currentSession.firm_name) bits.push(`${currentSession.firm_name} would like a few documents`);
+        if (currentSession.due_date) bits.push(`by ${currentSession.due_date}`);
+        sub.textContent = bits.join(" ");
+        sub.hidden = bits.length === 0;
+      }
+    }
 
     async function initPortal() {
       const errBox = el("sessionErrorAlert");
       errBox.hidden = true;
 
       if (!token) {
-        errBox.innerHTML = `⚠️ <strong>Missing Upload Token</strong><br/>Please open the exact link sent to your mobile phone on WhatsApp.`;
+        errBox.innerHTML = `⚠️ <strong>No upload link found</strong><br/>Please open the exact link your CA team sent you on WhatsApp.`;
         errBox.hidden = false;
-        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444; font-weight: 600;">Invalid session token.</p>`;
+        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444; font-weight: 600;">This page needs the link from your CA team.</p>`;
         return;
       }
 
       try {
-        const res = await fetch(`/api/session/${token}`);
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || "Upload link expired or invalid.");
-        }
-
-        currentSession = data;
-        
-        // Populate header greeting
-        if (el("clientGreeting")) {
-          el("clientGreeting").textContent = data.contactPerson ? `Namaste ${data.contactPerson},` : "Namaste,";
-        }
-
-        renderDocumentsStack(data.documents || []);
+        await loadSession();
+        renderHeader();
+        renderItemsStack(currentSession.items || []);
         setupDropzoneHandlers();
       } catch (err) {
-        errBox.innerHTML = `⚠️ <strong>Link Expired or Invalid</strong><br/>${escapeHtml(err.message)}<br/><span style="font-size: 0.75rem; margin-top: 0.5rem; display: block; color: #475569;">Please contact your coordinator on WhatsApp to receive a fresh upload link.</span>`;
+        errBox.innerHTML = `⚠️ <strong>Link not working</strong><br/>${escapeHtml(err.message)}<br/><span style="font-size: 0.75rem; margin-top: 0.5rem; display: block; color: #475569;">Please message your CA team on WhatsApp and they'll send a fresh link.</span>`;
         errBox.hidden = false;
-        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444;">${escapeHtml(err.message)}</p>`;
+        el("docStack").innerHTML = "";
       }
     }
 
-    const DOCUMENT_CATALOG_MAP = {
-      'pan': 'PAN Card',
-      'aadhaar': 'Aadhaar Card',
-      'bank_statement': 'Bank Statement',
-      'itr': 'ITR Acknowledgment',
-      'gst_returns': 'GST Returns',
-      'quotation': 'Machinery/Equipment Quotation',
-      'property_docs': 'Property Ownership Documents',
-      'invoices': 'Pending Invoices'
-    };
-
-    function getDocumentLabel(doc) {
-      if (!doc) return 'Document';
-      const typeKey = String(doc.type || doc.document_type || '').toLowerCase();
-      if (DOCUMENT_CATALOG_MAP[typeKey]) return DOCUMENT_CATALOG_MAP[typeKey];
-      const labelKey = String(doc.label || '').toLowerCase();
-      if (DOCUMENT_CATALOG_MAP[labelKey]) return DOCUMENT_CATALOG_MAP[labelKey];
-      return doc.label || doc.type || 'Document';
+    // Re-read the list after an upload without wiping the page if the refresh hiccups.
+    async function refreshSession() {
+      try {
+        await loadSession();
+        renderHeader();
+      } catch (e) { /* keep showing the list we already have */ }
+      renderItemsStack((currentSession && currentSession.items) || []);
     }
 
-    function renderDocumentsStack(docs) {
+    function renderItemsStack(items) {
       const stack = el("docStack");
-      const total = docs.length;
-      const uploadedDocs = docs.filter(d => d.status === "received" || (d.uploadCount && d.uploadCount > 0));
-      const uploadedCount = uploadedDocs.length;
+      const counted = items.filter(i => itemState(i) !== "waived");
+      const total = counted.length;
+      const doneCount = counted.filter(i => ["received", "sent", "accepted"].includes(itemState(i))).length;
 
-      // Update progress bar & count
       const progContainer = el("progressContainer");
-      if (progContainer) {
-        progContainer.style.display = total > 0 ? "block" : "none";
-      }
-      el("progressText").textContent = `${uploadedCount} of ${total} uploaded`;
-      const fillPct = total > 0 ? (uploadedCount / total) * 100 : 0;
-      el("progressFillBar").style.width = `${fillPct}%`;
+      if (progContainer) progContainer.style.display = total > 0 ? "block" : "none";
+      el("progressText").textContent = `${doneCount} of ${total} sent`;
+      el("progressFillBar").style.width = `${total > 0 ? (doneCount / total) * 100 : 0}%`;
 
-      // Show/hide all uploaded success banner ONLY when ALL required documents are fulfilled
       const banner = el("allDoneBanner");
       if (banner) {
-        const isAllFulfilled = total > 0 && uploadedCount === total;
-        banner.hidden = !isAllFulfilled;
-        banner.style.display = isAllFulfilled ? "flex" : "none";
+        const allDone = total > 0 && doneCount === total;
+        banner.hidden = !allDone;
+        banner.style.display = allDone ? "flex" : "none";
       }
 
-      if (total === 0) {
-        stack.innerHTML = `<p style="text-align: center; padding: 1.5rem; color: #64748b;">No specific documents requested.</p>`;
+      const dropzone = el("dropzoneBox");
+      if (dropzone) dropzone.style.display = nextOpenItem() ? "" : "none";
+
+      if (items.length === 0) {
+        stack.innerHTML = `<p style="text-align: center; padding: 1.5rem; color: #64748b;">Nothing on your list yet. Enjoy the quiet.</p>`;
         return;
       }
 
       stack.innerHTML = "";
-      docs.forEach(doc => {
-        const isUploaded = doc.status === "received" || (typeof doc.uploadCount !== "undefined" && Number(doc.uploadCount) > 0);
-        const iconClass = getDocTypeClass(doc.type);
-        const emoji = getDocEmoji(doc.type);
+      items.forEach(item => {
+        const state = itemState(item);
+        const done = state === "received" || state === "sent" || state === "accepted";
+        const closed = state === "accepted" || state === "waived";
+        const hint = state === "replace"
+          ? "Your CA team needs a clearer or different copy of this one."
+          : (item.description || itemHint(item));
 
         const row = document.createElement("div");
         row.className = "doc-row-item";
-        row.id = `doc-row-${doc.id}`;
-        if (isUploaded) {
+        row.id = `doc-row-${item.id}`;
+        if (done) {
           row.style.background = "#f0fdf4";
           row.style.borderColor = "#bbf7d0";
         }
-        row.onclick = () => promptMobileUploadChoice(doc.id);
+        if (!closed) row.onclick = () => promptMobileUploadChoice(item.id);
+
+        const badges = {
+          open: ["pending", "Upload file"],
+          replace: ["pending", "Upload a new file"],
+          sent: ["uploaded", "✓ Sent, thank you"],
+          received: ["uploaded", "✓ Received"],
+          accepted: ["uploaded", "✓ Accepted"],
+          waived: ["uploaded", "Not needed"]
+        };
+        const [badgeClass, badgeText] = badges[state];
 
         row.innerHTML = `
           <div class="doc-left">
             <div class="doc-titles">
               <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; color: #0f172a; font-size: 0.9375rem;">${escapeHtml(getDocumentLabel(doc))}</span>
-                ${isUploaded ? '<span class="ocr-badge-success">✓ OCR Verified</span>' : ''}
+                <span style="font-weight: 700; color: #0f172a; font-size: 0.9375rem;">${escapeHtml(item.title || "Document")}</span>
+                ${item.required ? "" : '<span style="font-size: 0.75rem; color: #64748b;">optional</span>'}
               </div>
+              ${hint ? `<div style="font-size: 0.8125rem; color: #64748b; margin-top: 0.2rem;">${escapeHtml(hint)}</div>` : ""}
             </div>
           </div>
-          <div class="doc-right" id="doc-status-col-${doc.id}">
-            <span class="upload-status-indicator ${isUploaded ? 'uploaded' : 'pending'}">
-              ${isUploaded ? '✓ Uploaded' : 'Upload File'}
-            </span>
-            <span class="arrow-icon">›</span>
+          <div class="doc-right" id="doc-status-col-${escapeHtml(item.id)}">
+            <span class="upload-status-indicator ${badgeClass}">${badgeText}</span>
+            ${closed ? "" : '<span class="arrow-icon">›</span>'}
           </div>
         `;
         stack.appendChild(row);
       });
     }
 
-    function promptMobileUploadChoice(docId) {
-      activeTargetDocId = docId;
+    function promptMobileUploadChoice(itemId) {
+      activeTargetItemId = itemId;
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       if (isMobile) {
-        // Trigger native file picker which allows Camera or Files on iOS/Android
+        // Native picker offers Camera or Files on iOS/Android
         el("cameraFileInput").click();
       } else {
         el("genericFileInput").click();
       }
     }
 
-    function getDocTypeClass(type) {
-      const t = (type || "").toLowerCase();
-      if (t.includes("pan")) return "pan";
-      if (t.includes("aadhaar") || t.includes("aadhar")) return "aadhaar";
-      if (t.includes("bank")) return "bank";
-      if (t.includes("gst")) return "gst";
-      return "default";
-    }
-
-    function getDocEmoji(type) {
-      const t = (type || "").toLowerCase();
-      if (t.includes("pan")) return "🪪";
-      if (t.includes("aadhaar") || t.includes("aadhar")) return "📑";
-      if (t.includes("bank")) return "🏦";
-      if (t.includes("gst")) return "📄";
-      return "📁";
-    }
-
-    function getDocInstruction(type) {
-      const t = (type || "").toLowerCase();
-      if (t.includes("pan")) return "Upload clear front photo or PDF";
-      if (t.includes("aadhaar") || t.includes("aadhar")) return "Upload clear photo of card";
-      if (t.includes("bank")) return "PDF statement of last 6 months";
-      if (t.includes("gst")) return "Latest filed GSTR-3B return PDF";
-      if (t.includes("quotation")) return "Equipment or machinery quotation";
-      return "Upload clear image or PDF";
-    }
-
     function triggerGenericFileInput() {
-      if (!currentSession || !currentSession.documents || currentSession.documents.length === 0) return;
-      const pendingDoc = currentSession.documents.find(d => d.status !== "received" && (!d.uploadCount || d.uploadCount === 0));
-      activeTargetDocId = pendingDoc ? pendingDoc.id : currentSession.documents[0].id;
-      promptMobileUploadChoice(activeTargetDocId);
+      const next = nextOpenItem();
+      if (!next) return;
+      promptMobileUploadChoice(next.id);
     }
 
     function setupDropzoneHandlers() {
       const dropzone = el("dropzoneBox");
-      if (!dropzone) return;
+      if (!dropzone || dropzone.dataset.wired) return;
+      dropzone.dataset.wired = "1";
 
       ['dragenter', 'dragover'].forEach(eventName => {
         dropzone.addEventListener(eventName, (e) => {
@@ -572,17 +645,17 @@
         }, false);
       });
 
-      dropzone.addEventListener('click', () => {
+      dropzone.addEventListener('click', (e) => {
+        e.stopPropagation();
         triggerGenericFileInput();
       });
 
       dropzone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
+        const files = e.dataTransfer && e.dataTransfer.files;
         if (files && files.length > 0) {
-          if (!currentSession || !currentSession.documents || currentSession.documents.length === 0) return;
-          const pendingDoc = currentSession.documents.find(d => d.status !== "received" && (!d.uploadCount || d.uploadCount === 0));
-          activeTargetDocId = pendingDoc ? pendingDoc.id : currentSession.documents[0].id;
+          const next = nextOpenItem();
+          if (!next) return;
+          activeTargetItemId = next.id;
           uploadFileObj(files[0]);
         }
       }, false);
@@ -590,141 +663,149 @@
 
     async function handleGenericFileUpload(inputEl) {
       const files = inputEl.files;
-      if (!files || files.length === 0 || !activeTargetDocId) return;
+      if (!files || files.length === 0 || !activeTargetItemId) return;
       const file = files[0];
-      await uploadFileObj(file);
       inputEl.value = "";
+      await uploadFileObj(file);
+    }
+
+    function showUploadError(message) {
+      const errBanner = el("uploadErrorBanner");
+      if (errBanner) {
+        el("uploadErrorMessage").textContent = `⚠️ ${message}`;
+        errBanner.hidden = false;
+        if (window.errorBannerTimer) clearTimeout(window.errorBannerTimer);
+        window.errorBannerTimer = setTimeout(() => { errBanner.hidden = true; }, 8000);
+      }
+      if (typeof UI !== "undefined" && UI.toast) UI.toast(message, "error");
+    }
+
+    function putToStorage(file, urlData, itemId) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", urlData.uploadUrl, true);
+        // Send exactly the headers the signed URL was made for. The browser sets Content-Length itself.
+        Object.entries(urlData.headers || {}).forEach(([name, value]) => {
+          if (name.toLowerCase() !== "content-length") xhr.setRequestHeader(name, value);
+        });
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            const pctEl = el(`upload-pct-${itemId}`);
+            if (pctEl) pctEl.textContent = `Uploading... ${pct}%`;
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`The file didn't reach storage (status ${xhr.status}). Please try again.`));
+        };
+        xhr.onerror = () => reject(new Error("Network connection lost during the upload. Please try again."));
+        xhr.send(file);
+      });
     }
 
     async function uploadFileObj(file) {
-      const targetDocId = activeTargetDocId;
+      if (uploadInFlight) return; // one upload at a time; ignore new starts while one is running
+      const targetItemId = activeTargetItemId;
+      const item = ((currentSession && currentSession.items) || []).find(i => i.id === targetItemId);
       const errBanner = el("uploadErrorBanner");
       errBanner.hidden = true;
+      if (!item) return;
 
-      // Update UI row to show progress spinner
-      const statusCol = el(`doc-status-col-${targetDocId}`);
+      const statusCol = el(`doc-status-col-${targetItemId}`);
+      const restoreStatus = () => {
+        if (statusCol) {
+          statusCol.innerHTML = `
+            <span class="upload-status-indicator pending" style="color: #dc2626;">Tap to retry</span>
+            <span class="arrow-icon">›</span>
+          `;
+        }
+      };
+
+      // Quick checks here so people get a clear message without waiting on the server.
+      const contentType = contentTypeFor(file);
+      const mimes = allowedMimes(item);
+      if (!contentType || (mimes.length && !mimes.includes(contentType))) {
+        lastFailedFile = null;
+        showUploadError(`${item.title || "This item"} takes ${itemHint(item) || "a PDF, JPG or PNG"}. That file is a different type.`);
+        return;
+      }
+      if (!file.size) {
+        lastFailedFile = null;
+        showUploadError(friendlyError("invalid_size"));
+        return;
+      }
+      if (item.max_bytes && file.size > item.max_bytes) {
+        lastFailedFile = null;
+        showUploadError(`That file is over ${formatMB(item.max_bytes)}. Please pick a smaller one.`);
+        return;
+      }
+
       if (statusCol) {
         statusCol.innerHTML = `
           <div style="display: flex; align-items: center; gap: 0.5rem; color: #2563eb; font-weight: 600; font-size: 0.8125rem;">
             <span class="upload-progress-ring"></span>
-            <span id="upload-pct-${targetDocId}">Uploading... 0%</span>
+            <span id="upload-pct-${escapeHtml(targetItemId)}">Uploading... 0%</span>
           </div>
         `;
       }
 
+      uploadInFlight = true;
       try {
-        // 1. Get presigned R2 upload URL
-        const urlRes = await fetch(`/api/upload-url/${token}`, {
+        // 1. Ask the server for a one-time upload slot for this item.
+        const urlRes = await fetch(`/api/upload-url/${encodeURIComponent(token)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            requiredDocId: targetDocId,
-            contentType: file.type || "application/octet-stream",
-            fileLabel: file.name
+            itemId: targetItemId,
+            filename: file.name || "upload",
+            contentType,
+            size: file.size
           })
         });
-        const urlData = await urlRes.json();
-        if (!urlRes.ok) throw new Error(urlData.error || "Failed to initiate upload");
+        let urlData = {};
+        try { urlData = await urlRes.json(); } catch (e) { /* non-JSON error body */ }
+        if (!urlRes.ok) throw new Error(friendlyError(urlData.error, "We couldn't start that upload."));
 
-        // 2. Put file directly to R2 with real-time XHR progress tracking
-        try {
-          await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("PUT", urlData.uploadUrl, true);
-            xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        // 2. Send the file straight to storage with live progress.
+        await putToStorage(file, urlData, targetItemId);
 
-            xhr.upload.onprogress = (e) => {
-              if (e.lengthComputable) {
-                const pct = Math.round((e.loaded / e.total) * 100);
-                const pctEl = el(`upload-pct-${targetDocId}`);
-                if (pctEl) pctEl.textContent = `Uploading... ${pct}%`;
-              }
-            };
-
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-              } else {
-                reject(new Error(`Storage Upload failed with status ${xhr.status}`));
-              }
-            };
-
-            xhr.onerror = () => reject(new Error("Network connection lost during file transfer."));
-            xhr.send(file);
-          });
-        } catch (r2Err) {
-          console.warn("Presigned R2 upload failed, attempting direct upload fallback:", r2Err);
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("requiredDocId", targetDocId);
-
-          const directRes = await fetch(`/api/direct-upload/${token}`, {
-            method: "POST",
-            body: formData
-          });
-          const directData = await directRes.json();
-          if (!directRes.ok) throw new Error(directData.error || "Upload failed");
-          
-          await initPortal();
-          if (typeof UI !== "undefined" && UI.toast) {
-            UI.toast("Document uploaded & verified!", "success");
-          }
-          return;
-        }
-
-        // 3. Confirm upload & trigger OCR
-        const confirmRes = await fetch(`/api/upload-complete/${token}`, {
+        // 3. Tell the server the file is in storage. It checks R2, records the document and
+        // moves the item to "received" (stored, not reviewed).
+        const confirmRes = await fetch(`/api/upload-complete/${encodeURIComponent(token)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ uploadId: urlData.uploadId })
+          body: JSON.stringify({ uploadSessionId: urlData.uploadSessionId })
         });
-        const confirmData = await confirmRes.json();
-        if (!confirmRes.ok) throw new Error(confirmData.error || "Failed to confirm upload");
+        let confirmData = {};
+        try { confirmData = await confirmRes.json(); } catch (e) { /* non-JSON error body */ }
+        if (!confirmRes.ok) throw new Error(friendlyError(confirmData.error, "We couldn't confirm that upload."));
 
-        // Refresh portal data & show micro-success
-        await initPortal();
-        if (typeof UI !== "undefined" && UI.toast) {
-          UI.toast("Document uploaded & verified!", "success");
-        }
+        sentThisVisit.add(targetItemId);
+        lastFailedFile = null;
+        lastFailedItemId = null;
+        await refreshSession();
+        if (typeof UI !== "undefined" && UI.toast) UI.toast("Sent! Thank you.", "success");
       } catch (err) {
         lastFailedFile = file;
-        lastFailedTargetDocId = targetDocId;
-
-        if (errBanner) {
-          el("uploadErrorMessage").textContent = `⚠️ Upload Error: ${err.message}`;
-          errBanner.hidden = false;
-          
-          if (window.errorBannerTimer) clearTimeout(window.errorBannerTimer);
-          window.errorBannerTimer = setTimeout(() => {
-            errBanner.hidden = true;
-          }, 6000);
-        }
-
-        // Revert status col
-        if (statusCol) {
-          statusCol.innerHTML = `
-            <span class="upload-status-indicator pending" style="color: #dc2626;">
-              Tap to Retry
-            </span>
-            <span class="arrow-icon">›</span>
-          `;
-        }
-
-        if (typeof UI !== "undefined" && UI.toast) {
-          UI.toast("Upload Error: " + err.message, "error");
-        }
+        lastFailedItemId = targetItemId;
+        showUploadError(err.message);
+        restoreStatus();
+      } finally {
+        uploadInFlight = false;
       }
     }
 
     el("btnRetryUpload").onclick = () => {
-      if (lastFailedFile && lastFailedTargetDocId) {
-        activeTargetDocId = lastFailedTargetDocId;
+      if (lastFailedFile && lastFailedItemId) {
+        activeTargetItemId = lastFailedItemId;
         uploadFileObj(lastFailedFile);
       }
     };
 
     function escapeHtml(str) {
-      return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
     if (document.readyState === "loading") {
