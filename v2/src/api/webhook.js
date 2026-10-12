@@ -141,6 +141,10 @@ export async function handleWebhookEvent(c) {
       }
 
       const firmId = await getFirmIdForUser(db, userId);
+      if (!firmId) {
+        console.warn(`[SECURITY] Inbound webhook user ${userId} has no firm membership. Dropping safely.`);
+        continue;
+      }
 
       // Tenant-Scoped Contact Lookup
       const contactRes = await db.execute({
