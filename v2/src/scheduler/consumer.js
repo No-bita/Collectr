@@ -72,7 +72,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
       sql: "SELECT status FROM requests WHERE id = ? LIMIT 1",
       args: [row.request_id],
     }).catch(() => ({ rows: [] }));
-    if (reqRes.rows?.[0]?.status === "completed" || reqRes.rows?.[0]?.status === "cancelled") {
+    if (["completed", "closed", "cancelled"].includes(reqRes.rows?.[0]?.status)) {
       await db.execute({
         sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'request_completed', executed_at = datetime('now') WHERE id = ?",
         args: [occurrenceId],
