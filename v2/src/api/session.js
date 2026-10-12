@@ -16,9 +16,9 @@ export async function handleSessionRequest(c) {
     if (!request || request.firm_id !== link.firm_id) return c.json({ error: "not_found" }, 404);
     const identity = await db.execute({
       sql: `SELECT f.name AS firm_name, c.name AS client_name FROM firms f
-            JOIN contacts c ON c.firm_id = f.id
+            JOIN clients c ON c.firm_id = f.id
             WHERE f.id = ? AND c.id = ? LIMIT 1`,
-      args: [link.firm_id, request.contact_id],
+      args: [link.firm_id, request.client_id],
     });
     if (!identity.rows[0]) return c.json({ error: "not_found" }, 404);
     const result = await db.execute({
