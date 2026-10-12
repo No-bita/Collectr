@@ -53,6 +53,7 @@ import { handleCreateLink, handleListLinks, handleRevokeLink, handleRegenerateLi
 import { handleSessionRequest } from "./api/session.js";
 import { handleDirectUpload } from "./api/upload.js";
 import { handleUploadUrlRequest } from "./api/uploads.js";
+import { handleUploadComplete } from "./api/upload-complete.js";
 import { handleBulkImportCases, handleBulkPrecheck } from "./api/cases.js";
 
 import { scanAndClaimDueOccurrences } from "./scheduler/scanner.js";
@@ -84,6 +85,7 @@ app.post("/api/webhook", handleWebhookEvent);
 // Public Upload & Session Routes
 app.get("/api/session/:token", handleSessionRequest);
 app.post("/api/upload-url/:token", handleUploadUrlRequest);
+app.post("/api/upload-complete/:token", handleUploadComplete);
 app.post("/api/direct-upload/:token", handleDirectUpload);
 
 // Protected API Routes (Requires Auth Credentials)
