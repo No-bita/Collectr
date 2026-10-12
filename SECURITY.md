@@ -45,4 +45,3 @@ If any secret or token is suspected to have been exposed:
 3. **Webhook Verify Token**:
    - Update Meta Developer Portal Webhook configuration with a newly generated high-entropy string.
    - Update: `wrangler secret put WHATSAPP_VERIFY_TOKEN`.
-
