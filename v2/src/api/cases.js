@@ -43,17 +43,41 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson, e
   }
 
   const contactId = "cnt_" + crypto.randomUUID();
-  await db.execute({
-    sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated, firm_id)
-          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
-    args: [contactId, userId, contactPerson, canonicalPhone, email, firmId]
-  }).catch(async () => {
-    return db.execute({
-      sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
+  try {
+    await db.execute({
+      sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated, firm_id)
             VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
       args: [contactId, userId, contactPerson, canonicalPhone, email, firmId]
+    }).catch(async () => {
+      return db.execute({
+        sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
+              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+        args: [contactId, userId, contactPerson, canonicalPhone, email, firmId]
+      });
     });
-  });
+  } catch (err) {
+    if (String(err?.message || "").includes("UNIQUE constraint failed")) {
+      const reselect = await db.execute({
+        sql: "SELECT id, contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+        args: [firmId, canonicalPhone]
+      }).catch(async () => {
+        return db.execute({
+          sql: "SELECT id, name as contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+          args: [firmId, canonicalPhone]
+        });
+      });
+      if (reselect.rows && reselect.rows.length > 0) {
+        const existing = reselect.rows[0];
+        return {
+          id: existing.id,
+          contactPerson: existing.contact_person || existing.name || contactPerson,
+          phoneNumber: existing.phone_number,
+          email: existing.email || email || null
+        };
+      }
+    }
+    throw err;
+  }
 
   return {
     id: contactId,

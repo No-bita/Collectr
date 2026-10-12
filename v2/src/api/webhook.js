@@ -162,10 +162,27 @@ export async function handleWebhookEvent(c) {
         // Auto-create Contact under this tenant
         contactId = "cnt_" + crypto.randomUUID();
         contactName = msg.profileName || `Contact ${canonicalPhone.slice(-4)}`;
-        await db.execute({
-          sql: "INSERT INTO contacts (id, user_id, name, phone_number, last_inbound_at, last_interaction_at, created_at, last_updated, firm_id) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'), ?)",
-          args: [contactId, userId, contactName, canonicalPhone, firmId]
-        });
+        try {
+          await db.execute({
+            sql: "INSERT INTO contacts (id, user_id, name, phone_number, last_inbound_at, last_interaction_at, created_at, last_updated, firm_id) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'), ?)",
+            args: [contactId, userId, contactName, canonicalPhone, firmId]
+          });
+        } catch (err) {
+          if (String(err?.message || "").includes("UNIQUE constraint failed")) {
+            const reselect = await db.execute({
+              sql: "SELECT id, name FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+              args: [firmId, canonicalPhone]
+            });
+            if (reselect.rows.length > 0) {
+              contactId = reselect.rows[0].id;
+              contactName = reselect.rows[0].name;
+            } else {
+              throw err;
+            }
+          } else {
+            throw err;
+          }
+        }
       }
 
       // Ensure Single Unified WhatsApp Conversation exists for Contact

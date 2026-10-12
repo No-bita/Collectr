@@ -77,11 +77,27 @@ export async function handleCreateSchedule(c) {
       targetContactId = contactRes.rows[0].id;
     } else {
       targetContactId = "cnt_" + crypto.randomUUID();
-      await db.execute({
-        sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
-              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
-        args: [targetContactId, userId, body.name || `Contact ${canonicalPhone.slice(-4)}`, canonicalPhone, email, firmId],
-      });
+      try {
+        await db.execute({
+          sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
+                VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+          args: [targetContactId, userId, body.name || `Contact ${canonicalPhone.slice(-4)}`, canonicalPhone, email, firmId],
+        });
+      } catch (err) {
+        if (String(err?.message || "").includes("UNIQUE constraint failed")) {
+          const reselect = await db.execute({
+            sql: "SELECT id FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+            args: [firmId, canonicalPhone],
+          });
+          if (reselect.rows && reselect.rows.length > 0) {
+            targetContactId = reselect.rows[0].id;
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
