@@ -41,8 +41,11 @@ async function issueLink(c, regenerate) {
     const scope = await staffRequest(c, db);
     if (scope.response) return scope.response;
     if (scope.request.status !== "open") return c.json({ error: "request_closed" }, 409);
-    let body;
-    try { body = await c.req.json(); } catch { return c.json({ error: "A JSON object is required." }, 400); }
+    let body = {};
+    const text = await c.req.text().catch(() => "");
+    if (text && text.trim()) {
+      try { body = JSON.parse(text); } catch { return c.json({ error: "A JSON object is required." }, 400); }
+    }
     if (!body || typeof body !== "object" || Array.isArray(body)) return c.json({ error: "A JSON object is required." }, 400);
     const now = Date.now();
     const supplied = Object.hasOwn(body, "expiresAt") ? body.expiresAt : body.expires_at;

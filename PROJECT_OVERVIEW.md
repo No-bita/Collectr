@@ -70,7 +70,9 @@ Lekho-Edge/
     │   ├── 0001_personal_crm_schema.sql
     │   ├── 0002_firms_and_memberships.sql
     │   ├── 0003_request_checklist_model.sql
-    │   └── 0004_contacts_firm_phone_unique.sql
+    │   ├── 0004_contacts_firm_phone_unique.sql
+    │   ├── 0005_client_links.sql
+    │   └── 0006_upload_sessions_and_documents.sql
     │
     ├── src/                           # Backend Application Code
     │   ├── index.js                   # Worker entrypoint, router dispatcher & scheduled/queue handlers
@@ -82,13 +84,16 @@ Lekho-Edge/
     │   │   ├── contacts.js            # Contact CRUD, attention filters, and workspace loader
     │   │   ├── conversations.js       # Outbound text & template dispatch controllers
     │   │   ├── requests.js            # Generic request lifecycle & checklist items
+    │   │   ├── links.js               # Staff client link management (create, revoke, regenerate, list)
     │   │   ├── activities.js          # Activity logging and notes
     │   │   ├── schedules.js           # Schedule creation, listing, cancellation & retry
     │   │   ├── templates.js           # Message template registry
     │   │   ├── credits.js             # Financial ledger, recharge wallet, paise math
     │   │   ├── webhook.js             # Meta WhatsApp webhook verification & event ingestion
     │   │   ├── session.js             # Magic link token session validation
-    │   │   ├── upload.js              # Presigned R2 uploads & direct uploads
+    │   │   ├── upload.js              # Direct document uploads
+    │   │   ├── uploads.js             # Validated upload-session initiator (presigned R2 PUT)
+    │   │   ├── upload-complete.js     # Verified receipt handler & document creation
     │   │   └── admin.js               # System observability & failure analytics
     │   ├── whatsapp/                  # Protected WhatsApp Transport Layer
     │   │   ├── client.js              # Meta Graph API client & offline mock adapter
@@ -107,6 +112,9 @@ Lekho-Edge/
     │   └── db/
     │       ├── client.js              # D1 client wrapper & compatibility driver
     │       ├── firms.js               # Firm tenancy & membership resolution helpers
+    │       ├── client_links.js        # Client link token hashing and resolution
+    │       ├── upload_sessions.js     # Upload intent sessions & storage key validation
+    │       ├── documents.js           # Firm-scoped document receipt & listing helpers
     │       └── schema.sql             # Canonical Personal CRM database schema
     │
     ├── public/                        # Frontend Web Applications
@@ -131,7 +139,10 @@ Lekho-Edge/
         ├── route-auth.test.js
         ├── credits.test.js
         ├── email-outreach.test.js
-        ├── magic-link.test.js
+        ├── link-routes.test.js
+        ├── upload-storage.test.js
+        ├── upload-url.test.js
+        ├── upload-complete.test.js
         ├── dom-integration.test.js
         ├── frontend-syntax.test.js
         ├── bulk-import.test.js

@@ -141,6 +141,7 @@ test("link routes: due date + 7 days, default 14 days and explicit expiry valida
     assert.ok(Date.parse(res.body.link.expires_at) >= start + 14 * 86400000);
     f.raw.prepare("UPDATE requests SET due_date='2099-03-01' WHERE id=?").run(id);
     res = await f.call(STAFF_PATH(id), { method: "POST", body: {} }); assert.equal(res.body.link.expires_at, "2099-03-08T00:00:00.000Z");
+    const noBody = await f.call(STAFF_PATH(id), { method: "POST" }); assert.equal(noBody.status, 201); assert.equal(noBody.body.link.expires_at, "2099-03-08T00:00:00.000Z");
     res = await f.call(STAFF_PATH(id), { method: "POST", body: { expiresAt: "2099-04-01T09:00:00+05:30" } }); assert.equal(res.body.link.expires_at, "2099-04-01T03:30:00.000Z");
     const before = f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n;
     for (const body of ["not json", [], null, { expiresAt: "bad" }, { expiresAt: 123 }, { expiresAt: null }, { expiresAt: "2020-01-01T00:00:00Z" }, { expiresAt: "2099-01-01" }]) {
@@ -148,6 +149,7 @@ test("link routes: due date + 7 days, default 14 days and explicit expiry valida
     }
     assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n, before);
     assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links WHERE revoked_at IS NOT NULL").get().n, 0);
+    const noBodyRegen = await f.call(`${STAFF_PATH(id)}/regenerate`, { method: "POST" }); assert.equal(noBodyRegen.status, 201);
   } finally { f.raw.close(); }
 });
 
