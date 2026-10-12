@@ -4,6 +4,14 @@ Welcome to the Collectrr architectural and engineering guide. This document prov
 
 ---
 
+## Client ownership foundation (migration 0007)
+
+Collectr now has a dedicated `clients` table owned by `firm_id`. Migration 0007 copies existing contact identity fields without deleting or changing contact records, request IDs, links, uploads or audit history. Requests and activities get backfilled `client_id` columns. Firm/identity guards and insert bridges protect older callers while this foundation coexists with CRM routes.
+
+New protected endpoints: `GET /api/clients`, `POST /api/clients` (`name`, `phoneNumber`, optional `email`/`company`), and `POST /api/clients/:id/requests`. Request creation validates the dedicated client identity; public sessions read names from clients. Existing contact request routes remain compatibility aliases. Creating a client atomically creates a legacy contact FK bridge too. CRM notes and conversation fields are not part of the clients API.
+
+This is an additive foundation, not complete physical detachment: requests and activities still retain their old NOT NULL contact foreign keys. Activities remains the atomic document-transition/close audit ledger. The later, separately approved eviction migration must remove those legacy foreign keys before contacts can be dropped. No production migration or deletion is performed by opening this PR. The staff workspace remains a sample-data preview.
+
 ## 1. System Vision & Domain Model
 
 Collectrr is a serverless, edge-deployed **Personal CRM for keeping work moving with people**. Built on Cloudflare Workers, Cloudflare D1, and Cloudflare R2, it combines direct omnichannel outreach (WhatsApp Cloud API & Email), 2-way conversation tracking, attention triage, and structured client requests.
