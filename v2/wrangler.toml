@@ -23,7 +23,7 @@ database_id = "YOUR_D1_DATABASE_ID"
 
 [[r2_buckets]]
 binding = "DOCUMENT_BUCKET"
-bucket_name = "YOUR_DOCUMENT_BUCKET_NAME"
+bucket_name = "lekho-documents"
 preview_bucket_name = "YOUR_DOCUMENT_BUCKET_NAME"
 
 [assets]
