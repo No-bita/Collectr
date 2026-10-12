@@ -45,6 +45,11 @@ export async function executeWhatsAppMessagingPipeline(optionsOrDb, maybeUser, m
 
   const userId = user?.id || user?.sub || '';
   const firmId = await getFirmIdForUser(db, userId);
+  if (!firmId) {
+    // No firm membership: fail before any credit check, dispatch, or write,
+    // so the firm_id NOT NULL inserts cannot throw after side effects.
+    return { success: false, error: "NO_FIRM_MEMBERSHIP" };
+  }
   const contactId = contact?.id;
   const canonicalPhone = contact?.phone_number || contact?.phoneNumber;
 
