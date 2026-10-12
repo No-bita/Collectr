@@ -54,11 +54,12 @@ function adapter(raw) {
   };
 }
 
-function ctx(db, { params = {}, body = {}, userId = "u1" } = {}) {
+function ctx(db, { params = {}, body = {}, userId = "u1", firmId = "firm_u1" } = {}) {
   let out;
+  const vars = { user: { id: userId }, firmId };
   return {
     env: { DB: db },
-    get: () => ({ id: userId }),
+    get: (key) => vars[key],
     req: { param: (k) => params[k], json: async () => body },
     json: (payload, status = 200) => ((out = { status, payload }), out),
   };
@@ -66,15 +67,17 @@ function ctx(db, { params = {}, body = {}, userId = "u1" } = {}) {
 
 function seed(raw) {
   raw.exec(`INSERT INTO users (id, username, password_hash) VALUES ('u1', 'a', 'x');
-            INSERT INTO contacts (id, user_id, name, phone_number) VALUES ('c1', 'u1', 'Client', '919999999999');`);
+            INSERT INTO firms (id, name) VALUES ('firm_u1', 'Firm One');
+            INSERT INTO firm_members (firm_id, user_id, role) VALUES ('firm_u1', 'u1', 'owner');
+            INSERT INTO contacts (id, user_id, firm_id, name, phone_number) VALUES ('c1', 'u1', 'firm_u1', 'Client', '919999999999');`);
 }
 
 test("Migration 0003: request checklist model", { skip: SKIP }, async (t) => {
   await t.test("applies on an empty database and sets the new item defaults", () => {
     const raw = dbFromMigrations(migrationFiles());
     seed(raw);
-    raw.exec(`INSERT INTO requests (id, user_id, contact_id, title) VALUES ('r1','u1','c1','R');
-              INSERT INTO request_items (id, request_id, title) VALUES ('i1','r1','PAN');`);
+    raw.exec(`INSERT INTO requests (id, user_id, firm_id, contact_id, title) VALUES ('r1','u1','firm_u1','c1','R');
+              INSERT INTO request_items (id, request_id, firm_id, title) VALUES ('i1','r1','firm_u1','PAN');`);
     const item = raw.prepare("SELECT * FROM request_items WHERE id='i1'").get();
     assert.equal(item.status, "missing");
     assert.equal(item.required, 1);
@@ -86,22 +89,25 @@ test("Migration 0003: request checklist model", { skip: SKIP }, async (t) => {
     assert.ok(reqCols.includes("service_type") && reqCols.includes("period_label"));
   });
 
-  await t.test("backfills existing data: pending->missing, done->accepted, waived kept, positions assigned", () => {
+  await t.test("backfills existing data after 0001+0002: pending->missing, done->accepted, waived kept, positions and firm_id assigned", () => {
     const raw = dbFromMigrations(migrationFiles("0001_personal_crm_schema.sql"));
-    seed(raw);
-    raw.exec(`INSERT INTO requests (id, user_id, contact_id, title, status) VALUES ('r1','u1','c1','R','waiting_on_them');
+    raw.exec(`INSERT INTO users (id, username, password_hash) VALUES ('u1', 'a', 'x');
+              INSERT INTO contacts (id, user_id, name, phone_number) VALUES ('c1', 'u1', 'Client', '919999999999');
+              INSERT INTO requests (id, user_id, contact_id, title, status) VALUES ('r1','u1','c1','R','waiting_on_them');
       INSERT INTO request_items (id, request_id, title, status, created_at) VALUES
         ('i1','r1','A','pending','2026-01-01 10:00:00'),
         ('i2','r1','B','done','2026-01-01 10:00:01'),
         ('i3','r1','C','waived','2026-01-01 10:00:02'),
         ('i4','r1','D','weird','2026-01-01 10:00:03');`);
-    raw.exec(fs.readFileSync(path.join(migrationsDir, "0003_request_checklist_model.sql"), "utf8"));
-    const rows = raw.prepare("SELECT id, status, position FROM request_items ORDER BY position").all();
-    assert.deepEqual(rows.map((r) => [r.id, r.status, r.position]), [
-      ["i1", "missing", 0],
-      ["i2", "accepted", 1],
-      ["i3", "waived", 2],
-      ["i4", "missing", 3],
+    for (const f of migrationFiles().filter((f) => f > "0001_personal_crm_schema.sql")) {
+      raw.exec(fs.readFileSync(path.join(migrationsDir, f), "utf8"));
+    }
+    const rows = raw.prepare("SELECT id, status, position, firm_id FROM request_items ORDER BY position").all();
+    assert.deepEqual(rows.map((r) => [r.id, r.status, r.position, r.firm_id]), [
+      ["i1", "missing", 0, "firm_u1"],
+      ["i2", "accepted", 1, "firm_u1"],
+      ["i3", "waived", 2, "firm_u1"],
+      ["i4", "missing", 3, "firm_u1"],
     ]);
     for (const r of rows) assert.ok(NEW_ITEM_STATUSES.includes(r.status));
     // existing request statuses are left alone
@@ -111,7 +117,7 @@ test("Migration 0003: request checklist model", { skip: SKIP }, async (t) => {
   await t.test("rejects an item status outside the new set", () => {
     const raw = dbFromMigrations(migrationFiles());
     seed(raw);
-    raw.exec(`INSERT INTO requests (id, user_id, contact_id, title) VALUES ('r1','u1','c1','R');`);
+    raw.exec(`INSERT INTO requests (id, user_id, firm_id, contact_id, title) VALUES ('r1','u1','firm_u1','c1','R');`);
     assert.throws(() => raw.exec(`INSERT INTO request_items (id, request_id, title, status) VALUES ('x','r1','T','pending');`));
   });
 });
@@ -209,17 +215,55 @@ test("Request checklist handlers", { skip: SKIP }, async (t) => {
     assert.equal((await handleUpdateRequestItem(ctx(db, { params: { requestId: request.id, itemId: request.items[0].id }, body: {} }))).status, 400);
   });
 
-  await t.test("another user cannot add or edit items on someone else's request (404, nothing changes)", async () => {
+  await t.test("items and activities carry the request's firm_id", async () => {
     const { db, raw } = setup();
-    raw.exec("INSERT INTO users (id, username, password_hash) VALUES ('u2', 'b', 'x');");
     const { request } = (await createRequest(db, { items: ["A"] })).payload;
-    const add = await handleAddRequestItem(ctx(db, { userId: "u2", params: { id: request.id }, body: { title: "Sneaky" } }));
-    assert.equal(add.status, 404);
-    const edit = await handleUpdateRequestItem(
-      ctx(db, { userId: "u2", params: { requestId: request.id, itemId: request.items[0].id }, body: { title: "Hijacked" } })
+    await handleAddRequestItem(ctx(db, { params: { id: request.id }, body: { title: "B" } }));
+    await handleUpdateRequestItem(ctx(db, { params: { requestId: request.id, itemId: request.items[0].id }, body: { status: "waived" } }));
+    assert.equal(raw.prepare("SELECT firm_id FROM requests WHERE id = ?").get(request.id).firm_id, "firm_u1");
+    const itemFirms = raw.prepare("SELECT DISTINCT firm_id FROM request_items WHERE request_id = ?").all(request.id);
+    assert.deepEqual(itemFirms.map((r) => r.firm_id), ["firm_u1"]);
+    const actFirms = raw.prepare("SELECT DISTINCT firm_id FROM activities WHERE request_id = ?").all(request.id);
+    assert.deepEqual(actFirms.map((r) => r.firm_id), ["firm_u1"]);
+  });
+
+  await t.test("a user with no firm gets 403 on create, add and edit", async () => {
+    const { db } = setup();
+    const { request } = (await createRequest(db, { items: ["A"] })).payload;
+    const none = { firmId: null };
+    assert.equal((await handleCreateRequest(ctx(db, { ...none, params: { id: "c1" }, body: { title: "T" } }))).status, 403);
+    assert.equal((await handleAddRequestItem(ctx(db, { ...none, params: { id: request.id }, body: { title: "B" } }))).status, 403);
+    assert.equal(
+      (await handleUpdateRequestItem(ctx(db, { ...none, params: { requestId: request.id, itemId: request.items[0].id }, body: { title: "Z" } }))).status,
+      403
     );
-    assert.equal(edit.status, 404);
+  });
+
+  await t.test("a user from another firm cannot create, add or edit on this firm's data (404, nothing changes)", async () => {
+    const { db, raw } = setup();
+    raw.exec(`INSERT INTO users (id, username, password_hash) VALUES ('u2', 'b', 'x');
+              INSERT INTO firms (id, name) VALUES ('firm_u2', 'Firm Two');
+              INSERT INTO firm_members (firm_id, user_id, role) VALUES ('firm_u2', 'u2', 'owner');`);
+    const { request } = (await createRequest(db, { items: ["A"] })).payload;
+    const other = { userId: "u2", firmId: "firm_u2" };
+    assert.equal((await handleCreateRequest(ctx(db, { ...other, params: { id: "c1" }, body: { title: "T" } }))).status, 404);
+    assert.equal((await handleAddRequestItem(ctx(db, { ...other, params: { id: request.id }, body: { title: "Sneaky" } }))).status, 404);
+    assert.equal(
+      (await handleUpdateRequestItem(ctx(db, { ...other, params: { requestId: request.id, itemId: request.items[0].id }, body: { title: "Hijacked" } }))).status,
+      404
+    );
     const rows = raw.prepare("SELECT title FROM request_items WHERE request_id = ?").all(request.id);
     assert.deepEqual(rows.map((r) => r.title), ["A"]);
+  });
+
+  await t.test("a firm colleague (different user, same firm) can edit the request's items", async () => {
+    const { db, raw } = setup();
+    raw.exec(`INSERT INTO users (id, username, password_hash) VALUES ('u3', 'c', 'x');
+              INSERT INTO firm_members (firm_id, user_id, role) VALUES ('firm_u1', 'u3', 'staff');`);
+    const { request } = (await createRequest(db, { items: ["A"] })).payload;
+    const res = await handleUpdateRequestItem(
+      ctx(db, { userId: "u3", firmId: "firm_u1", params: { requestId: request.id, itemId: request.items[0].id }, body: { title: "A2" } })
+    );
+    assert.equal(res.status, 200);
   });
 });
