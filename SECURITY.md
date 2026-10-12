@@ -44,4 +44,5 @@ If any secret or token is suspected to have been exposed:
    - Generate a new key and update: `wrangler secret put GEMINI_API_KEY`.
 3. **Webhook Verify Token**:
    - Update Meta Developer Portal Webhook configuration with a newly generated high-entropy string.
-   - Update: `wrangler secret put WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
+   - Update: `wrangler secret put WHATSAPP_VERIFY_TOKEN`.
+
