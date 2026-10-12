@@ -294,3 +294,23 @@ CREATE TABLE IF NOT EXISTS credit_reservations (
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT unq_reservation_ref UNIQUE(user_id, reference_id)
 );
+
+-- 13. Client Links (expiring, revocable bearer tokens into a request's upload portal)
+-- Only the SHA-256 hash of each token is stored; the raw token is shown to staff once.
+CREATE TABLE IF NOT EXISTS client_links (
+  id TEXT PRIMARY KEY,
+  firm_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  created_by TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_used_at TEXT,
+  FOREIGN KEY(firm_id) REFERENCES firms(id) ON DELETE CASCADE,
+  FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE,
+  FOREIGN KEY(created_by) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_links_request ON client_links(request_id);
+CREATE INDEX IF NOT EXISTS idx_client_links_token_hash ON client_links(token_hash);
