@@ -10,13 +10,19 @@ import { executeWhatsAppMessagingPipeline } from "../whatsapp/pipeline.js";
 export { executeWhatsAppMessagingPipeline, executeEmailMessagingPipeline, sendWhatsAppText, getCustomerReplyWindowStatus };
 
 export async function ensureContact(db, userId, canonicalPhone, contactPerson, email = null) {
+  // Firm-wide phone dedupe: resolve the firm first, then search by firm so a
+  // coworker's contact is reused instead of duplicated within the firm.
+  const firmId = await getFirmIdForUser(db, userId);
+  if (!firmId) {
+    throw new Error("NO_FIRM_MEMBERSHIP: refusing to create a contact without firm ownership");
+  }
   const existingRes = await db.execute({
-    sql: "SELECT id, contact_person, phone_number, email FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-    args: [userId, canonicalPhone]
+    sql: "SELECT id, contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+    args: [firmId, canonicalPhone]
   }).catch(async () => {
     return db.execute({
-      sql: "SELECT id, name as contact_person, phone_number, email FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-      args: [userId, canonicalPhone]
+      sql: "SELECT id, name as contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+      args: [firmId, canonicalPhone]
     });
   });
 
@@ -37,10 +43,6 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson, e
   }
 
   const contactId = "cnt_" + crypto.randomUUID();
-  const firmId = await getFirmIdForUser(db, userId);
-  if (!firmId) {
-    throw new Error("NO_FIRM_MEMBERSHIP: refusing to create a contact without firm ownership");
-  }
   await db.execute({
     sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated, firm_id)
           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
