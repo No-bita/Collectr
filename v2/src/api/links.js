@@ -34,6 +34,15 @@ function publicLink(row, requestStatus, now = Date.now()) {
   };
 }
 
+/**
+ * Issue a client link for an open request in the staff member's firm.
+ * Empty bodies use the default expiry: due date plus 7 days, or 14 days from now.
+ * Nonempty bodies must be JSON objects; supplied expiry timestamps must be future dates.
+ *
+ * @param {import("hono").Context} c - Authenticated request context.
+ * @param {boolean} regenerate - Whether to revoke existing links when issuing the new one.
+ * @returns {Promise<Response>} The created link and token, or a JSON error response.
+ */
 async function issueLink(c, regenerate) {
   privateResponse(c);
   try {

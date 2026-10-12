@@ -10,6 +10,10 @@ try { ({ DatabaseSync } = await import("node:sqlite")); } catch { /* Node 20 */ 
 const SKIP = DatabaseSync ? false : "node:sqlite requires Node 22.5+";
 const SECRET = "test-only-firm-links-secret";
 
+/**
+ * Create an isolated, migrated SQLite database with two firms and route helpers.
+ * @returns {object} Database handles and helpers; callers must close `raw` after use.
+ */
 function fixture() {
   const raw = new DatabaseSync(":memory:");
   const dir = fileURLToPath(new URL("../migrations/", import.meta.url));
@@ -37,6 +41,18 @@ function fixture() {
     },
   };
   const env = { DB: db, JWT_SECRET: SECRET, ENVIRONMENT: "production" };
+  /**
+   * Send an in-process app request using this fixture's database and optional JWT.
+   * @param {string} path - Application route path.
+   * @param {object} [options={}] - Request options.
+   * @param {string} [options.method="GET"] - HTTP method.
+   * @param {string|null} [options.user="u1"] - JWT user ID; null omits generated authentication.
+   * @param {*} [options.body] - JSON-serialized value, or a string sent verbatim.
+   * @param {BodyInit} [options.rawBody] - Unserialized body; takes precedence over `body`.
+   * @param {string} [options.duplex] - Fetch duplex mode for streaming raw bodies.
+   * @param {object} [options.headers={}] - Additional request headers.
+   * @returns {Promise<object>} Response status, headers, and parsed JSON body.
+   */
   async function call(path, { method = "GET", user = "u1", body, rawBody, duplex, headers = {} } = {}) {
     if (user) headers = { ...headers, Authorization: `Bearer ${await sign({ id: user, exp: Math.floor(Date.now() / 1000) + 3600 }, SECRET)}` };
     const res = await app.request(`https://collectr.example.test${path}`, {
@@ -191,6 +207,10 @@ test("link routes: request body stream read failure returns 500 and creates no l
   try {
     const id = await f.request();
     const errorStream = new ReadableStream({
+      /**
+       * Fail the stream immediately to exercise request-body read error handling.
+       * @param {ReadableStreamDefaultController} controller - Controller to put in the errored state.
+       */
       start(controller) {
         controller.error(new Error("Simulated stream read failure"));
       },
