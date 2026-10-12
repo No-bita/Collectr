@@ -286,12 +286,12 @@ test("WhatsApp Non-Negotiable Regression Gate (All 15 Invariants)", async (t) =>
   const env = {
     MOCK_WHATSAPP: "true",
     ENVIRONMENT: "test",
-    WHATSAPP_PHONE_ID: "1073272059211357",
+    WHATSAPP_PHONE_ID: "100000000000001",
     DB: db,
   };
 
   // Seed test user
-  const user = { id: "usr_alice", username: "alice", credit_balance: 900, wa_phone_number_id: "1073272059211357" };
+  const user = { id: "usr_alice", username: "alice", credit_balance: 900, wa_phone_number_id: "100000000000001" };
   db.tables.users.push(user);
 
   // 1. Create Contact
@@ -413,7 +413,7 @@ test("WhatsApp Non-Negotiable Regression Gate (All 15 Invariants)", async (t) =>
     entry: [{
       changes: [{
         value: {
-          metadata: { phone_number_id: "1073272059211357" },
+          metadata: { phone_number_id: "100000000000001" },
           messages: [{
             id: "wamid.inbound_reply_001",
             from: "919876543210",

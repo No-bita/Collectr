@@ -1,0 +1,9 @@
+# Copy to v2/.dev.vars (gitignored) for local development. Never commit real values.
+ENVIRONMENT=development
+MOCK_WHATSAPP=true
+MOCK_GEMINI=true
+WHATSAPP_VERIFY_TOKEN=local-dev-verify-token
+# Only needed for real WhatsApp calls:
+# WHATSAPP_ACCESS_TOKEN=
+# WHATSAPP_PHONE_ID=
+# GEMINI_API_KEY=

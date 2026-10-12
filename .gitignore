@@ -10,6 +10,12 @@ package-lock.json.bak
 .dev.vars.*
 !.dev.vars.example
 *vars*
+!.dev.vars.example
+!v2/.dev.vars.example
+
+# Real production Wrangler config (IDs). Copy v2/wrangler.toml to this name.
+wrangler.local.toml
+v2/wrangler.local.toml
 credentials*.json
 *.pem
 *.key
