@@ -51,7 +51,8 @@ import {
 
 import { handleCreateLink, handleListLinks, handleRevokeLink, handleRegenerateLink } from "./api/links.js";
 import { handleSessionRequest } from "./api/session.js";
-import { handleUploadUrlRequest, handleDirectUpload } from "./api/upload.js";
+import { handleDirectUpload } from "./api/upload.js";
+import { handleUploadUrlRequest } from "./api/uploads.js";
 import { handleBulkImportCases, handleBulkPrecheck } from "./api/cases.js";
 
 import { scanAndClaimDueOccurrences } from "./scheduler/scanner.js";
