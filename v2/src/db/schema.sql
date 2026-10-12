@@ -1,6 +1,4 @@
--- Collectr Personal CRM Canonical Database Schema
-
--- 1. Users & Tenancy
+-- Generated from v2/migrations by npm run db:schema:generate. Do not edit.
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
@@ -10,36 +8,12 @@ CREATE TABLE IF NOT EXISTS users (
   wa_phone_number_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS unq_users_wa_phone_id ON users(wa_phone_number_id) WHERE wa_phone_number_id IS NOT NULL;
-
-
--- 1b. Firms & Staff Memberships (Tenancy Boundary)
-CREATE TABLE IF NOT EXISTS firms (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS firm_members (
-  firm_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'staff', -- 'owner' | 'staff'
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT unq_firm_member UNIQUE(firm_id, user_id),
-  FOREIGN KEY(firm_id) REFERENCES firms(id) ON DELETE CASCADE,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_firm_members_user ON firm_members(user_id);
-
--- 2. Contacts (Primary Entity)
+CREATE UNIQUE INDEX unq_users_wa_phone_id ON users(wa_phone_number_id) WHERE wa_phone_number_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS contacts (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
-  firm_id TEXT NOT NULL DEFAULT '',
   name TEXT NOT NULL,
-  phone_number TEXT NOT NULL, -- E.164 digits without leading '+' (e.g. 919876543210)
+  phone_number TEXT NOT NULL,
   email TEXT,
   company TEXT,
   notes TEXT,
@@ -47,21 +21,16 @@ CREATE TABLE IF NOT EXISTS contacts (
   last_inbound_at DATETIME,
   last_interaction_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_updated DATETIME DEFAULT CURRENT_TIMESTAMP, firm_id TEXT NOT NULL DEFAULT '',
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT unq_user_contact_phone UNIQUE(user_id, phone_number)
 );
-
-CREATE INDEX IF NOT EXISTS idx_contacts_user_phone ON contacts(user_id, phone_number);
-CREATE INDEX IF NOT EXISTS idx_contacts_firm ON contacts(firm_id);
-CREATE UNIQUE INDEX IF NOT EXISTS unq_contacts_firm_phone ON contacts(firm_id, phone_number);
-
--- 3. Conversations (One per Contact per Channel)
+CREATE INDEX idx_contacts_user_phone ON contacts(user_id, phone_number);
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   contact_id TEXT NOT NULL,
-  channel TEXT NOT NULL DEFAULT 'whatsapp', -- 'whatsapp' | 'email'
+  channel TEXT NOT NULL DEFAULT 'whatsapp',
   last_message_at DATETIME,
   unread_count INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -69,56 +38,26 @@ CREATE TABLE IF NOT EXISTS conversations (
   FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
   CONSTRAINT unq_user_contact_channel UNIQUE(user_id, contact_id, channel)
 );
-
-CREATE INDEX IF NOT EXISTS idx_conversations_contact ON conversations(contact_id);
-
--- 4. Requests (Things I need from them)
+CREATE INDEX idx_conversations_contact ON conversations(contact_id);
 CREATE TABLE IF NOT EXISTS requests (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
-  firm_id TEXT NOT NULL DEFAULT '',
   contact_id TEXT NOT NULL,
-  title TEXT NOT NULL, -- e.g. "Send PAN", "Confirm meeting for Friday", "Approve design"
+  title TEXT NOT NULL,
   description TEXT,
-  status TEXT NOT NULL DEFAULT 'open', -- 'draft', 'open', 'waiting_on_them', 'needs_follow_up', 'waiting_on_me', 'completed', 'closed', 'cancelled'
+  status TEXT NOT NULL DEFAULT 'open',
   due_date DATETIME,
   completed_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  service_type TEXT, -- e.g. "GST filing"
-  period_label TEXT, -- e.g. "Q2 FY26-27"
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, firm_id TEXT NOT NULL DEFAULT '', service_type TEXT, period_label TEXT,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE
 );
-
-CREATE INDEX IF NOT EXISTS idx_requests_contact_status ON requests(contact_id, status);
-CREATE INDEX IF NOT EXISTS idx_requests_user_status ON requests(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_requests_firm ON requests(firm_id);
-
--- 5. Request Items (Document-collection Checklist)
-CREATE TABLE IF NOT EXISTS request_items (
-  id TEXT PRIMARY KEY,
-  request_id TEXT NOT NULL,
-  firm_id TEXT NOT NULL DEFAULT '',
-  title TEXT NOT NULL, -- e.g. "PAN Copy", "Signed NDA", "Meeting time confirmed"
-  description TEXT,
-  position INTEGER NOT NULL DEFAULT 0,
-  required INTEGER NOT NULL DEFAULT 1 CHECK (required IN (0, 1)),
-  allowed_types TEXT NOT NULL DEFAULT 'pdf,jpg,png',
-  max_bytes INTEGER NOT NULL DEFAULT 15728640,
-  status TEXT NOT NULL DEFAULT 'missing'
-    CHECK (status IN ('missing', 'received', 'under_review', 'accepted', 'needs_replacement', 'waived')),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_request_items_request_position ON request_items(request_id, position);
-
--- 6. Message Templates (Clean Generic Registry)
+CREATE INDEX idx_requests_contact_status ON requests(contact_id, status);
+CREATE INDEX idx_requests_user_status ON requests(user_id, status);
 CREATE TABLE IF NOT EXISTS message_templates (
   id TEXT PRIMARY KEY,
-  user_id TEXT, -- NULL for system templates
+  user_id TEXT,
   name TEXT NOT NULL,
   category TEXT DEFAULT 'UTILITY',
   channel TEXT NOT NULL DEFAULT 'whatsapp',
@@ -136,25 +75,22 @@ CREATE TABLE IF NOT EXISTS message_templates (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS unq_system_templates ON message_templates(name) WHERE user_id IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS unq_user_templates ON message_templates(user_id, name) WHERE user_id IS NOT NULL;
-
--- 7. Messages (Product-level Conversation Record)
+CREATE UNIQUE INDEX unq_system_templates ON message_templates(name) WHERE user_id IS NULL;
+CREATE UNIQUE INDEX unq_user_templates ON message_templates(user_id, name) WHERE user_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL,
   contact_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
-  request_id TEXT, -- NULLABLE: Attributed when message explicitly belongs to a request
-  direction TEXT NOT NULL, -- 'outbound' | 'inbound'
-  channel TEXT NOT NULL DEFAULT 'whatsapp', -- 'whatsapp' | 'email'
-  sender_type TEXT NOT NULL, -- 'user' | 'contact' | 'system'
+  request_id TEXT,
+  direction TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'whatsapp',
+  sender_type TEXT NOT NULL,
   content TEXT,
-  template_id TEXT, -- NULLABLE: References message_templates.id
-  provider TEXT NOT NULL DEFAULT 'meta_whatsapp', -- 'meta_whatsapp' | 'resend'
-  provider_message_id TEXT, -- e.g. wamid...
-  delivery_status TEXT, -- NULL for inbound; 'queued' | 'sent' | 'delivered' | 'read' | 'failed' for outbound
+  template_id TEXT,
+  provider TEXT NOT NULL DEFAULT 'meta_whatsapp',
+  provider_message_id TEXT,
+  delivery_status TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
   FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
@@ -166,27 +102,21 @@ CREATE TABLE IF NOT EXISTS messages (
     (direction = 'outbound' AND delivery_status IS NOT NULL)
   )
 );
-
-CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at ASC);
-CREATE UNIQUE INDEX IF NOT EXISTS unq_messages_provider ON messages(provider, provider_message_id) WHERE provider_message_id IS NOT NULL;
-
--- 8. WhatsApp Transport & Idempotency Ledger
+CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at ASC);
+CREATE UNIQUE INDEX unq_messages_provider ON messages(provider, provider_message_id) WHERE provider_message_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS whatsapp_messages (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
-  message_id TEXT, -- Explicit link to product messages table
+  message_id TEXT,
   idempotency_key TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'PENDING', -- PENDING | SENDING | SENT | FAILED | UNKNOWN
+  status TEXT NOT NULL DEFAULT 'PENDING',
   provider_message_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE SET NULL,
   CONSTRAINT unq_wa_msg UNIQUE(user_id, idempotency_key)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS unq_wa_msg_provider_id ON whatsapp_messages(provider_message_id) WHERE provider_message_id IS NOT NULL;
-
--- 9. Email Transport Ledger
+CREATE UNIQUE INDEX unq_wa_msg_provider_id ON whatsapp_messages(provider_message_id) WHERE provider_message_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS email_messages (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -200,43 +130,35 @@ CREATE TABLE IF NOT EXISTS email_messages (
   FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE SET NULL,
   CONSTRAINT unq_email_msg UNIQUE(user_id, idempotency_key)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS unq_email_msg_provider_id ON email_messages(provider_message_id) WHERE provider_message_id IS NOT NULL;
-
--- 10. Activities (Unified Audit & Human Event Stream)
+CREATE UNIQUE INDEX unq_email_msg_provider_id ON email_messages(provider_message_id) WHERE provider_message_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS activities (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
-  firm_id TEXT NOT NULL DEFAULT '',
   contact_id TEXT NOT NULL,
-  request_id TEXT, -- NULLABLE
-  activity_type TEXT NOT NULL, -- 'outreach_sent' | 'contact_replied' | 'request_created' | 'request_item_done' | 'request_completed' | 'note_added' | 'schedule_created'
+  request_id TEXT,
+  activity_type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   metadata JSON,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP, firm_id TEXT NOT NULL DEFAULT '',
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
   FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE SET NULL
 );
-
-CREATE INDEX IF NOT EXISTS idx_activities_contact ON activities(contact_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_activities_firm ON activities(firm_id);
-
--- 11. Schedules & Occurrences
+CREATE INDEX idx_activities_contact ON activities(contact_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS schedules (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   contact_id TEXT NOT NULL,
-  request_id TEXT, -- NULLABLE
+  request_id TEXT,
   channel TEXT NOT NULL DEFAULT 'whatsapp',
-  template_id TEXT, -- NULLABLE
-  message_body TEXT, -- NULLABLE
-  payload_snapshot JSON NOT NULL, -- Immutable snapshot of payload/params at schedule time
+  template_id TEXT,
+  message_body TEXT,
+  payload_snapshot JSON NOT NULL,
   schedule_type TEXT NOT NULL DEFAULT 'one_off',
   recurrence_interval TEXT,
   timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
-  status TEXT NOT NULL DEFAULT 'active', -- 'active' | 'completed' | 'cancelled'
+  status TEXT NOT NULL DEFAULT 'active',
   next_run_utc DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   cancelled_at DATETIME,
@@ -249,10 +171,8 @@ CREATE TABLE IF NOT EXISTS schedules (
     (template_id IS NULL AND message_body IS NOT NULL)
   )
 );
-
-CREATE INDEX IF NOT EXISTS idx_schedules_user_status ON schedules(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(status, next_run_utc);
-
+CREATE INDEX idx_schedules_user_status ON schedules(user_id, status);
+CREATE INDEX idx_schedules_next_run ON schedules(status, next_run_utc);
 CREATE TABLE IF NOT EXISTS scheduled_occurrences (
   id TEXT PRIMARY KEY,
   schedule_id TEXT NOT NULL,
@@ -261,11 +181,11 @@ CREATE TABLE IF NOT EXISTS scheduled_occurrences (
   channel TEXT NOT NULL DEFAULT 'whatsapp',
   recipient_phone TEXT,
   recipient_email TEXT,
-  operational_status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'claimed' | 'completed' | 'skipped' | 'failed' | 'unknown'
+  operational_status TEXT NOT NULL DEFAULT 'pending',
   claimed_at DATETIME,
   attempts INTEGER NOT NULL DEFAULT 0,
   provider_message_id TEXT,
-  message_id TEXT, -- Links execution to product messages record
+  message_id TEXT,
   skip_reason TEXT,
   last_error TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -274,10 +194,7 @@ CREATE TABLE IF NOT EXISTS scheduled_occurrences (
   FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE SET NULL,
   CONSTRAINT unq_occurrence_schedule_key UNIQUE(schedule_id, occurrence_key)
 );
-
-CREATE INDEX IF NOT EXISTS idx_occurrences_claim ON scheduled_occurrences(operational_status, scheduled_for_utc, claimed_at);
-
--- 12. Credits & Ledger
+CREATE INDEX idx_occurrences_claim ON scheduled_occurrences(operational_status, scheduled_for_utc, claimed_at);
 CREATE TABLE IF NOT EXISTS credit_transactions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -291,35 +208,66 @@ CREATE TABLE IF NOT EXISTS credit_transactions (
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT unq_credit_tx UNIQUE(user_id, reference_id, transaction_type)
 );
-
 CREATE TABLE IF NOT EXISTS credit_reservations (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   amount_paise INTEGER NOT NULL,
-  reference_id TEXT NOT NULL, -- Unique reference (e.g. idempotency_key or occurrence_id)
-  status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING' | 'CAPTURED' | 'RELEASED'
+  reference_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT unq_reservation_ref UNIQUE(user_id, reference_id)
 );
-
--- 13. Client Links (expiring, revocable bearer tokens into a request's upload portal)
--- Only the SHA-256 hash of each token is stored; the raw token is shown to staff once.
+CREATE TABLE IF NOT EXISTS firms (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS firm_members (
+  firm_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'staff', -- 'owner' | 'staff'
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unq_firm_member UNIQUE(firm_id, user_id),
+  FOREIGN KEY(firm_id) REFERENCES firms(id) ON DELETE CASCADE,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_firm_members_user ON firm_members(user_id);
+CREATE INDEX idx_contacts_firm ON contacts(firm_id);
+CREATE INDEX idx_requests_firm ON requests(firm_id);
+CREATE INDEX idx_activities_firm ON activities(firm_id);
+CREATE TABLE IF NOT EXISTS "request_items" (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL,
+  firm_id TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  description TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
+  required INTEGER NOT NULL DEFAULT 1 CHECK (required IN (0, 1)),
+  allowed_types TEXT NOT NULL DEFAULT 'pdf,jpg,png',
+  max_bytes INTEGER NOT NULL DEFAULT 15728640,
+  status TEXT NOT NULL DEFAULT 'missing'
+    CHECK (status IN ('missing', 'received', 'under_review', 'accepted', 'needs_replacement', 'waived')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_request_items_request_position ON request_items(request_id, position);
+CREATE UNIQUE INDEX unq_contacts_firm_phone ON contacts(firm_id, phone_number);
 CREATE TABLE IF NOT EXISTS client_links (
   id TEXT PRIMARY KEY,
   firm_id TEXT NOT NULL,
   request_id TEXT NOT NULL,
-  token_hash TEXT NOT NULL UNIQUE,
-  expires_at TEXT NOT NULL,
-  revoked_at TEXT,
-  created_by TEXT,
+  token_hash TEXT NOT NULL UNIQUE, -- SHA-256 hex of the bearer token; the raw token is never stored
+  expires_at TEXT NOT NULL, -- ISO-8601 UTC instant after which the link stops resolving
+  revoked_at TEXT, -- set when staff revokes (or regenerates) the link; NULL while active
+  created_by TEXT, -- users.id of the staff member who created the link; NULL survives creator deletion
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  last_used_at TEXT,
+  last_used_at TEXT, -- set on each successful public resolution; NULL until first use
   FOREIGN KEY(firm_id) REFERENCES firms(id) ON DELETE CASCADE,
   FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE,
   FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
 );
-
-CREATE INDEX IF NOT EXISTS idx_client_links_request ON client_links(request_id);
-CREATE INDEX IF NOT EXISTS idx_client_links_token_hash ON client_links(token_hash);
+CREATE INDEX idx_client_links_request ON client_links(request_id);
+CREATE INDEX idx_client_links_token_hash ON client_links(token_hash);

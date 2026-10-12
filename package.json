@@ -8,6 +8,9 @@
     "test:offline": "npm --prefix v2 run test:offline",
     "db:init:local": "npm --prefix v2 run db:init:local",
     "db:migrate:local": "npm --prefix v2 run db:migrate:local",
-    "scan:secrets": "node scripts/scan-secrets.js"
+    "scan:secrets": "node scripts/scan-secrets.js",
+    "db:schema:generate": "npm --prefix v2 run db:schema:generate",
+    "db:schema:check": "npm --prefix v2 run db:schema:check",
+    "test:fresh-db": "npm --prefix v2 run test:fresh-db"
   }
 }
