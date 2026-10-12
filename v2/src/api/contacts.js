@@ -207,7 +207,7 @@ export async function handleCreateContact(c) {
   // Check unique contact for the firm
   const existing = await db.execute({
     sql: "SELECT id, name FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
-    args: [canonicalPhone, firmId],
+    args: [firmId, canonicalPhone],
   });
 
   if (existing.rows.length > 0) {
@@ -622,7 +622,7 @@ export async function handleCheckContactPhone(c) {
   const firmId = c.get("firmId");
   const res = await db.execute({
     sql: "SELECT id, name, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
-    args: [canonicalPhone, firmId],
+    args: [firmId, canonicalPhone],
   });
 
   if (res.rows.length > 0) {
