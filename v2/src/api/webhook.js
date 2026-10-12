@@ -146,10 +146,10 @@ export async function handleWebhookEvent(c) {
         continue;
       }
 
-      // Tenant-Scoped Contact Lookup
+      // Tenant-Scoped Contact Lookup (firm-wide: staff share firm contacts)
       const contactRes = await db.execute({
-        sql: "SELECT id, name FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-        args: [userId, canonicalPhone]
+        sql: "SELECT id, name FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+        args: [firmId, canonicalPhone]
       });
 
       let contactId = null;
