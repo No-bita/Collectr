@@ -47,11 +47,11 @@ export async function handleGetContacts(c) {
             'due_date', r.due_date
           )
           FROM requests r
-          WHERE r.contact_id = c.id AND r.status NOT IN ('completed', 'cancelled')
+          WHERE r.contact_id = c.id AND r.status NOT IN ('completed', 'closed', 'cancelled')
           ORDER BY r.created_at DESC LIMIT 1
         ) as active_request_json,
         (
-          SELECT COUNT(*) FROM requests r WHERE r.contact_id = c.id AND r.status NOT IN ('completed', 'cancelled')
+          SELECT COUNT(*) FROM requests r WHERE r.contact_id = c.id AND r.status NOT IN ('completed', 'closed', 'cancelled')
         ) as active_requests_count
       FROM contacts c
       LEFT JOIN conversations conv ON conv.contact_id = c.id AND conv.channel = 'whatsapp'
@@ -262,14 +262,15 @@ export async function handleCreateContact(c) {
         // Optional Request Items
         const items = body.requestItems || body.request?.items || [];
         if (Array.isArray(items) && items.length > 0) {
+          let itemPosition = 0;
           for (const itemTitle of items) {
             const itemClean = String(itemTitle).trim();
             if (itemClean) {
               const itemId = "itm_" + crypto.randomUUID();
               await db.execute({
-                sql: `INSERT INTO request_items (id, request_id, title, status, created_at, updated_at)
-                      VALUES (?, ?, ?, 'pending', datetime('now'), datetime('now'))`,
-                args: [itemId, requestId, itemClean],
+                sql: `INSERT INTO request_items (id, request_id, firm_id, title, position, status, created_at, updated_at)
+                      VALUES (?, ?, ?, ?, ?, 'missing', datetime('now'), datetime('now'))`,
+                args: [itemId, requestId, firmId, itemClean, itemPosition++],
               });
             }
           }
@@ -476,7 +477,7 @@ export async function handleGetContactWorkspace(c) {
     const requests = [];
     for (const req of reqRes.rows || []) {
       const itemsRes = await db.execute({
-        sql: "SELECT * FROM request_items WHERE request_id = ? ORDER BY created_at ASC",
+        sql: "SELECT * FROM request_items WHERE request_id = ? ORDER BY position ASC, created_at ASC",
         args: [req.id],
       });
       requests.push({

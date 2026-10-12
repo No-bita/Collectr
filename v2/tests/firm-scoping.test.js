@@ -169,9 +169,9 @@ test("Firm tenancy isolation across requests.js and contact routes", { skip: PRE
     INSERT INTO requests (id, user_id, firm_id, contact_id, title) VALUES
       ('req_a', 'u_owner_a', 'firm_a', 'cnt_a', 'Request A'),
       ('req_b', 'u_owner_b', 'firm_b', 'cnt_b', 'Request B');
-    INSERT INTO request_items (id, request_id, title) VALUES
-      ('itm_a', 'req_a', 'Item A'),
-      ('itm_b', 'req_b', 'Item B');
+    INSERT INTO request_items (id, request_id, firm_id, title) VALUES
+      ('itm_a', 'req_a', 'firm_a', 'Item A'),
+      ('itm_b', 'req_b', 'firm_b', 'Item B');
   `);
 
   const env = { ENVIRONMENT: "production", JWT_SECRET, DB: createD1Shim(db) };
@@ -191,7 +191,7 @@ test("Firm tenancy isolation across requests.js and contact routes", { skip: PRE
     assert.equal(updStatus.status, 404, "PATCH /api/requests/:id/status must 404 cross-firm");
 
     const updItem = await app.request(`${BASE}/api/requests/req_b/items/itm_b`, {
-      method: "PATCH", headers: auth(staffAToken), body: JSON.stringify({ status: "done" }),
+      method: "PATCH", headers: auth(staffAToken), body: JSON.stringify({ status: "waived" }),
     }, env);
     assert.equal(updItem.status, 404, "PATCH /api/requests/:requestId/items/:itemId must 404 cross-firm");
 
@@ -204,7 +204,7 @@ test("Firm tenancy isolation across requests.js and contact routes", { skip: PRE
     const reqB = db.prepare("SELECT status FROM requests WHERE id = 'req_b'").get();
     const itmB = db.prepare("SELECT status FROM request_items WHERE id = 'itm_b'").get();
     assert.equal(reqB.status, "open");
-    assert.equal(itmB.status, "pending");
+    assert.equal(itmB.status, "missing");
   });
 
   await t.test("4. Staff of firm A can use the same routes on firm A records (firm resolution works)", async () => {
@@ -230,10 +230,10 @@ test("Firm tenancy isolation across requests.js and contact routes", { skip: PRE
     assert.equal(addItem.status, 201);
 
     const updItem = await app.request(`${BASE}/api/requests/req_a/items/itm_a`, {
-      method: "PATCH", headers: auth(staffAToken), body: JSON.stringify({ status: "done" }),
+      method: "PATCH", headers: auth(staffAToken), body: JSON.stringify({ status: "waived" }),
     }, env);
     assert.equal(updItem.status, 200);
-    assert.equal(db.prepare("SELECT status FROM request_items WHERE id = 'itm_a'").get().status, "done");
+    assert.equal(db.prepare("SELECT status FROM request_items WHERE id = 'itm_a'").get().status, "waived");
   });
 
   await t.test("5. Contact list and workspace are firm-scoped", async () => {

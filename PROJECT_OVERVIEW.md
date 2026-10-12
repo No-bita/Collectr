@@ -69,6 +69,7 @@ Lekho-Edge/
     ├── migrations/                    # D1 Database Migrations
     │   ├── 0001_personal_crm_schema.sql
     │   ├── 0002_firms_and_memberships.sql
+    │   ├── 0003_request_checklist_model.sql
     │   └── 0004_contacts_firm_phone_unique.sql
     │
     ├── src/                           # Backend Application Code
@@ -134,7 +135,8 @@ Lekho-Edge/
         ├── dom-integration.test.js
         ├── frontend-syntax.test.js
         ├── bulk-import.test.js
-        └── firm-scoping.test.js
+        ├── firm-scoping.test.js
+        └── request-checklist.test.js
 ```
 
 ---
@@ -176,4 +178,4 @@ Run all verification tests without external network dependencies:
 ```bash
 npm --prefix v2 run test:offline
 ```
-All 141 tests execute against local mock adapters and SQLite databases to guarantee zero external latency or API quota consumption during testing.
+All 156 tests execute against local mock adapters and SQLite databases to guarantee zero external latency or API quota consumption during testing.
