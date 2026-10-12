@@ -49,6 +49,7 @@ test('Scheduling UI & Bulk Import Scheduling Architecture Tests', async (t) => {
         const args = typeof query === 'string' ? [] : (query.args || []);
         const norm = sql.replace(/\s+/g, ' ').trim();
 
+        if (norm.startsWith('SELECT firm_id FROM firm_members')) return { rows: [{ firm_id: 'firm_mock' }] };
         if (norm.startsWith('SELECT id, contact_person')) {
           const [userId, phone] = args;
           const c = records.contacts.find(x => x.phone_number === phone && x.user_id === userId);

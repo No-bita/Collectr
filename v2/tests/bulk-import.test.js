@@ -186,6 +186,7 @@ Amit Kumar,9899999999,,whatsapp,`;
           const args = typeof query === 'string' ? [] : (query.args || []);
           const norm = sql.replace(/\s+/g, ' ').trim();
 
+          if (norm.startsWith('SELECT firm_id FROM firm_members')) return { rows: [{ firm_id: 'firm_mock' }] };
           if (norm.startsWith('SELECT id FROM contacts WHERE user_id = ? AND phone_number = ?')) {
             const [user_id, phone_number] = args;
             const c = records.contacts.find(x => x.user_id === user_id && x.phone_number === phone_number);
@@ -209,6 +210,7 @@ Amit Kumar,9899999999,,whatsapp,`;
             const args = typeof s === 'string' ? [] : (s.args || []);
             const norm = sql.replace(/\s+/g, ' ').trim();
 
+          if (norm.startsWith('SELECT firm_id FROM firm_members')) return { rows: [{ firm_id: 'firm_mock' }] };
             if (norm.startsWith('INSERT INTO loan_cases')) {
               const [id, contact_id, user_id, contact_person, phone_number, loan_product, template_name, amount_required, status, whatsapp_delivery_status] = args;
               // Check unique constraint: (user_id, phone_number) where status NOT IN ('closed', 'completed')
@@ -602,6 +604,7 @@ Bad,999`;
         execute: async (query) => {
           const sql = typeof query === 'string' ? query : query.sql;
           if (sql.includes('SELECT id FROM contacts')) return { rows: [] };
+          if (sql.includes('FROM firm_members')) return { rows: [{ firm_id: 'firm_mock' }] };
           if (sql.includes('FROM loan_cases WHERE user_id')) return { rows: [] };
           return { rows: [] };
         },
@@ -661,4 +664,3 @@ Bad,999`;
     });
   });
 });
-

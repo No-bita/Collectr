@@ -1,5 +1,6 @@
 import { sign } from "hono/jwt";
 import { getDbClient } from "../db/client.js";
+import { buildFirmStatements } from "../db/firms.js";
 
 async function hashPassword(password, saltText) {
   const encoder = new TextEncoder();
@@ -45,11 +46,16 @@ export async function handleRegister(c) {
     const hashed = await hashPassword(p, salt);
 
     const id = crypto.randomUUID();
-    
-    await db.execute({
-      sql: "INSERT INTO users (id, username, password_hash, role, credit_balance) VALUES (?, ?, ?, ?, ?)",
-      args: [id, u, hashed, role, 900]
-    });
+
+    // User, owned firm, and owner membership commit atomically: a failure
+    // anywhere rolls back all three, so no account can exist without a firm.
+    await db.batch([
+      {
+        sql: "INSERT INTO users (id, username, password_hash, role, credit_balance) VALUES (?, ?, ?, ?, ?)",
+        args: [id, u, hashed, role, 900]
+      },
+      ...buildFirmStatements(id, u),
+    ]);
 
     // Create authoritative signup_bonus ledger entry
     const txId = "tx_signup_" + crypto.randomUUID();

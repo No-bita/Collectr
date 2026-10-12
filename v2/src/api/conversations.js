@@ -1,4 +1,5 @@
 import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
 import { sendWhatsAppText, sendWhatsAppTemplate } from "../whatsapp/client.js";
 import { getWhatsAppTemplate, renderTemplateBody } from "../whatsapp/templates.js";
 import { isWithin24HourServiceWindow } from "../whatsapp/window.js";
@@ -14,6 +15,10 @@ export async function handleSendContactText(c, passedBody = null) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const contactId = c.req.param("id");
 
   const body = passedBody || (await c.req.json().catch(() => ({})));
@@ -27,8 +32,8 @@ export async function handleSendContactText(c, passedBody = null) {
   try {
     // 1. Fetch Contact & Conversation
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -92,9 +97,9 @@ export async function handleSendContactText(c, passedBody = null) {
 
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'outreach_sent', 'Text Message Sent', ?, ?, datetime('now'))`,
-      args: [actId, userId, contactId, requestId, text, JSON.stringify({ provider_message_id: providerMsgId, channel: 'whatsapp' })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'outreach_sent', 'Text Message Sent', ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, contactId, requestId, text, JSON.stringify({ provider_message_id: providerMsgId, channel: 'whatsapp' }), firmId],
     });
 
     return c.json({
@@ -121,6 +126,10 @@ export async function handleSendContactTemplate(c, passedBody = null) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const contactId = c.req.param("id");
 
   const body = passedBody || (await c.req.json().catch(() => ({})));
@@ -131,8 +140,8 @@ export async function handleSendContactTemplate(c, passedBody = null) {
   try {
     // 1. Fetch Contact & Conversation
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -253,9 +262,9 @@ export async function handleSendContactTemplate(c, passedBody = null) {
 
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'outreach_sent', 'Template Message Dispatched', ?, ?, datetime('now'))`,
-      args: [actId, userId, contactId, requestId, renderedBody, JSON.stringify({ template: templateIdentifier, provider_message_id: providerMsgId })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'outreach_sent', 'Template Message Dispatched', ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, contactId, requestId, renderedBody, JSON.stringify({ template: templateIdentifier, provider_message_id: providerMsgId }), firmId],
     });
 
     return c.json({
@@ -283,6 +292,10 @@ export async function handleSendContactEmail(c, passedBody = null) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const contactId = c.req.param("id");
 
   const body = passedBody || (await c.req.json().catch(() => ({})));
@@ -293,8 +306,8 @@ export async function handleSendContactEmail(c, passedBody = null) {
 
   try {
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -361,9 +374,9 @@ export async function handleSendContactEmail(c, passedBody = null) {
 
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'outreach_sent', 'Email Outreach Sent', ?, ?, datetime('now'))`,
-      args: [actId, userId, contactId, requestId, emailRes.subject || "Email dispatched", JSON.stringify({ provider_message_id: emailRes.providerMsgId, channel: 'email' })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'outreach_sent', 'Email Outreach Sent', ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, contactId, requestId, emailRes.subject || "Email dispatched", JSON.stringify({ provider_message_id: emailRes.providerMsgId, channel: 'email' }), firmId],
     });
 
     return c.json({
