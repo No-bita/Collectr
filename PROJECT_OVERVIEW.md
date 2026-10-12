@@ -67,15 +67,17 @@ Lekho-Edge/
     ├── wrangler.toml                  # Cloudflare Worker bindings
     │
     ├── migrations/                    # D1 Database Migrations
-    │   └── 0001_personal_crm_schema.sql
+    │   ├── 0001_personal_crm_schema.sql
+    │   ├── 0002_firms_and_memberships.sql
+    │   └── 0004_contacts_firm_phone_unique.sql
     │
     ├── src/                           # Backend Application Code
     │   ├── index.js                   # Worker entrypoint, router dispatcher & scheduled/queue handlers
     │   ├── middleware/
-    │   │   ├── auth.js                # JWT session verification & role enforcement
+    │   │   ├── auth.js                # JWT session verification, firm resolution & role enforcement
     │   │   └── cors.js                # CORS headers & preflight handler
     │   ├── api/                       # REST API controllers
-    │   │   ├── auth.js                # User authentication & registration
+    │   │   ├── auth.js                # User authentication, registration & firm creation
     │   │   ├── contacts.js            # Contact CRUD, attention filters, and workspace loader
     │   │   ├── conversations.js       # Outbound text & template dispatch controllers
     │   │   ├── requests.js            # Generic request lifecycle & checklist items
@@ -103,6 +105,7 @@ Lekho-Edge/
     │   │   └── consumer.js            # Queue consumer with channel routing & JIT credit validation
     │   └── db/
     │       ├── client.js              # D1 client wrapper & compatibility driver
+    │       ├── firms.js               # Firm tenancy & membership resolution helpers
     │       └── schema.sql             # Canonical Personal CRM database schema
     │
     ├── public/                        # Frontend Web Applications
@@ -129,7 +132,8 @@ Lekho-Edge/
         ├── magic-link.test.js
         ├── dom-integration.test.js
         ├── frontend-syntax.test.js
-        └── bulk-import.test.js
+        ├── bulk-import.test.js
+        └── firm-scoping.test.js
 ```
 
 ---
@@ -138,15 +142,17 @@ Lekho-Edge/
 
 ### Core Relational Hierarchy
 ```text
-users
-  └── contacts (UNIQUE per user_id, phone_number)
-       ├── conversations (1 per contact per channel)
-       │    └── messages (2-way conversation history & delivery status)
-       ├── requests (Action items & tasks)
-       │    └── request_items (Checklist items)
-       ├── schedules (Automated recurring or one-off reminders)
-       │    └── scheduled_occurrences (Claimed & processed by Cloudflare Queue)
-       └── activities (Consolidated audit trail & internal notes)
+firms
+  ├── firm_members (UNIQUE per firm_id, user_id)
+  │     └── users
+  ├── contacts (UNIQUE per firm_id, phone_number; firm tenancy boundary)
+  │     ├── conversations (1 per contact per channel)
+  │     │    └── messages (2-way conversation history & delivery status)
+  │     ├── requests (Action items & tasks; scoped by firm_id)
+  │     │    └── request_items (Checklist items)
+  │     ├── schedules (Automated recurring or one-off reminders)
+  │     │    └── scheduled_occurrences (Claimed & processed by Cloudflare Queue)
+  │     └── activities (Consolidated audit trail & internal notes; scoped by firm_id)
 
 Supporting Ledgers:
 - message_templates: Registry of WhatsApp & Email templates
@@ -169,4 +175,4 @@ Run all verification tests without external network dependencies:
 ```bash
 npm --prefix v2 run test:offline
 ```
-All 133 tests execute against local mock adapters and SQLite databases to guarantee zero external latency or API quota consumption during testing.
+All 141 tests execute against local mock adapters and SQLite databases to guarantee zero external latency or API quota consumption during testing.

@@ -13,6 +13,7 @@ export async function handleGetContacts(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
 
   const search = (c.req.query("search") || "").trim().toLowerCase();
   const filter = (c.req.query("filter") || "all").trim().toLowerCase();
@@ -54,10 +55,10 @@ export async function handleGetContacts(c) {
         ) as active_requests_count
       FROM contacts c
       LEFT JOIN conversations conv ON conv.contact_id = c.id AND conv.channel = 'whatsapp'
-      WHERE c.user_id = ?
+      WHERE c.firm_id = ?
     `;
 
-    const args = [userId];
+    const args = [firmId];
 
     if (search) {
       sql += ` AND (LOWER(c.name) LIKE ? OR c.phone_number LIKE ? OR LOWER(COALESCE(c.email, '')) LIKE ? OR LOWER(COALESCE(c.company, '')) LIKE ?)`;
@@ -180,6 +181,10 @@ export async function handleCreateContact(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
 
   const body = await c.req.json().catch(() => ({}));
   const rawName = String(body.name || body.contactPerson || "").trim();
@@ -199,10 +204,10 @@ export async function handleCreateContact(c) {
     return c.json({ error: err.message }, 400);
   }
 
-  // Check unique contact for user
+  // Check unique contact for the firm
   const existing = await db.execute({
-    sql: "SELECT id, name FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-    args: [userId, canonicalPhone],
+    sql: "SELECT id, name FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+    args: [firmId, canonicalPhone],
   });
 
   if (existing.rows.length > 0) {
@@ -218,9 +223,9 @@ export async function handleCreateContact(c) {
   try {
     // 1. Insert Contact
     await db.execute({
-      sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, company, notes, created_at, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      args: [contactId, userId, rawName, canonicalPhone, email, company, notes],
+      sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, company, notes, created_at, last_updated, firm_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+      args: [contactId, userId, rawName, canonicalPhone, email, company, notes, firmId],
     });
 
     // 2. Create Initial Conversation
@@ -234,9 +239,9 @@ export async function handleCreateContact(c) {
     // 3. Log Activity
     const activityId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, NULL, 'contact_created', 'Target Created', NULL, ?, datetime('now'))`,
-      args: [activityId, userId, contactId, JSON.stringify({ name: rawName })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, NULL, 'contact_created', 'Target Created', NULL, ?, datetime('now'), ?)`,
+      args: [activityId, userId, contactId, JSON.stringify({ name: rawName }), firmId],
     });
 
     // 4. Optional Initial Request Creation
@@ -249,9 +254,9 @@ export async function handleCreateContact(c) {
         const rDueDate = body.dueDate || body.request?.dueDate || null;
 
         await db.execute({
-          sql: `INSERT INTO requests (id, user_id, contact_id, title, description, status, due_date, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 'open', ?, datetime('now'), datetime('now'))`,
-          args: [requestId, userId, contactId, rTitle, rDesc, rDueDate],
+          sql: `INSERT INTO requests (id, user_id, contact_id, title, description, status, due_date, created_at, updated_at, firm_id)
+                VALUES (?, ?, ?, ?, ?, 'open', ?, datetime('now'), datetime('now'), ?)`,
+          args: [requestId, userId, contactId, rTitle, rDesc, rDueDate, firmId],
         });
 
         // Optional Request Items
@@ -395,6 +400,11 @@ export async function handleCreateContact(c) {
     }, 201);
   } catch (err) {
     console.error("handleCreateContact error:", err);
+    // Concurrent staff inserts race past the app-level check: the
+    // (firm_id, phone_number) unique index decides, loser gets 409.
+    if (String(err?.message || "").includes("UNIQUE constraint failed")) {
+      return c.json({ error: "A contact with this phone number already exists." }, 409);
+    }
     return c.json({ error: "Failed to create contact", details: err.message }, 500);
   }
 }
@@ -407,13 +417,14 @@ export async function handleGetContactWorkspace(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
   const contactId = c.req.param("id");
 
   try {
-    // 1. Fetch Contact
+    // 1. Fetch Contact (firm-owned)
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -458,8 +469,8 @@ export async function handleGetContactWorkspace(c) {
 
     // 3. Fetch Requests and their Items
     const reqRes = await db.execute({
-      sql: "SELECT * FROM requests WHERE contact_id = ? AND user_id = ? ORDER BY created_at DESC",
-      args: [contactId, userId],
+      sql: "SELECT * FROM requests WHERE contact_id = ? AND firm_id = ? ORDER BY created_at DESC",
+      args: [contactId, firmId],
     });
 
     const requests = [];
@@ -476,8 +487,8 @@ export async function handleGetContactWorkspace(c) {
 
     // 4. Fetch Activities
     const actRes = await db.execute({
-      sql: "SELECT * FROM activities WHERE contact_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 50",
-      args: [contactId, userId],
+      sql: "SELECT * FROM activities WHERE contact_id = ? AND firm_id = ? ORDER BY created_at DESC LIMIT 50",
+      args: [contactId, firmId],
     });
 
     // 5. Compute 24-hour customer window status
@@ -519,6 +530,7 @@ export async function handleUpdateContact(c) {
   const user = c.get("user");
   const userId = user.id;
   const contactId = c.req.param("id");
+  const firmId = c.get("firmId");
 
   const body = await c.req.json().catch(() => ({}));
   const name = body.name ? String(body.name).trim() : undefined;
@@ -528,8 +540,8 @@ export async function handleUpdateContact(c) {
 
   try {
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -554,8 +566,8 @@ export async function handleUpdateContact(c) {
     const updatedNotes = notes !== undefined ? notes : current.notes;
 
     await db.execute({
-      sql: `UPDATE contacts SET name = ?, email = ?, company = ?, notes = ?, last_updated = datetime('now') WHERE id = ? AND user_id = ?`,
-      args: [updatedName, updatedEmail, updatedCompany, updatedNotes, contactId, userId],
+      sql: `UPDATE contacts SET name = ?, email = ?, company = ?, notes = ?, last_updated = datetime('now') WHERE id = ? AND firm_id = ?`,
+      args: [updatedName, updatedEmail, updatedCompany, updatedNotes, contactId, firmId],
     });
 
     return c.json({ success: true, message: "Contact updated successfully" });
@@ -573,12 +585,13 @@ export async function handleDeleteContact(c) {
   const db = getDbClient(c.env);
   const user = c.get("user");
   const userId = user.id;
+  const firmId = c.get("firmId");
   const contactId = c.req.param("id");
 
   try {
     const res = await db.execute({
-      sql: "DELETE FROM contacts WHERE id = ? AND user_id = ?",
-      args: [contactId, userId],
+      sql: "DELETE FROM contacts WHERE id = ? AND firm_id = ?",
+      args: [contactId, firmId],
     });
 
     if (res.rowsAffected === 0) {
@@ -611,9 +624,10 @@ export async function handleCheckContactPhone(c) {
     return c.json({ error: err.message }, 400);
   }
 
+  const firmId = c.get("firmId");
   const res = await db.execute({
-    sql: "SELECT id, name, phone_number, email FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-    args: [userId, canonicalPhone],
+    sql: "SELECT id, name, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+    args: [firmId, canonicalPhone],
   });
 
   if (res.rows.length > 0) {

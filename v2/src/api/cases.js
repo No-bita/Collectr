@@ -1,4 +1,5 @@
 import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
 import { getWhatsAppTemplate, renderTemplateBody } from "../whatsapp/templates.js";
 import { sendWhatsAppTemplate as clientSendWhatsAppTemplate, sendWhatsAppText, normalizeIndianPhoneNumber } from "../whatsapp/client.js";
 import { getCustomerReplyWindowStatus } from "../whatsapp/window.js";
@@ -9,13 +10,19 @@ import { executeWhatsAppMessagingPipeline } from "../whatsapp/pipeline.js";
 export { executeWhatsAppMessagingPipeline, executeEmailMessagingPipeline, sendWhatsAppText, getCustomerReplyWindowStatus };
 
 export async function ensureContact(db, userId, canonicalPhone, contactPerson, email = null) {
+  // Firm-wide phone dedupe: resolve the firm first, then search by firm so a
+  // coworker's contact is reused instead of duplicated within the firm.
+  const firmId = await getFirmIdForUser(db, userId);
+  if (!firmId) {
+    throw new Error("NO_FIRM_MEMBERSHIP: refusing to create a contact without firm ownership");
+  }
   const existingRes = await db.execute({
-    sql: "SELECT id, contact_person, phone_number, email FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-    args: [userId, canonicalPhone]
+    sql: "SELECT id, contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+    args: [firmId, canonicalPhone]
   }).catch(async () => {
     return db.execute({
-      sql: "SELECT id, name as contact_person, phone_number, email FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-      args: [userId, canonicalPhone]
+      sql: "SELECT id, name as contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+      args: [firmId, canonicalPhone]
     });
   });
 
@@ -36,17 +43,41 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson, e
   }
 
   const contactId = "cnt_" + crypto.randomUUID();
-  await db.execute({
-    sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated)
-          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-    args: [contactId, userId, contactPerson, canonicalPhone, email]
-  }).catch(async () => {
-    return db.execute({
-      sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      args: [contactId, userId, contactPerson, canonicalPhone, email]
+  try {
+    await db.execute({
+      sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated, firm_id)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+      args: [contactId, userId, contactPerson, canonicalPhone, email, firmId]
+    }).catch(async () => {
+      return db.execute({
+        sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
+              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+        args: [contactId, userId, contactPerson, canonicalPhone, email, firmId]
+      });
     });
-  });
+  } catch (err) {
+    if (String(err?.message || "").includes("UNIQUE constraint failed")) {
+      const reselect = await db.execute({
+        sql: "SELECT id, contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+        args: [firmId, canonicalPhone]
+      }).catch(async () => {
+        return db.execute({
+          sql: "SELECT id, name as contact_person, phone_number, email FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+          args: [firmId, canonicalPhone]
+        });
+      });
+      if (reselect.rows && reselect.rows.length > 0) {
+        const existing = reselect.rows[0];
+        return {
+          id: existing.id,
+          contactPerson: existing.contact_person || existing.name || contactPerson,
+          phoneNumber: existing.phone_number,
+          email: existing.email || email || null
+        };
+      }
+    }
+    throw err;
+  }
 
   return {
     id: contactId,
@@ -133,6 +164,10 @@ export async function handleBulkImportCases(c) {
   const db = getDbClient(env);
   const user = c.get("user");
   const userId = user ? (user.id || user.sub || null) : null;
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
   const sendWhatsApp = body.sendWhatsApp !== false;
   const templateName = body.templateName || env?.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
   const defaultProduct = body.defaultLoanProduct || "Direct Intake";
@@ -236,9 +271,9 @@ export async function handleBulkImportCases(c) {
       });
 
       rowStatements.push({
-        sql: `INSERT INTO activities (id, user_id, contact_id, activity_type, title, description, created_at)
-              VALUES (?, ?, ?, 'contact_created', 'Target Created', ?, datetime('now'))`,
-        args: [crypto.randomUUID(), userId, contact.id, `Target imported: ${contact.contactPerson}`]
+        sql: `INSERT INTO activities (id, user_id, contact_id, activity_type, title, description, created_at, firm_id)
+              VALUES (?, ?, ?, 'contact_created', 'Target Created', ?, datetime('now'), ?)`,
+        args: [crypto.randomUUID(), userId, contact.id, `Target imported: ${contact.contactPerson}`, firmId]
       });
 
       const occExecutionUtc = (isScheduled && scheduledForUtc) ? scheduledForUtc : toSqliteUtc(new Date());
@@ -472,6 +507,11 @@ export async function handleCreateCase(c) {
   const templateName = body.templateName || "new_convo_1";
   const templateParams = body.templateParams || [];
   const isScheduled = !!(body.schedule && body.schedule.scheduledFor);
+
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
 
   const contact = await ensureContact(db, userId, canonicalPhone, contactPerson, email);
   const caseId = crypto.randomUUID();

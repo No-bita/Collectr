@@ -31,6 +31,7 @@ function createInMemoryDb() {
       const args = typeof query === "string" ? [] : (query.args || []);
       const normSql = sql.replace(/\s+/g, " ").trim();
 
+      if (normSql.startsWith("SELECT firm_id FROM firm_members")) return { rows: [{ firm_id: "firm_mock" }] };
       // INSERT INTO schedules
       if (normSql.startsWith("INSERT INTO schedules")) {
         const [id, user_id, case_id, contact_id, phone_number, template_name, template_params, schedule_type, recurrence_interval, timezone, status, next_run_utc] = args;

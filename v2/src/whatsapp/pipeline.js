@@ -6,6 +6,7 @@
 import { sendWhatsAppTemplate, sendWhatsAppText } from "./client.js";
 import { getWhatsAppTemplate, renderTemplateBody } from "./templates.js";
 import { isWithin24HourServiceWindow } from "./window.js";
+import { getFirmIdForUser } from "../db/firms.js";
 
 export const MESSAGE_COST_PAISE = 90;
 
@@ -43,6 +44,12 @@ export async function executeWhatsAppMessagingPipeline(optionsOrDb, maybeUser, m
   }
 
   const userId = user?.id || user?.sub || '';
+  const firmId = await getFirmIdForUser(db, userId);
+  if (!firmId) {
+    // No firm membership: fail before any credit check, dispatch, or write,
+    // so the firm_id NOT NULL inserts cannot throw after side effects.
+    return { success: false, error: "NO_FIRM_MEMBERSHIP" };
+  }
   const contactId = contact?.id;
   const canonicalPhone = contact?.phone_number || contact?.phoneNumber;
 
@@ -257,17 +264,9 @@ export async function executeWhatsAppMessagingPipeline(optionsOrDb, maybeUser, m
 
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'outreach_sent', ?, ?, ?, datetime('now'))`,
-      args: [
-        actId,
-        userId,
-        contactId,
-        requestId,
-        isFreeform ? "Text Message Sent" : "Template Message Dispatched",
-        content,
-        JSON.stringify({ provider_message_id: providerMsgId, channel: "whatsapp" }),
-      ],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'outreach_sent', ?, ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, contactId, requestId, isFreeform ? "Text Message Sent" : "Template Message Dispatched", content, JSON.stringify({ provider_message_id: providerMsgId, channel: "whatsapp" }), firmId],
     });
 
     return {
