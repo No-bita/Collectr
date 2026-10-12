@@ -32,8 +32,8 @@ export async function handleSendContactText(c, passedBody = null) {
   try {
     // 1. Fetch Contact & Conversation
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -140,8 +140,8 @@ export async function handleSendContactTemplate(c, passedBody = null) {
   try {
     // 1. Fetch Contact & Conversation
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
@@ -306,8 +306,8 @@ export async function handleSendContactEmail(c, passedBody = null) {
 
   try {
     const contactRes = await db.execute({
-      sql: "SELECT * FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [contactId, userId],
+      sql: "SELECT * FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [contactId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
