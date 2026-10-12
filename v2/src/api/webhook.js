@@ -1,4 +1,5 @@
 import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
 import { normalizeIndianPhoneNumber } from "../whatsapp/client.js";
 import { verifyWebhookSubscription, parseWebhookPayload } from "../whatsapp/webhook.js";
 
@@ -139,6 +140,8 @@ export async function handleWebhookEvent(c) {
         continue;
       }
 
+      const firmId = await getFirmIdForUser(db, userId);
+
       // Tenant-Scoped Contact Lookup
       const contactRes = await db.execute({
         sql: "SELECT id, name FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
@@ -156,8 +159,8 @@ export async function handleWebhookEvent(c) {
         contactId = "cnt_" + crypto.randomUUID();
         contactName = msg.profileName || `Contact ${canonicalPhone.slice(-4)}`;
         await db.execute({
-          sql: "INSERT INTO contacts (id, user_id, name, phone_number, last_inbound_at, last_interaction_at, created_at, last_updated) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'))",
-          args: [contactId, userId, contactName, canonicalPhone]
+          sql: "INSERT INTO contacts (id, user_id, name, phone_number, last_inbound_at, last_interaction_at, created_at, last_updated, firm_id) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), datetime('now'), ?)",
+          args: [contactId, userId, contactName, canonicalPhone, firmId]
         });
       }
 
@@ -194,15 +197,9 @@ export async function handleWebhookEvent(c) {
       // Log Business Activity Event
       const activityId = "act_" + crypto.randomUUID();
       await db.execute({
-        sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-              VALUES (?, ?, ?, NULL, 'contact_replied', 'WhatsApp Reply Received', ?, ?, datetime('now'))`,
-        args: [
-          activityId,
-          userId,
-          contactId,
-          clientText,
-          JSON.stringify({ channel: "whatsapp", from: canonicalPhone, provider_message_id: providerMsgId })
-        ]
+        sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+              VALUES (?, ?, ?, NULL, 'contact_replied', 'WhatsApp Reply Received', ?, ?, datetime('now'), ?)`,
+        args: [activityId, userId, contactId, clientText, JSON.stringify({ channel: "whatsapp", from: canonicalPhone, provider_message_id: providerMsgId }), firmId]
       });
 
       // Update Contact Timestamps
