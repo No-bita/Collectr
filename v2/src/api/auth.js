@@ -1,5 +1,6 @@
 import { sign } from "hono/jwt";
 import { getDbClient } from "../db/client.js";
+import { createFirmForUser } from "../db/firms.js";
 
 async function hashPassword(password, saltText) {
   const encoder = new TextEncoder();
@@ -50,6 +51,9 @@ export async function handleRegister(c) {
       sql: "INSERT INTO users (id, username, password_hash, role, credit_balance) VALUES (?, ?, ?, ?, ?)",
       args: [id, u, hashed, role, 900]
     });
+
+    // Every user owns a firm so all private records carry firm ownership.
+    await createFirmForUser(db, id, u);
 
     // Create authoritative signup_bonus ledger entry
     const txId = "tx_signup_" + crypto.randomUUID();
