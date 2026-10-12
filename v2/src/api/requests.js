@@ -1,4 +1,6 @@
 import { getDbClient } from "../db/client.js";
+import { StateConflict } from "../domain/states.js";
+import { NotFoundError, closeRequest, transitionItem } from "../db/request-state.js";
 
 const VALID_REQUEST_STATUSES = [
   "draft",
@@ -234,6 +236,13 @@ export async function handleUpdateRequestStatus(c) {
     }
 
     const currentReq = reqRes.rows[0];
+    if (targetStatus === "closed") {
+      const closed = await closeRequest(db, requestId, { firmId, userId });
+      return c.json({
+        success: true,
+        request: { id: requestId, status: closed.status, completedAt: closed.completedAt },
+      });
+    }
     const completedAt = targetStatus === "completed" ? new Date().toISOString() : null;
 
     await db.execute({
@@ -269,6 +278,7 @@ export async function handleUpdateRequestStatus(c) {
       },
     });
   } catch (err) {
+    if (err instanceof StateConflict || err instanceof NotFoundError) return c.json(err.toJSON(), err.status);
     console.error("handleUpdateRequestStatus error:", err);
     return c.json({ error: "Failed to update request status", details: err.message }, 500);
   }
@@ -326,22 +336,31 @@ export async function handleUpdateRequestItem(c) {
       return c.json({ error: `Items cannot be edited on a ${currentReq.status} request.` }, 409);
     }
 
-    const columns = Object.keys(fields);
-    const res = await db.execute({
-      sql: `UPDATE request_items SET ${columns.map((col) => `${col} = ?`).join(", ")}, updated_at = datetime('now') WHERE id = ? AND request_id = ?`,
-      args: [...columns.map((col) => fields[col]), itemId, requestId],
-    });
-
-    if (res.rowsAffected === 0 || res.changes === 0) {
-      return c.json({ error: "Request item not found." }, 404);
+    // Status changes go through the state module (legality check, compare-and-set, event row).
+    const { status: nextStatus, ...editFields } = fields;
+    if (nextStatus !== undefined) {
+      await transitionItem(db, itemId, nextStatus, { type: "staff", userId }, body.reason, { firmId, requestId });
     }
+
+    const columns = Object.keys(editFields);
+    if (columns.length > 0) {
+      const res = await db.execute({
+        sql: `UPDATE request_items SET ${columns.map((col) => `${col} = ?`).join(", ")}, updated_at = datetime('now') WHERE id = ? AND request_id = ? AND firm_id = ?`,
+        args: [...columns.map((col) => editFields[col]), itemId, requestId, firmId],
+      });
+
+      if (res.rowsAffected === 0 || res.changes === 0) {
+        return c.json({ error: "Request item not found." }, 404);
+      }
+    }
+    const changedColumns = nextStatus === undefined ? columns : [...columns, "status"];
 
     // Log Activity
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
       sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
             VALUES (?, ?, ?, ?, 'request_item_done', 'Item Updated', ?, ?, datetime('now'), ?)`,
-      args: [actId, userId, currentReq.contact_id, requestId, `Item updated (${columns.join(", ")})`, JSON.stringify({ itemId, changes: fields }), firmId],
+      args: [actId, userId, currentReq.contact_id, requestId, `Item updated (${changedColumns.join(", ")})`, JSON.stringify({ itemId, changes: fields }), firmId],
     });
 
     const itemRes = await db.execute({
@@ -351,6 +370,7 @@ export async function handleUpdateRequestItem(c) {
 
     return c.json({ success: true, itemId, item: shapeItem(itemRes.rows[0]) });
   } catch (err) {
+    if (err instanceof StateConflict || err instanceof NotFoundError) return c.json(err.toJSON(), err.status);
     console.error("handleUpdateRequestItem error:", err);
     return c.json({ error: "Failed to update request item", details: err.message }, 500);
   }
