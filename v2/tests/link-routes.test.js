@@ -37,11 +37,12 @@ function fixture() {
     },
   };
   const env = { DB: db, JWT_SECRET: SECRET, ENVIRONMENT: "production" };
-  async function call(path, { method = "GET", user = "u1", body, headers = {} } = {}) {
+  async function call(path, { method = "GET", user = "u1", body, rawBody, duplex, headers = {} } = {}) {
     if (user) headers = { ...headers, Authorization: `Bearer ${await sign({ id: user, exp: Math.floor(Date.now() / 1000) + 3600 }, SECRET)}` };
     const res = await app.request(`https://collectr.example.test${path}`, {
       method, headers: { "Content-Type": "application/json", ...headers },
-      ...(body !== undefined ? { body: typeof body === "string" ? body : JSON.stringify(body) } : {}),
+      ...(rawBody !== undefined ? { body: rawBody, ...(duplex ? { duplex } : {}) }
+        : body !== undefined ? { body: typeof body === "string" ? body : JSON.stringify(body) } : {}),
     }, env);
     return { status: res.status, headers: res.headers, body: await res.json() };
   }
@@ -184,3 +185,21 @@ test("session upload counts exclude rejected/superseded and scope firm, request 
     assert.equal(failed.status, 500); assert.deepEqual(failed.body, { error: "session_unavailable" });
   } finally { f.raw.close(); }
 });
+
+test("link routes: request body stream read failure returns 500 and creates no link", { skip: SKIP }, async () => {
+  const f = fixture();
+  try {
+    const id = await f.request();
+    const errorStream = new ReadableStream({
+      start(controller) {
+        controller.error(new Error("Simulated stream read failure"));
+      },
+    });
+    const before = f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n;
+    const res = await f.call(STAFF_PATH(id), { method: "POST", rawBody: errorStream, duplex: "half" });
+    assert.equal(res.status, 500);
+    assert.deepEqual(res.body, { error: "Failed to issue client link." });
+    assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n, before);
+  } finally { f.raw.close(); }
+});
+

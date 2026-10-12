@@ -41,8 +41,8 @@ async function issueLink(c, regenerate) {
     const scope = await staffRequest(c, db);
     if (scope.response) return scope.response;
     if (scope.request.status !== "open") return c.json({ error: "request_closed" }, 409);
+    const text = await c.req.text();
     let body = {};
-    const text = await c.req.text().catch(() => "");
     if (text && text.trim()) {
       try { body = JSON.parse(text); } catch { return c.json({ error: "A JSON object is required." }, 400); }
     }
