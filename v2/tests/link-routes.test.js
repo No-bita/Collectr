@@ -10,6 +10,10 @@ try { ({ DatabaseSync } = await import("node:sqlite")); } catch { /* Node 20 */ 
 const SKIP = DatabaseSync ? false : "node:sqlite requires Node 22.5+";
 const SECRET = "test-only-firm-links-secret";
 
+/**
+ * Create an isolated, migrated SQLite database with two firms and route helpers.
+ * @returns {object} Database handles and helpers; callers must close `raw` after use.
+ */
 function fixture() {
   const raw = new DatabaseSync(":memory:");
   const dir = fileURLToPath(new URL("../migrations/", import.meta.url));
@@ -37,11 +41,24 @@ function fixture() {
     },
   };
   const env = { DB: db, JWT_SECRET: SECRET, ENVIRONMENT: "production" };
-  async function call(path, { method = "GET", user = "u1", body, headers = {} } = {}) {
+  /**
+   * Send an in-process app request using this fixture's database and optional JWT.
+   * @param {string} path - Application route path.
+   * @param {object} [options={}] - Request options.
+   * @param {string} [options.method="GET"] - HTTP method.
+   * @param {string|null} [options.user="u1"] - JWT user ID; null omits generated authentication.
+   * @param {*} [options.body] - JSON-serialized value, or a string sent verbatim.
+   * @param {BodyInit} [options.rawBody] - Unserialized body; takes precedence over `body`.
+   * @param {string} [options.duplex] - Fetch duplex mode for streaming raw bodies.
+   * @param {object} [options.headers={}] - Additional request headers.
+   * @returns {Promise<object>} Response status, headers, and parsed JSON body.
+   */
+  async function call(path, { method = "GET", user = "u1", body, rawBody, duplex, headers = {} } = {}) {
     if (user) headers = { ...headers, Authorization: `Bearer ${await sign({ id: user, exp: Math.floor(Date.now() / 1000) + 3600 }, SECRET)}` };
     const res = await app.request(`https://collectr.example.test${path}`, {
       method, headers: { "Content-Type": "application/json", ...headers },
-      ...(body !== undefined ? { body: typeof body === "string" ? body : JSON.stringify(body) } : {}),
+      ...(rawBody !== undefined ? { body: rawBody, ...(duplex ? { duplex } : {}) }
+        : body !== undefined ? { body: typeof body === "string" ? body : JSON.stringify(body) } : {}),
     }, env);
     return { status: res.status, headers: res.headers, body: await res.json() };
   }
@@ -94,10 +111,12 @@ test("link routes: revoke, regenerate, expired, unknown and closed stable failur
   const f = fixture();
   try {
     const id = await f.request();
+    const start = Date.now();
     const a = await f.call(STAFF_PATH(id), { method: "POST", body: {} });
     const b = await f.call(STAFF_PATH(id), { method: "POST", body: {} });
     const regenerated = await f.call(`${STAFF_PATH(id)}/regenerate`, { method: "POST", body: {} });
     assert.equal(regenerated.status, 201); assert.equal(regenerated.body.revokedCount, 2);
+    assert.ok(Date.parse(regenerated.body.link.expires_at) >= start + 14 * 86400000);
     for (const old of [a, b]) { const r = await f.call(SESSION(old.body.token), { user: null }); assert.equal(r.status, 410); assert.deepEqual(r.body, { error: "revoked" }); privateHeaders(r); }
     const token = regenerated.body.token;
     assert.equal((await f.call(SESSION(token), { user: null })).status, 200);
@@ -141,6 +160,7 @@ test("link routes: due date + 7 days, default 14 days and explicit expiry valida
     assert.ok(Date.parse(res.body.link.expires_at) >= start + 14 * 86400000);
     f.raw.prepare("UPDATE requests SET due_date='2099-03-01' WHERE id=?").run(id);
     res = await f.call(STAFF_PATH(id), { method: "POST", body: {} }); assert.equal(res.body.link.expires_at, "2099-03-08T00:00:00.000Z");
+    const noBody = await f.call(STAFF_PATH(id), { method: "POST" }); assert.equal(noBody.status, 201); assert.equal(noBody.body.link.expires_at, "2099-03-08T00:00:00.000Z");
     res = await f.call(STAFF_PATH(id), { method: "POST", body: { expiresAt: "2099-04-01T09:00:00+05:30" } }); assert.equal(res.body.link.expires_at, "2099-04-01T03:30:00.000Z");
     const before = f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n;
     for (const body of ["not json", [], null, { expiresAt: "bad" }, { expiresAt: 123 }, { expiresAt: null }, { expiresAt: "2020-01-01T00:00:00Z" }, { expiresAt: "2099-01-01" }]) {
@@ -148,6 +168,12 @@ test("link routes: due date + 7 days, default 14 days and explicit expiry valida
     }
     assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n, before);
     assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links WHERE revoked_at IS NOT NULL").get().n, 0);
+    const noBodyRegen = await f.call(`${STAFF_PATH(id)}/regenerate`, { method: "POST" }); assert.equal(noBodyRegen.status, 201);
+    assert.equal(noBodyRegen.body.link.expires_at, "2099-03-08T00:00:00.000Z");
+    f.raw.prepare("UPDATE requests SET due_date=NULL WHERE id=?").run(id);
+    const noDueRegen = await f.call(`${STAFF_PATH(id)}/regenerate`, { method: "POST" });
+    assert.equal(noDueRegen.status, 201);
+    assert.ok(Date.parse(noDueRegen.body.link.expires_at) >= start + 14 * 86400000);
   } finally { f.raw.close(); }
 });
 
@@ -182,3 +208,25 @@ test("session upload counts exclude rejected/superseded and scope firm, request 
     assert.equal(failed.status, 500); assert.deepEqual(failed.body, { error: "session_unavailable" });
   } finally { f.raw.close(); }
 });
+
+test("link routes: request body stream read failure returns 500 and creates no link", { skip: SKIP }, async () => {
+  const f = fixture();
+  try {
+    const id = await f.request();
+    const errorStream = new ReadableStream({
+      /**
+       * Fail the stream immediately to exercise request-body read error handling.
+       * @param {ReadableStreamDefaultController} controller - Controller to put in the errored state.
+       */
+      start(controller) {
+        controller.error(new Error("Simulated stream read failure"));
+      },
+    });
+    const before = f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n;
+    const res = await f.call(STAFF_PATH(id), { method: "POST", rawBody: errorStream, duplex: "half" });
+    assert.equal(res.status, 500);
+    assert.deepEqual(res.body, { error: "Failed to issue client link." });
+    assert.equal(f.raw.prepare("SELECT COUNT(*) AS n FROM client_links").get().n, before);
+  } finally { f.raw.close(); }
+});
+

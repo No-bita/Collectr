@@ -34,6 +34,15 @@ function publicLink(row, requestStatus, now = Date.now()) {
   };
 }
 
+/**
+ * Issue a client link for an open request in the staff member's firm.
+ * Empty bodies use the default expiry: due date plus 7 days, or 14 days from now.
+ * Nonempty bodies must be JSON objects; supplied expiry timestamps must be future dates.
+ *
+ * @param {import("hono").Context} c - Authenticated request context.
+ * @param {boolean} regenerate - Whether to revoke existing links when issuing the new one.
+ * @returns {Promise<Response>} The created link and token, or a JSON error response.
+ */
 async function issueLink(c, regenerate) {
   privateResponse(c);
   try {
@@ -41,8 +50,11 @@ async function issueLink(c, regenerate) {
     const scope = await staffRequest(c, db);
     if (scope.response) return scope.response;
     if (scope.request.status !== "open") return c.json({ error: "request_closed" }, 409);
-    let body;
-    try { body = await c.req.json(); } catch { return c.json({ error: "A JSON object is required." }, 400); }
+    const text = await c.req.text();
+    let body = {};
+    if (text && text.trim()) {
+      try { body = JSON.parse(text); } catch { return c.json({ error: "A JSON object is required." }, 400); }
+    }
     if (!body || typeof body !== "object" || Array.isArray(body)) return c.json({ error: "A JSON object is required." }, 400);
     const now = Date.now();
     const supplied = Object.hasOwn(body, "expiresAt") ? body.expiresAt : body.expires_at;
