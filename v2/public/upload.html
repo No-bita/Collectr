@@ -389,6 +389,7 @@
     let activeTargetItemId = null;
     let lastFailedFile = null;
     let lastFailedItemId = null;
+    let uploadInFlight = false;
     // Items confirmed during this visit, so the row reads "Sent" even before the next refresh.
     const sentThisVisit = new Set();
 
@@ -705,6 +706,7 @@
     }
 
     async function uploadFileObj(file) {
+      if (uploadInFlight) return; // one upload at a time; ignore new starts while one is running
       const targetItemId = activeTargetItemId;
       const item = ((currentSession && currentSession.items) || []).find(i => i.id === targetItemId);
       const errBanner = el("uploadErrorBanner");
@@ -749,6 +751,7 @@
         `;
       }
 
+      uploadInFlight = true;
       try {
         // 1. Ask the server for a one-time upload slot for this item.
         const urlRes = await fetch(`/api/upload-url/${encodeURIComponent(token)}`, {
@@ -789,6 +792,8 @@
         lastFailedItemId = targetItemId;
         showUploadError(err.message);
         restoreStatus();
+      } finally {
+        uploadInFlight = false;
       }
     }
 
@@ -812,5 +817,4 @@
   <script src="/js/ui-components.js"></script>
 </body>
 </html>
-
 
