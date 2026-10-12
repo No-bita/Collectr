@@ -20,18 +20,30 @@ export async function getFirmIdForUser(db, userId) {
 }
 
 /**
+ * Statements creating a firm owned by the given user plus the owner's
+ * membership. The firm id is derived from the user id, matching the 0002
+ * backfill. Returned so callers can fold them into a larger atomic batch.
+ */
+export function buildFirmStatements(userId, firmName) {
+  const firmId = "firm_" + userId;
+  return [
+    {
+      sql: "INSERT INTO firms (id, name, created_at) VALUES (?, ?, datetime('now'))",
+      args: [firmId, firmName || "Unnamed Firm"],
+    },
+    {
+      sql: "INSERT INTO firm_members (firm_id, user_id, role, created_at) VALUES (?, ?, 'owner', datetime('now'))",
+      args: [firmId, userId],
+    },
+  ];
+}
+
+/**
  * Creates a firm owned by the given user and returns the new firm_id.
- * The firm id is derived from the user id, matching the 0002 backfill.
+ * The firm and membership insert atomically in one batch.
  */
 export async function createFirmForUser(db, userId, firmName) {
   const firmId = "firm_" + userId;
-  await db.execute({
-    sql: "INSERT INTO firms (id, name, created_at) VALUES (?, ?, datetime('now'))",
-    args: [firmId, firmName || "Unnamed Firm"],
-  });
-  await db.execute({
-    sql: "INSERT INTO firm_members (firm_id, user_id, role, created_at) VALUES (?, ?, 'owner', datetime('now'))",
-    args: [firmId, userId],
-  });
+  await db.batch(buildFirmStatements(userId, firmName));
   return firmId;
 }
