@@ -53,8 +53,8 @@ export async function handleCreateSchedule(c) {
 
   if (targetContactId) {
     const contactRes = await db.execute({
-      sql: "SELECT id, name, phone_number, email FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-      args: [targetContactId, userId],
+      sql: "SELECT id, name, phone_number, email FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [targetContactId, firmId],
     });
     if (contactRes.rows.length === 0) {
       return c.json({ error: "Contact not found." }, 404);

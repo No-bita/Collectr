@@ -8,8 +8,11 @@
     "dev": "wrangler dev",
     "test": "node --test tests/*.test.js",
     "test:offline": "NO_EXTERNAL_NETWORK=true node --test tests/*.test.js",
-    "db:init:local": "wrangler d1 execute lekho-db --local --file=src/db/schema.sql",
-    "db:migrate:local": "wrangler d1 migrations apply lekho-db --local"
+    "db:init:local": "npm run db:migrate:local",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:schema:generate": "node scripts/schema.js",
+    "db:schema:check": "node scripts/schema.js --check",
+    "test:fresh-db": "node scripts/test-fresh-db.js"
   },
   "dependencies": {
     "hono": "^4.12.27",
