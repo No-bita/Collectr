@@ -43,7 +43,14 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     return { handled: false, reason: "occurrence_not_found" };
   }
 
-  // 2. Schedule & occurrence status guards
+  // 2. Redelivery guard: an occurrence that already reached a terminal state
+  // (completed / skipped / unknown) must never be rewritten by the guards
+  // below, which exist only for occurrences that have not run yet.
+  if (row.operational_status === "completed" || row.operational_status === "skipped" || row.operational_status === "unknown") {
+    return { handled: true, status: row.operational_status, alreadyDone: true };
+  }
+
+  // 3. Schedule, case and request status guards
   if (row.schedule_status === "cancelled") {
     await db.execute({
       sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'cancelled', executed_at = datetime('now') WHERE id = ?",
@@ -82,11 +89,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     }
   }
 
-  if (row.operational_status === "completed" || row.operational_status === "skipped" || row.operational_status === "unknown") {
-    return { handled: true, status: row.operational_status, alreadyDone: true };
-  }
-
-  // 3. Contact Resolution
+  // 4. Contact Resolution
   const contact = {
     id: row.contact_id,
     name: row.contact_name || "there",
@@ -94,7 +97,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     email: row.recipient_email || row.contact_email,
   };
 
-  // 4. User & JIT Credit Check
+  // 5. User & JIT Credit Check
   const userRes = await db.execute({
     sql: "SELECT id, username, credit_balance FROM users WHERE id = ?",
     args: [row.user_id],
@@ -124,7 +127,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
   const channel = String(row.occ_channel || row.schedule_channel || "whatsapp").toLowerCase();
   const referenceId = `occ_${occurrenceId}`;
 
-  // 5. Dispatch via Channel Pipeline
+  // 6. Dispatch via Channel Pipeline
   let pipeRes;
   if (channel === "email") {
     pipeRes = await executeEmailMessagingPipeline(
@@ -155,7 +158,7 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     });
   }
 
-  // 6. Settle Terminal Status and Link Message
+  // 7. Settle Terminal Status and Link Message
   if (pipeRes?.success) {
     await db.execute({
       sql: "UPDATE scheduled_occurrences SET operational_status = 'completed', provider_message_id = ?, message_id = ?, executed_at = datetime('now') WHERE id = ?",
