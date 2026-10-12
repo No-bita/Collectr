@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Requests | Collectr</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+  <link rel="stylesheet" href="/css/staff-workspace.css" />
+</head>
+<body class="staff-workspace">
+  <a class="skip-link" href="#workspace-content">Skip to requests</a>
+  <div class="workspace-shell">
+    <header class="workspace-header">
+      <a class="workspace-brand" href="#requests"><span class="workspace-mark" aria-hidden="true">C</span>Collectr</a>
+      <nav aria-label="Workspace"><a href="#requests" aria-current="page">Requests</a><a href="#guide">Status guide</a></nav>
+      <span class="demo-label">Demo workspace</span>
+    </header>
+    <aside class="demo-notice" aria-label="Preview notice">
+      <strong>Frontend preview. Sample data only.</strong>
+      <span>No client files, account data or messages are connected. Changes are not saved.</span>
+    </aside>
+    <main id="workspace-content" tabindex="-1">
+      <section id="requests-view" aria-labelledby="requests-heading">
+        <div class="page-heading"><div><p class="eyebrow">Firm workspace</p><h1 id="requests-heading" tabindex="-1">Document requests</h1><p>See what's missing, what's arrived, and what's been accepted.</p></div>
+          <div class="future-action"><button type="button" disabled aria-describedby="create-help">New request</button><small id="create-help">Available when the request API is ready.</small></div>
+        </div>
+        <div id="request-stats" class="request-stats" aria-label="Filter requests by collection state"></div>
+        <section class="request-panel" aria-label="Request list">
+          <div class="list-toolbar"><div><h2>All requests</h2><p id="result-count" role="status" aria-live="polite"></p></div><label class="search-field">Search requests<input id="request-search" type="search" placeholder="Client, service or request ID" autocomplete="off" /></label></div>
+          <div class="table-wrap"><table class="requests-table"><caption class="sr-only">Sample document requests. Open a request to see its checklist.</caption><thead><tr><th scope="col">Client / request</th><th scope="col">Service</th><th scope="col">Due</th><th scope="col">Accepted / waived</th><th scope="col">Collection state</th><th scope="col"><span class="sr-only">Details</span></th></tr></thead><tbody id="request-rows"></tbody></table></div>
+          <div id="empty-state" class="empty-state" hidden><h3>No matching requests</h3><p>Try another client name or reset your filters.</p><button id="reset-filters" type="button">Reset filters</button></div>
+        </section>
+      </section>
+      <section id="detail-view" aria-labelledby="detail-heading" hidden></section>
+      <section id="guide" class="status-guide" aria-labelledby="guide-heading"><p class="eyebrow">How to read this workspace</p><h2 id="guide-heading" tabindex="-1">Received is not accepted.</h2><div class="guide-grid"><p><strong>Missing</strong>At least one required document is still missing or needs a replacement.</p><p><strong>Received</strong>Required documents have arrived, but staff review is still needed.</p><p><strong>Accepted</strong>Every required item is accepted or waived. Closing the request is a separate step.</p></div><p>Collection states are a preview projection, not request lifecycle states. No OCR or automatic verification is claimed.</p></section>
+    </main>
+    <footer class="workspace-footer">Collectr / collection first, human review next <span>Sample firm and clients are fictional.</span></footer>
+  </div>
+  <noscript><p class="demo-notice">Enable JavaScript to browse the sample requests. This preview does not use a backend.</p></noscript>
+  <script type="module" src="/js/modules/staff-workspace.js"></script>
+</body>
+</html>

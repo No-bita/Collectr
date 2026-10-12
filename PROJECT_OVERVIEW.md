@@ -112,10 +112,11 @@ Lekho-Edge/
     │   ├── index.html                 # Marketing landing page
     │   ├── dashboard.html             # Attention triage & contacts dashboard (/dashboard or /app)
     │   ├── case.html                  # Contact workspace, 2-way chat stream, requests & activity feed
+    │   ├── staff-workspace.html       # Staff request & document collection preview (/staff-workspace.html)
     │   ├── upload.html                # Client upload session portal
     │   ├── login.html & register.html # User authentication views
-    │   ├── css/                       # Stylesheets (dashboard.css, case.css, tokens.css)
-    │   └── js/                        # Frontend controllers (app.js, case-detail.js, auth.js)
+    │   ├── css/                       # Stylesheets (dashboard.css, case.css, staff-workspace.css, tokens.css)
+    │   └── js/                        # Frontend controllers (app.js, case-detail.js, auth.js, modules/staff-workspace.js)
     │
     └── tests/                         # Node.js Test Suite (100% Offline Compatible)
         ├── contact-model.test.js
