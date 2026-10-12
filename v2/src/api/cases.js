@@ -1,4 +1,5 @@
 import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
 import { getWhatsAppTemplate, renderTemplateBody } from "../whatsapp/templates.js";
 import { sendWhatsAppTemplate as clientSendWhatsAppTemplate, sendWhatsAppText, normalizeIndianPhoneNumber } from "../whatsapp/client.js";
 import { getCustomerReplyWindowStatus } from "../whatsapp/window.js";
@@ -36,15 +37,16 @@ export async function ensureContact(db, userId, canonicalPhone, contactPerson, e
   }
 
   const contactId = "cnt_" + crypto.randomUUID();
+  const firmId = await getFirmIdForUser(db, userId);
   await db.execute({
-    sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated)
-          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-    args: [contactId, userId, contactPerson, canonicalPhone, email]
+    sql: `INSERT INTO contacts (id, user_id, contact_person, phone_number, email, created_at, last_updated, firm_id)
+          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+    args: [contactId, userId, contactPerson, canonicalPhone, email, firmId]
   }).catch(async () => {
     return db.execute({
-      sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      args: [contactId, userId, contactPerson, canonicalPhone, email]
+      sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+      args: [contactId, userId, contactPerson, canonicalPhone, email, firmId]
     });
   });
 
@@ -133,6 +135,7 @@ export async function handleBulkImportCases(c) {
   const db = getDbClient(env);
   const user = c.get("user");
   const userId = user ? (user.id || user.sub || null) : null;
+  const firmId = c.get("firmId");
   const sendWhatsApp = body.sendWhatsApp !== false;
   const templateName = body.templateName || env?.WHATSAPP_NEW_LEAD_TEMPLATE || "new_convo_1";
   const defaultProduct = body.defaultLoanProduct || "Direct Intake";
@@ -236,9 +239,9 @@ export async function handleBulkImportCases(c) {
       });
 
       rowStatements.push({
-        sql: `INSERT INTO activities (id, user_id, contact_id, activity_type, title, description, created_at)
-              VALUES (?, ?, ?, 'contact_created', 'Target Created', ?, datetime('now'))`,
-        args: [crypto.randomUUID(), userId, contact.id, `Target imported: ${contact.contactPerson}`]
+        sql: `INSERT INTO activities (id, user_id, contact_id, activity_type, title, description, created_at, firm_id)
+              VALUES (?, ?, ?, 'contact_created', 'Target Created', ?, datetime('now'), ?)`,
+        args: [crypto.randomUUID(), userId, contact.id, `Target imported: ${contact.contactPerson}`, firmId]
       });
 
       const occExecutionUtc = (isScheduled && scheduledForUtc) ? scheduledForUtc : toSqliteUtc(new Date());
