@@ -70,8 +70,8 @@ export async function handleCreateSchedule(c) {
 
     // Lookup or create contact
     const contactRes = await db.execute({
-      sql: "SELECT id FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-      args: [userId, canonicalPhone],
+      sql: "SELECT id FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+      args: [firmId, canonicalPhone],
     });
     if (contactRes.rows.length > 0) {
       targetContactId = contactRes.rows[0].id;
