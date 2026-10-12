@@ -230,7 +230,7 @@ test("Firm tenancy isolation across requests.js and contact routes", { skip: PRE
     assert.equal(addItem.status, 201);
 
     const updItem = await app.request(`${BASE}/api/requests/req_a/items/itm_a`, {
-      method: "PATCH", headers: auth(staffAToken), body: JSON.stringify({ status: "waived" }),
+      method: "PATCH", headers: auth(staffAToken), body: JSON.stringify({ status: "waived", reason: "n/a" }),
     }, env);
     assert.equal(updItem.status, 200);
     assert.equal(db.prepare("SELECT status FROM request_items WHERE id = 'itm_a'").get().status, "waived");
