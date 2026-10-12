@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS contacts (
 
 CREATE INDEX IF NOT EXISTS idx_contacts_user_phone ON contacts(user_id, phone_number);
 CREATE INDEX IF NOT EXISTS idx_contacts_firm ON contacts(firm_id);
+CREATE UNIQUE INDEX IF NOT EXISTS unq_contacts_firm_phone ON contacts(firm_id, phone_number);
 
 -- 3. Conversations (One per Contact per Channel)
 CREATE TABLE IF NOT EXISTS conversations (
