@@ -268,9 +268,9 @@ export async function handleCreateContact(c) {
             if (itemClean) {
               const itemId = "itm_" + crypto.randomUUID();
               await db.execute({
-                sql: `INSERT INTO request_items (id, request_id, title, position, status, created_at, updated_at)
-                      VALUES (?, ?, ?, ?, 'missing', datetime('now'), datetime('now'))`,
-                args: [itemId, requestId, itemClean, itemPosition++],
+                sql: `INSERT INTO request_items (id, request_id, firm_id, title, position, status, created_at, updated_at)
+                      VALUES (?, ?, ?, ?, ?, 'missing', datetime('now'), datetime('now'))`,
+                args: [itemId, requestId, firmId, itemClean, itemPosition++],
               });
             }
           }
@@ -639,4 +639,4 @@ export async function handleCheckContactPhone(c) {
   }
 
   return c.json({ exists: false, canonicalPhone });
-}
+                                            }
