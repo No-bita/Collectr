@@ -4,6 +4,7 @@
  */
 
 import { getDbClient } from "../db/client.js";
+import { getFirmIdForUser } from "../db/firms.js";
 import { isValidTimezone, parseScheduledForToUtc } from "../scheduler/time.js";
 import { normalizeIndianPhoneNumber } from "../whatsapp/client.js";
 import { renderTemplateBody } from "../whatsapp/templates.js";
@@ -12,6 +13,10 @@ export async function handleCreateSchedule(c) {
   const user = c.get("user");
   const userId = user.id;
   const db = getDbClient(c.env);
+  const firmId = c.get("firmId") ?? (await getFirmIdForUser(db, userId));
+  if (!firmId) {
+    return c.json({ error: "Access denied. This user has no firm membership." }, 403);
+  }
 
   const body = await c.req.json().catch(() => ({}));
   const {
@@ -65,18 +70,34 @@ export async function handleCreateSchedule(c) {
 
     // Lookup or create contact
     const contactRes = await db.execute({
-      sql: "SELECT id FROM contacts WHERE user_id = ? AND phone_number = ? LIMIT 1",
-      args: [userId, canonicalPhone],
+      sql: "SELECT id FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+      args: [firmId, canonicalPhone],
     });
     if (contactRes.rows.length > 0) {
       targetContactId = contactRes.rows[0].id;
     } else {
       targetContactId = "cnt_" + crypto.randomUUID();
-      await db.execute({
-        sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated)
-              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-        args: [targetContactId, userId, body.name || `Contact ${canonicalPhone.slice(-4)}`, canonicalPhone, email],
-      });
+      try {
+        await db.execute({
+          sql: `INSERT INTO contacts (id, user_id, name, phone_number, email, created_at, last_updated, firm_id)
+                VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)`,
+          args: [targetContactId, userId, body.name || `Contact ${canonicalPhone.slice(-4)}`, canonicalPhone, email, firmId],
+        });
+      } catch (err) {
+        if (String(err?.message || "").includes("UNIQUE constraint failed")) {
+          const reselect = await db.execute({
+            sql: "SELECT id FROM contacts WHERE firm_id = ? AND phone_number = ? LIMIT 1",
+            args: [firmId, canonicalPhone],
+          });
+          if (reselect.rows && reselect.rows.length > 0) {
+            targetContactId = reselect.rows[0].id;
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
@@ -165,9 +186,9 @@ export async function handleCreateSchedule(c) {
   if (targetContactId) {
     const actId = "act_" + crypto.randomUUID();
     await db.execute({
-      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'schedule_created', 'Outreach Scheduled', ?, ?, datetime('now'))`,
-      args: [actId, userId, targetContactId, requestId, `Scheduled for ${scheduledForUtc} UTC`, JSON.stringify({ scheduleId, scheduledForUtc })],
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            VALUES (?, ?, ?, ?, 'schedule_created', 'Outreach Scheduled', ?, ?, datetime('now'), ?)`,
+      args: [actId, userId, targetContactId, requestId, `Scheduled for ${scheduledForUtc} UTC`, JSON.stringify({ scheduleId, scheduledForUtc }), firmId],
     });
   }
 

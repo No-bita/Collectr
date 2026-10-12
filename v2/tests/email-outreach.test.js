@@ -36,6 +36,7 @@ function createMockEmailDb() {
     }
     const norm = (sql || "").replace(/\s+/g, " ").trim();
 
+    if (norm.startsWith("SELECT firm_id FROM firm_members")) return { rows: [{ firm_id: "firm_mock" }] };
     if (norm.startsWith("SELECT id, contact_person, email FROM contacts") || norm.startsWith("SELECT id, contact_person FROM contacts")) {
       const [userId, phone] = args;
       const c = records.contacts.find(x => x.phone_number === phone && x.user_id === userId);
