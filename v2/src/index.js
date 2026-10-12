@@ -49,6 +49,7 @@ import {
   handleClearAllFailures,
 } from "./api/admin.js";
 
+import { handleCreateLink, handleListLinks, handleRevokeLink, handleRegenerateLink } from "./api/links.js";
 import { handleSessionRequest } from "./api/session.js";
 import { handleUploadUrlRequest, handleDirectUpload } from "./api/upload.js";
 import { handleBulkImportCases, handleBulkPrecheck } from "./api/cases.js";
@@ -115,6 +116,12 @@ app.patch("/api/requests/:id/status", handleUpdateRequestStatus);
 app.post("/api/requests/:id/items", handleAddRequestItem);
 app.patch("/api/requests/:requestId/items/:itemId", handleUpdateRequestItem);
 
+// Staff client links
+app.post("/api/requests/:id/links", handleCreateLink);
+app.get("/api/requests/:id/links", handleListLinks);
+app.post("/api/requests/:id/links/regenerate", handleRegenerateLink);
+app.post("/api/requests/:id/links/:linkId/revoke", handleRevokeLink);
+
 // Activities Endpoints
 app.get("/api/contacts/:id/activities", handleGetContactActivities);
 app.post("/api/contacts/:id/activities/note", handleAddContactNote);
@@ -172,4 +179,3 @@ app.queue = async (batch, env, ctx) => {
 
 export { app };
 export default app;
-
