@@ -53,21 +53,21 @@ function renderList() {
   const visible = requests.filter(request => (activeFilter === 'all' || collectionState(request) === activeFilter) && `${request.client} ${request.title} ${request.service} ${request.id}`.toLowerCase().includes(query));
   el('result-count').textContent = `${visible.length} of ${requests.length} sample requests shown`;
   el('request-rows').innerHTML = visible.map(request => `<tr>
-    <td><strong>${escapeHtml(request.client)}</strong><small>${escapeHtml(request.title)} / ${request.id}</small></td>
+    <td><strong>${escapeHtml(request.client)}</strong><small>${escapeHtml(request.title)} / ${escapeHtml(request.id)}</small></td>
     <td data-label="Service">${escapeHtml(request.service)}<small>${escapeHtml(request.period)}</small></td>
     <td data-label="Due">${escapeHtml(request.due)}</td>
     <td data-label="Accepted / waived">${progress(request)}<small>required items</small></td>
     <td data-label="Collection state">${badge(collectionState(request))}</td>
-    <td><a class="detail-link" href="#request/${request.id}" aria-label="Open ${escapeHtml(request.client)} request ${request.id}">Open request</a></td>
+    <td><a class="detail-link" href="#request/${escapeHtml(request.id)}" aria-label="Open ${escapeHtml(request.client)} request ${escapeHtml(request.id)}">Open request</a></td>
   </tr>`).join('');
   el('empty-state').hidden = visible.length > 0;
   document.querySelector('.table-wrap').hidden = visible.length === 0;
 }
 function renderDetail(request) {
   el('detail-view').innerHTML = `<a class="back-link" href="#requests">← All requests</a>
-    <div class="page-heading"><div><p class="eyebrow">${request.id} / ${escapeHtml(request.client)}</p><h1 id="detail-heading" tabindex="-1">${escapeHtml(request.title)}</h1><p>${escapeHtml(request.service)} / ${escapeHtml(request.period)}</p></div>${badge(collectionState(request))}</div>
+    <div class="page-heading"><div><p class="eyebrow">${escapeHtml(request.id)} / ${escapeHtml(request.client)}</p><h1 id="detail-heading" tabindex="-1">${escapeHtml(request.title)}</h1><p>${escapeHtml(request.service)} / ${escapeHtml(request.period)}</p></div>${badge(collectionState(request))}</div>
     <div class="detail-meta"><span>Due: ${escapeHtml(request.due)}</span><span>Request lifecycle: ${escapeHtml(request.lifecycle)}</span><span>${progress(request)} required items accepted or waived</span></div>
-    <div class="detail-grid"><section class="detail-card" aria-labelledby="checklist-heading"><h2 id="checklist-heading">Document checklist</h2><p>Receipt means a file arrived. Acceptance requires staff review.</p><ul class="checklist">${request.items.map(item => `<li><div class="item-heading"><div><h3>${escapeHtml(item.title)}</h3><small>${item.required ? 'Required' : 'Optional'}</small></div>${badge(item.status)}</div><p class="item-description">${escapeHtml(item.description)}</p><span class="file-label">${item.file ? `Sample filename: ${escapeHtml(item.file)} / no file attached` : 'No sample file'}</span></li>`).join('')}</ul></section>
+    <div class="detail-grid"><section class="detail-card" aria-labelledby="checklist-heading"><h2 id="checklist-heading">Document checklist</h2><p>Receipt means a file arrived. Acceptance requires staff review.</p><ul class="checklist">${request.items.map(item => `<li><div class="item-heading"><div><h3>${escapeHtml(item.title)}</h3><small>${item.required ? 'Required' : 'Optional'}</small></div>${badge(item.status)}</div><p class="item-description">${escapeHtml(item.description)}</p><span class="file-label">${item.file ? `Sample filename: ${escapeHtml(item.file)} / file not available in this preview` : 'No sample file'}</span></li>`).join('')}</ul></section>
     <aside class="detail-card" aria-labelledby="next-heading"><h2 id="next-heading">Next steps</h2><p>This is a read-only preview. No link or document has been created.</p><dl><dt>Client upload link</dt><dd>Not connected</dd><dt>Staff review</dt><dd>Not connected</dd></dl><button type="button" disabled aria-describedby="share-help">Create / share link</button><small id="share-help">Requires the secure link backend (#3 / #4).</small><button type="button" disabled aria-describedby="review-help">Review documents</button><small id="review-help">Requires stored documents and review endpoints (#5 / #10). No automatic verification.</small></aside></div>`;
 }
 function route(focus = false) {
