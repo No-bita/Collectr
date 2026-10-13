@@ -170,3 +170,86 @@ export async function closeRequest(dbOrEnv, requestId, scope) {
   }
   return Object.freeze({ requestId, status: "closed", completedAt, previousStatus: request.status });
 }
+
+const REVIEW_DOC_STATE = Object.freeze({ accept: "accepted", needs_replacement: "rejected" });
+const LIVE_DOC_STATES = "('received', 'under_review')";
+
+/**
+ * Staff review of one item as ONE atomic batch: item transition, document
+ * update, activity row and review_events row. Each statement after the first
+ * only runs if the previous one changed a row, and the first one only matches
+ * while the item still has the status we validated against AND (for accept /
+ * needs_replacement) the chosen document is still the newest live version. If
+ * a re-upload or another reviewer got there first, nothing is written and the
+ * caller gets StateConflict.
+ * action: accept | needs_replacement | waive. waive takes no document.
+ */
+export async function reviewItem(dbOrEnv, { itemId, action, reason, documentId, actor, scope }) {
+  const db = getDbClient(dbOrEnv);
+  const firmId = requireFirm(scope);
+  const toStatus = { accept: "accepted", needs_replacement: "needs_replacement", waive: "waived" }[action];
+  if (!toStatus) throw new TypeError("Unknown review action.");
+  const needsDoc = action !== "waive";
+  if (needsDoc && !documentId) throw new TypeError("A documentId is required for this action.");
+
+  const item = await loadItem(db, itemId, firmId, scope.requestId);
+  if (!item) throw new NotFoundError("Request item not found.");
+  const plan = validateItemTransition(item.status, toStatus, actor, reason);
+
+  const eventId = "rev_" + crypto.randomUUID();
+  const activityId = "act_" + crypto.randomUUID();
+  const now = new Date().toISOString();
+  const docGuard = `EXISTS (SELECT 1 FROM documents d
+                            WHERE d.id = ? AND d.firm_id = ? AND d.request_id = ? AND d.item_id = ?
+                              AND d.state IN ${LIVE_DOC_STATES}
+                              AND d.version = (SELECT MAX(version) FROM documents WHERE item_id = ?))`;
+  const docGuardArgs = [documentId, firmId, item.request_id, itemId, itemId];
+
+  const statements = [
+    {
+      sql: `UPDATE request_items SET status = ?, updated_at = datetime('now')
+            WHERE id = ? AND firm_id = ? AND request_id = ? AND status = ?${needsDoc ? ` AND ${docGuard}` : ""}`,
+      args: [plan.toStatus, itemId, firmId, item.request_id, plan.fromStatus, ...(needsDoc ? docGuardArgs : [])],
+    },
+  ];
+  if (needsDoc) {
+    statements.push({
+      sql: `UPDATE documents SET state = ? WHERE id = ? AND firm_id = ? AND state IN ${LIVE_DOC_STATES} AND changes() > 0`,
+      args: [REVIEW_DOC_STATE[action], documentId, firmId],
+    });
+  }
+  statements.push(
+    {
+      sql: `INSERT INTO activities (id, user_id, contact_id, request_id, activity_type, title, description, metadata, created_at, firm_id)
+            SELECT ?, ?, ?, ?, 'item_transition', 'Item status changed', ?, ?, datetime('now'), ?
+            WHERE changes() > 0`,
+      args: [
+        activityId,
+        actor.userId || item.owner_user_id,
+        item.contact_id,
+        item.request_id,
+        `${item.title}: ${plan.fromStatus} to ${plan.toStatus}`,
+        JSON.stringify({ itemId, from: plan.fromStatus, to: plan.toStatus, actor: plan.actorType, reason: plan.reason }),
+        firmId,
+      ],
+    },
+    {
+      sql: `INSERT INTO review_events (id, firm_id, request_id, item_id, document_id, actor_type, actor_id, action, reason, created_at)
+            SELECT ?, ?, ?, ?, ?, 'staff', ?, ?, ?, ? WHERE changes() > 0`,
+      args: [eventId, firmId, item.request_id, itemId, needsDoc ? documentId : null, actor.userId, action, plan.reason || null, now],
+    },
+  );
+
+  const results = await db.batch(statements);
+  if (changesOf(results[results.length - 1]) !== 1) {
+    const cur = await loadItem(db, itemId, firmId, scope.requestId);
+    throw new StateConflict(
+      "Item or document changed while reviewing. Reload and retry.",
+      cur ? cur.status : plan.fromStatus,
+    );
+  }
+  return Object.freeze({
+    itemId, requestId: item.request_id, fromStatus: plan.fromStatus, status: plan.toStatus,
+    documentId: needsDoc ? documentId : null, reviewEventId: eventId,
+  });
+}
