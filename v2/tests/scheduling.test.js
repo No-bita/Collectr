@@ -318,7 +318,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.schedules.push({
       id: "sch_oneoff",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",
@@ -354,7 +355,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.schedules.push({
       id: "sch_timeout",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",
@@ -435,7 +437,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.schedules.push({
       id: "sch_to_cancel",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",
@@ -504,7 +507,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.schedules.push({
       id: "sch_oneoff_final",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",
