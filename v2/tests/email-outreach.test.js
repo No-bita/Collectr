@@ -411,7 +411,7 @@ test("Email Outreach Channel Architecture & Execution Suite (Phase 1)", async (t
     mockDb.records.contacts.push({ id: "cnt_99", user_id: "usr_email_1", contact_person: "Priya", phone_number: "919876500000", email: "priya@gmail.com" });
     mockDb.records.loan_cases.push({ id: "case_99", user_id: "usr_email_1", contact_person: "Priya", phone_number: "919876500000", status: "lead" });
     mockDb.records.schedules.push({
-      id: "sch_99", user_id: "usr_email_1", case_id: "case_99", contact_id: "cnt_99", phone_number: "919876500000",
+      id: "sch_99", user_id: "usr_email_1", case_id: null, contact_id: "cnt_99", phone_number: "919876500000",
       channel: "email", template_name: "new_convo_1", template_params: JSON.stringify(["Priya"]),
       schedule_type: "one_off", timezone: "Asia/Kolkata", status: "active", next_run_utc: "2026-09-15 10:00:00"
     });
