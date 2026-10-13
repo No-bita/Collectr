@@ -5,7 +5,8 @@ import { el, escapeHtml } from '../core/dom.js';
 // The status transitions mirror v2/src/domain/states.js so the demo behaves like the real thing.
 const STORE_KEY = 'collectr-demo-workspace-v1';
 const FIRM = 'Rao & Associates';
-const labels = { missing: 'Missing', received: 'Received', under_review: 'Under review', accepted: 'Accepted', needs_replacement: 'Needs replacement', waived: 'Waived', closed: 'Closed' };
+// Pills say whose turn it is. Internal states stay distinct (missing vs needs_replacement); the pill unifies them.
+const labels = { missing: 'Waiting on client', received: 'Needs your review', under_review: 'Needs your review', accepted: 'Accepted', needs_replacement: 'Waiting on client', waived: 'Waived', closed: 'Closed' };
 const TRANSITIONS = {
   missing: ['received', 'waived'],
   received: ['under_review', 'accepted', 'needs_replacement'],
@@ -114,13 +115,13 @@ function renderList() {
   }).join('');
   const visible = requests.filter(r => (activeFilter === 'all' || collectionState(r) === activeFilter) && `${r.client} ${r.title} ${r.service} ${r.id}`.toLowerCase().includes(query));
   el('result-count').textContent = `${visible.length} of ${requests.length} requests shown`;
-  el('request-rows').innerHTML = visible.map(r => `<tr>
+  el('request-rows').innerHTML = visible.map(r => `<tr class="row-link" tabindex="0" data-open="${escapeHtml(r.id)}" aria-label="Open ${escapeHtml(r.client)}, ${escapeHtml(r.title)}">
     <td><div class="client-cell">${avatar(r.client)}<div><strong>${escapeHtml(r.client)}</strong><small>${escapeHtml(r.title)} / ${escapeHtml(r.id)}</small></div></div></td>
     <td data-label="Service">${escapeHtml(r.service)}<small>${escapeHtml(r.period)}</small></td>
     <td data-label="Due">${escapeHtml(fmtDue(r.due))}</td>
     <td data-label="Accepted / waived"><span class="count">${progress(r)}</span>${meter(r)}</td>
     <td data-label="Collection state">${badge(collectionState(r))}</td>
-    <td><a class="detail-link" href="#request/${escapeHtml(r.id)}" aria-label="Open ${escapeHtml(r.client)} request ${escapeHtml(r.id)}">Open request</a></td>
+    <td class="row-chevron" aria-hidden="true">›</td>
   </tr>`).join('');
   el('empty-state').hidden = visible.length > 0;
   document.querySelector('.table-wrap').hidden = visible.length === 0;
@@ -196,10 +197,12 @@ function newRequestForm() {
     <label>WhatsApp number<input name="phone" required inputmode="tel" placeholder="+91 98XXX XXXXX" autocomplete="off" /></label>
     <label>Service<select name="service">${services.map(s => `<option>${escapeHtml(s)}</option>`).join('')}</select></label>
     <label>Period<input name="period" required placeholder="e.g. Oct 2026" /></label>
-    <label>Due date<input name="due" type="date" required value="2026-11-05" /></label>
+    <label>Due date<input name="due" type="date" required /></label>
     <fieldset><legend>Checklist</legend><div id="nf-items"></div><button type="button" id="nf-add" class="link-button">+ Add a document</button></fieldset>
     <div class="modal-actions"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Create request and get link</button></div></form>`);
   const form = el('new-form');
+  const d = new Date(); d.setDate(d.getDate() + 14); // default: two weeks from today, local time
+  form.due.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const fill = () => {
     const tpl = TEMPLATES[form.service.value];
     el('nf-items').innerHTML = tpl.map(([t, , req]) => checkRow(t, req !== false)).join('');
@@ -218,9 +221,10 @@ function newRequestForm() {
     const picked = [...form.querySelectorAll('#nf-items input:checked')].map(c => c.dataset.title);
     if (!picked.length) { toast('Pick at least one document.'); return; }
     const n = Math.max(...requests.map(x => Number(x.id.slice(4)))) + 1;
-    const r = { id: `REQ-${n}`, client: fd.get('client').trim(), contact: (fd.get('contact') || fd.get('client')).trim(), phone: fd.get('phone').trim(), title: `${fd.get('service')}, ${fd.get('period').trim()}`, service: fd.get('service'), period: fd.get('period').trim(), due: fd.get('due'), lifecycle: 'open', token: Math.random().toString(36).slice(2, 10), items: picked.map(t => { const m = tpl.find(x => x[0] === t); return it(t, m ? m[1] : 'Added by your CA team.', 'missing', ''); }), log: [] };
+    const r = { id: `REQ-${n}`, client: fd.get('client').trim(), contact: (fd.get('contact') || fd.get('client')).trim(), phone: fd.get('phone').trim(), title: `${fd.get('service')}, ${fd.get('period').trim()}`, service: fd.get('service'), period: fd.get('period').trim(), due: fd.get('due'), lifecycle: 'open', token: Math.random().toString(36).slice(2, 10), items: picked.map(t => { const m = tpl.find(x => x[0] === t); return it(t, m ? m[1] : 'Added by your CA team.', 'missing', '', { required: !(m && m[2] === false) }); }), log: [] };
     addLog(r, 'Request created');
     requests.unshift(r); save();
+    refresh(); // keep the list behind the dialog current
     shareDialog(r);
   });
 }
@@ -243,7 +247,7 @@ function renderClient() {
     const open = ['missing', 'needs_replacement'].includes(i.status);
     const tag = { missing: 'Upload file', needs_replacement: 'Upload a new file', received: '✓ Received', under_review: '✓ Received', accepted: '✓ Accepted', waived: 'Not needed' }[i.status];
     return `<li class="phone-row ${open ? 'open' : 'done'}"><div><strong>${escapeHtml(i.title)}</strong>${i.required ? '' : ' <small>optional</small>'}<small>${escapeHtml(i.status === 'needs_replacement' ? `Your CA team asked for another copy: ${i.reason}` : i.description)}</small></div>
-      ${open && !all ? `<label class="upload-btn">${tag}<input type="file" hidden data-upload="${escapeHtml(i.id)}" accept="image/*,application/pdf" /></label>` : `<span class="phone-tag">${tag}</span>`}</li>`;
+      ${open && !all ? `<label class="upload-btn">${tag}<input type="file" class="file-input" data-upload="${escapeHtml(i.id)}" accept="image/*,application/pdf" /></label>` : `<span class="phone-tag">${tag}</span>`}</li>`;
   }).join('');
   openModal(`<div class="modal-body client-sim"><div class="sim-bar"><span>Client view (simulation)</span><button type="button" data-close>Close</button></div>
     <div class="phone"><p class="phone-brand">${escapeHtml(FIRM)}</p><h2 id="modal-title">Namaste ${escapeHtml(r.contact.split(' ')[0])},</h2><p>${escapeHtml(FIRM)} would like a few documents by ${escapeHtml(fmtDue(r.due))}.</p>
@@ -314,6 +318,9 @@ document.addEventListener('change', e => {
   if (transition(r, i, 'received', `Client uploaded ${i.title}`)) toast('Sent! Thank you. (Staff see it in the request now.)');
   refresh();
 });
+const openRow = (tr) => { if (tr && tr.dataset.open) window.location.hash = `#request/${tr.dataset.open}`; };
+el('request-rows').addEventListener('click', e => openRow(e.target.closest('tr')));
+el('request-rows').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('tr')) openRow(e.target); });
 el('new-request').addEventListener('click', newRequestForm);
 el('reset-demo').addEventListener('click', () => { requests = seed(); save(); activeFilter = 'all'; query = ''; el('request-search').value = ''; window.location.hash = '#requests'; route(false); toast('Demo data reset.'); });
 el('request-search').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); renderList(); });
