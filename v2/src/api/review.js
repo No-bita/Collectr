@@ -1,6 +1,6 @@
 import { getDbClient } from "../db/client.js";
 import { StateConflict, requestProgress } from "../domain/states.js";
-import { NotFoundError, closeRequest, transitionItem } from "../db/request-state.js";
+import { NotFoundError, closeRequest, reviewItem } from "../db/request-state.js";
 import { getDocument } from "../db/documents.js";
 
 /**
@@ -137,7 +137,7 @@ export async function handleReviewItem(c) {
     // The document under review is the newest one still in play.
     const docRes = await db.execute({
       sql: `SELECT id FROM documents WHERE firm_id = ? AND request_id = ? AND item_id = ?
-              AND state NOT IN ('rejected', 'superseded') ORDER BY version DESC LIMIT 1`,
+              AND state IN ('received', 'under_review') ORDER BY version DESC LIMIT 1`,
       args: [scope.firmId, requestId, itemId],
     });
     const documentId = body.action === "waive" ? null : (docRes.rows[0]?.id ?? null);
@@ -151,34 +151,20 @@ export async function handleReviewItem(c) {
       return c.json({ error: "No uploaded document to review.", currentStatus: itemRes.rows[0].status }, 409);
     }
 
-    // transitionItem is the only writer of item status (compare-and-set).
-    const result = await transitionItem(
-      db, itemId, toStatus, { type: "staff", userId: scope.userId }, reason, { firmId: scope.firmId, requestId },
-    );
-
-    const eventId = "rev_" + crypto.randomUUID();
-    const docState = body.action === "accept" ? "accepted" : "rejected";
-    const statements = [];
-    if (documentId) {
-      statements.push({
-        sql: "UPDATE documents SET state = ? WHERE id = ? AND firm_id = ?",
-        args: [docState, documentId, scope.firmId],
-      });
-    }
-    statements.push({
-      sql: `INSERT INTO review_events (id, firm_id, request_id, item_id, document_id, actor_type, actor_id, action, reason, created_at)
-            VALUES (?, ?, ?, ?, ?, 'staff', ?, ?, ?, ?)`,
-      args: [eventId, scope.firmId, requestId, itemId, documentId, scope.userId, body.action, reason || null, new Date().toISOString()],
+    // One atomic batch: item transition + document update + activity + review event.
+    // The document is re-validated inside it, so a concurrent re-upload or review aborts everything.
+    const result = await reviewItem(db, {
+      itemId, action: body.action, reason, documentId,
+      actor: { type: "staff", userId: scope.userId }, scope: { firmId: scope.firmId, requestId },
     });
-    await db.batch(statements);
 
     return c.json({
       success: true,
       itemId,
       fromStatus: result.fromStatus,
       status: result.status,
-      documentId,
-      reviewEventId: eventId,
+      documentId: result.documentId,
+      reviewEventId: result.reviewEventId,
     });
   } catch (err) {
     return handleError(c, err, "Review item");
