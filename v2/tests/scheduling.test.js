@@ -318,7 +318,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.schedules.push({
       id: "sch_oneoff",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",
@@ -354,7 +355,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.schedules.push({
       id: "sch_timeout",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",
@@ -429,43 +431,14 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     assert.equal(resetOcc.operational_status, "pending", "Occurrence must be reset to pending");
   });
 
-  await t.test("5. Case Closed Eligibility Skip & Schedule Auto-Completion", async () => {
-    const db = createInMemoryDb();
-
-    db.tables.schedules.push({
-      id: "sch_closed_case",
-      user_id: "usr_test_1",
-      case_id: "case_closed", // case is 'closed'
-      phone_number: "9876543211",
-      template_name: "new_convo_1",
-      schedule_type: "one_off",
-      recurrence_interval: null,
-      status: "active"
-    });
-
-    db.tables.scheduled_occurrences.push({
-      id: "occ_closed_case",
-      schedule_id: "sch_closed_case",
-      occurrence_key: "k_closed",
-      scheduled_for_utc: "2026-09-13 03:30:00",
-      operational_status: "claimed"
-    });
-
-    const res = await processScheduledOccurrence("occ_closed_case", { ENVIRONMENT: "development" }, db);
-    assert.equal(res.status, "skipped");
-    assert.equal(res.reason, "case_closed");
-
-    const sch = db.tables.schedules.find(s => s.id === "sch_closed_case");
-    assert.equal(sch.status, "completed", "Schedule linked to a terminal case must be marked completed");
-  });
-
   await t.test("6. Schedule Cancellation Immunity", async () => {
     const db = createInMemoryDb();
 
     db.tables.schedules.push({
       id: "sch_to_cancel",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",
@@ -534,7 +507,8 @@ test("Collectrr Scheduling Engine Architecture & Reliability Tests", async (t) =
     db.tables.schedules.push({
       id: "sch_oneoff_final",
       user_id: "usr_test_1",
-      case_id: "case_active",
+      case_id: null,
+      contact_id: "case_active",
       phone_number: "9876543210",
       template_name: "new_convo_1",
       schedule_type: "one_off",

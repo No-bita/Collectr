@@ -433,11 +433,7 @@ export async function handleGetContactWorkspace(c) {
         sql: "SELECT id FROM contacts WHERE id = ? LIMIT 1",
         args: [contactId],
       }).catch(() => ({ rows: [] }));
-      const anyCase = await db.execute({
-        sql: "SELECT id FROM loan_cases WHERE id = ? LIMIT 1",
-        args: [contactId],
-      }).catch(() => ({ rows: [] }));
-      if (anyContact.rows.length > 0 || anyCase.rows.length > 0) {
+      if (anyContact.rows.length > 0) {
         return c.json({ error: "Access denied. You do not have permission to access this contact." }, 403);
       }
       return c.json({ error: "Contact not found." }, 404);
@@ -550,11 +546,7 @@ export async function handleUpdateContact(c) {
         sql: "SELECT id FROM contacts WHERE id = ? LIMIT 1",
         args: [contactId],
       }).catch(() => ({ rows: [] }));
-      const anyCase = await db.execute({
-        sql: "SELECT id FROM loan_cases WHERE id = ? LIMIT 1",
-        args: [contactId],
-      }).catch(() => ({ rows: [] }));
-      if (anyContact.rows.length > 0 || anyCase.rows.length > 0) {
+      if (anyContact.rows.length > 0) {
         return c.json({ error: "Access denied. You do not have permission to modify this contact." }, 403);
       }
       return c.json({ error: "Contact not found." }, 404);

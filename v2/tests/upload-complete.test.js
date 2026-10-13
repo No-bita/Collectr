@@ -260,3 +260,25 @@ test("session endpoint reflects the receipt after reload", { skip: SKIP }, async
   assert.equal(item.status, "received");
   assert.equal(item.upload_count, 1);
 });
+
+test("upload initiation to completion through the production app", { skip: SKIP }, async () => {
+  const f = fixture();
+  const { token } = await f.start(); // creates a valid client link; its pre-made session is unused
+  const env = { ...f.env, R2_BUCKET_NAME: "test-bucket", CF_ACCOUNT_ID: "acct", R2_AK_id: "ak", R2_SAK: "sak" };
+  const init = await app.request(`https://collectr.example.test/api/upload-url/${token}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itemId: "i1", filename: "pan2.pdf", contentType: "application/pdf", size: 500 }),
+  }, env);
+  assert.equal(init.status, 200);
+  const started = await init.json();
+  assert.ok(started.uploadSessionId);
+  assert.ok(started.uploadUrl);
+  const session = f.q("SELECT * FROM upload_sessions WHERE id = ?", started.uploadSessionId)[0];
+  assert.equal(session.state, "initiated");
+  f.put(session);
+  const done = await f.complete(token, { uploadSessionId: started.uploadSessionId }, env);
+  assert.equal(done.status, 200);
+  assert.equal(done.body.itemId, "i1");
+  assert.equal(done.body.itemStatus, "received");
+  assert.equal(f.q("SELECT state FROM upload_sessions WHERE id = ?", started.uploadSessionId)[0].state, "completed");
+});

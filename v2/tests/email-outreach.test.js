@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderEmailContent } from "../src/email/templates.js";
 import { executeEmailMessagingPipeline } from "../src/email/pipeline.js";
 import { processScheduledOccurrence } from "../src/scheduler/consumer.js";
-import { handleCreateCase, handleBulkImportCases, ensureContact } from "../src/api/cases.js";
+
 import { MESSAGE_COST_PAISE } from "../src/api/credits.js";
 
 function createMockEmailDb() {
@@ -411,7 +411,7 @@ test("Email Outreach Channel Architecture & Execution Suite (Phase 1)", async (t
     mockDb.records.contacts.push({ id: "cnt_99", user_id: "usr_email_1", contact_person: "Priya", phone_number: "919876500000", email: "priya@gmail.com" });
     mockDb.records.loan_cases.push({ id: "case_99", user_id: "usr_email_1", contact_person: "Priya", phone_number: "919876500000", status: "lead" });
     mockDb.records.schedules.push({
-      id: "sch_99", user_id: "usr_email_1", case_id: "case_99", contact_id: "cnt_99", phone_number: "919876500000",
+      id: "sch_99", user_id: "usr_email_1", case_id: null, contact_id: "cnt_99", phone_number: "919876500000",
       channel: "email", template_name: "new_convo_1", template_params: JSON.stringify(["Priya"]),
       schedule_type: "one_off", timezone: "Asia/Kolkata", status: "active", next_run_utc: "2026-09-15 10:00:00"
     });
@@ -432,122 +432,4 @@ test("Email Outreach Channel Architecture & Execution Suite (Phase 1)", async (t
     assert.equal(mockDb.records.schedules[0].status, "completed");
   });
 
-  await t.test("5. Send Now with channel 'both' executes independent dispatches", async () => {
-    const mockDb = createMockEmailDb();
-    const env = { DB: mockDb, ENVIRONMENT: "development", FRONTEND_URL: "https://collectrr.workers.dev" };
-
-    const reqBody = {
-      phone: "9876543210",
-      contactPerson: "Sunil Kumar",
-      email: "sunil@example.com",
-      channel: "both",
-      loanProduct: "Working Capital"
-    };
-
-    const mockCtx = {
-      req: { json: async () => reqBody },
-      env,
-      get: (k) => k === "user" ? { id: "usr_email_1", username: "Agent Roy" } : null,
-      json: (data, code = 200) => ({ data, code })
-    };
-
-    const res = await handleCreateCase(mockCtx);
-    assert.equal(res.code, 200);
-    assert.equal(res.data.success, true);
-
-    // Contact stored with phone and email
-    const contact = mockDb.records.contacts.find(c => c.phone_number === "919876543210");
-    assert.ok(contact);
-    assert.equal(contact.email, "sunil@example.com");
-
-    // Case created without loan_cases.email or loan_cases.channel pollution
-    const createdCase = mockDb.records.loan_cases[0];
-    assert.ok(createdCase);
-    assert.equal(createdCase.email, undefined);
-    assert.equal(createdCase.channel, undefined);
-
-    // Both WhatsApp and Email pipelines executed
-    assert.equal(mockDb.records.whatsapp_messages.length, 1);
-    assert.equal(mockDb.records.email_messages.length, 1);
-    assert.equal(mockDb.records.email_messages[0].recipient_email, "sunil@example.com");
-  });
-
-  await t.test("6. Schedule Later with channel 'both' creates 2 separate occurrences with explicit snapshots", async () => {
-    const mockDb = createMockEmailDb();
-    const env = { DB: mockDb, ENVIRONMENT: "development" };
-    const futureDate = new Date(Date.now() + 3600 * 1000);
-
-    const reqBody = {
-      phone: "9876543222",
-      contactPerson: "Geeta Devi",
-      email: "geeta@example.com",
-      channel: "both",
-      loanProduct: "Term Loan",
-      schedule: {
-        scheduledFor: futureDate.toISOString(),
-        scheduleType: "one_off",
-        timezone: "Asia/Kolkata"
-      }
-    };
-
-    const mockCtx = {
-      req: { json: async () => reqBody },
-      env,
-      get: (k) => k === "user" ? { id: "usr_email_1", username: "Agent Roy" } : null,
-      json: (data, code = 200) => ({ data, code })
-    };
-
-    const res = await handleCreateCase(mockCtx);
-    assert.equal(res.code, 201);
-    assert.equal(res.data.scheduled, true);
-
-    // Exactly 2 schedules and 2 occurrences created
-    assert.equal(mockDb.records.schedules.length, 2);
-    assert.equal(mockDb.records.scheduled_occurrences.length, 2);
-
-    const waOcc = mockDb.records.scheduled_occurrences.find(o => o.channel === "whatsapp");
-    const emOcc = mockDb.records.scheduled_occurrences.find(o => o.channel === "email");
-
-    assert.ok(waOcc, "WhatsApp occurrence must exist");
-    assert.equal(waOcc.recipient_phone, "919876543222");
-    assert.equal(waOcc.recipient_email, null);
-
-    assert.ok(emOcc, "Email occurrence must exist");
-    assert.equal(emOcc.recipient_phone, null);
-    assert.equal(emOcc.recipient_email, "geeta@example.com");
-  });
-
-  await t.test("7. Bulk Import with channel 'both' creates dual occurrences per row with email", async () => {
-    const mockDb = createMockEmailDb();
-    const env = { DB: mockDb, ENVIRONMENT: "development" };
-
-    const reqBody = {
-      clients: [
-        { contactPerson: "Client A", phoneNumber: "9876500001", email: "a@domain.com" },
-        { contactPerson: "Client B", phoneNumber: "9876500002" } // No email
-      ],
-      channel: "both",
-      defaultLoanProduct: "Machinery Loan"
-    };
-
-    const mockCtx = {
-      req: { json: async () => reqBody },
-      env,
-      get: (k) => k === "user" ? { id: "usr_email_1", username: "Agent Roy" } : null,
-      json: (data, code = 200) => ({ data, code })
-    };
-
-    const res = await handleBulkImportCases(mockCtx);
-    assert.equal(res.code, 200);
-    assert.equal(res.data.importedCount, 2);
-
-    // Client A has 2 occurrences (WA + EM), Client B has 1 occurrence (WA only)
-    assert.equal(mockDb.records.scheduled_occurrences.length, 3);
-    const emOccs = mockDb.records.scheduled_occurrences.filter(o => o.channel === "email");
-    const waOccs = mockDb.records.scheduled_occurrences.filter(o => o.channel === "whatsapp");
-
-    assert.equal(emOccs.length, 1);
-    assert.equal(emOccs[0].recipient_email, "a@domain.com");
-    assert.equal(waOccs.length, 2);
-  });
 });

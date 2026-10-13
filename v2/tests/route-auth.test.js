@@ -55,8 +55,8 @@ test("Route-Level Authentication, Role Matrix & Cross-Tenant Isolation Tests", a
   const noRoleToken = await sign({ id: "user_norole", username: "NoRoleUser", role: null }, JWT_SECRET);
   const unknownRoleToken = await sign({ id: "user_guest", username: "GuestUser", role: "guest" }, JWT_SECRET);
 
-  await t.test("1. Unauthenticated request to protected route (/api/cases) returns 401", async () => {
-    const res = await app.request("https://collectrr.workers.dev/api/cases", {
+  await t.test("1. Unauthenticated request to protected route (/api/contacts) returns 401", async () => {
+    const res = await app.request("https://collectrr.workers.dev/api/contacts", {
       method: "GET"
     }, env);
 
@@ -79,7 +79,7 @@ test("Route-Level Authentication, Role Matrix & Cross-Tenant Isolation Tests", a
 
   await t.test("3. Forged or invalid JWT token returns 401", async () => {
     const forgedToken = await sign({ id: "hacker", role: "admin" }, "wrong_secret_key");
-    const res = await app.request("https://collectrr.workers.dev/api/cases", {
+    const res = await app.request("https://collectrr.workers.dev/api/contacts", {
       method: "GET",
       headers: { Authorization: `Bearer ${forgedToken}` }
     }, env);
@@ -148,30 +148,4 @@ test("Route-Level Authentication, Role Matrix & Cross-Tenant Isolation Tests", a
     assert.notEqual(res.status, 403);
   });
 
-  await t.test("7. Cross-tenant read isolation: User A requesting case belonging to User B returns 403", async () => {
-    const res = await app.request("https://collectrr.workers.dev/api/cases/case_tenant_b", {
-      method: "GET",
-      headers: { Authorization: `Bearer ${agentToken}` }
-    }, env);
-
-    // Case exists in database under user_b, but user_a is requesting it -> must be 403
-    assert.equal(res.status, 403);
-    const body = await res.json();
-    assert.ok(body.error);
-  });
-
-  await t.test("8. Cross-tenant mutation isolation: User A attempting status update on User B's case is rejected with 403", async () => {
-    const res = await app.request("https://collectrr.workers.dev/api/cases/case_tenant_b/status", {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${agentToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ status: "disbursed" })
-    }, env);
-
-    assert.equal(res.status, 403);
-    const body = await res.json();
-    assert.ok(body.error);
-  });
 });
