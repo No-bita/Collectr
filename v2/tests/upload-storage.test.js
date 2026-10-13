@@ -105,7 +105,7 @@ test("upload storage schema and models", { skip: SKIP }, async t => {
   await t.test("migration applies on a populated existing DB without changing data", () => {
     const raw = new DatabaseSync(":memory:");
     const files = migrationFiles();
-    for (const f of files.filter(f => !f.startsWith("0006"))) raw.exec(fs.readFileSync(path.join(migrationsDir,f),"utf8"));
+    for (const f of files.filter(f => f < "0006")) raw.exec(fs.readFileSync(path.join(migrationsDir,f),"utf8"));
     seed(raw);
     const before = JSON.stringify(raw.prepare("SELECT * FROM requests ORDER BY id").all());
     raw.exec(fs.readFileSync(path.join(migrationsDir, files.find(f => f.startsWith("0006"))),"utf8"));
