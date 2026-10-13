@@ -82,8 +82,8 @@ function shapeItem(row) {
 }
 
 /**
- * POST /api/contacts/:id/requests
- * Creates a new request with optional checklist items for a contact.
+ * POST /api/clients/:id/requests (legacy /api/contacts/:id/requests alias retained)
+ * Creates a request for a firm-owned client.
  */
 export async function handleCreateRequest(c) {
   const db = getDbClient(c.env);
@@ -93,7 +93,8 @@ export async function handleCreateRequest(c) {
   if (!firmId) {
     return c.json({ error: "Access denied. This user has no firm membership." }, 403);
   }
-  const contactId = c.req.param("id");
+  const clientId = c.req.param("id");
+  const contactId = clientId; // Transitional FK bridge only; identity comes from clients.
 
   const body = await c.req.json().catch(() => ({}));
   const title = String(body.title || "").trim();
@@ -124,20 +125,20 @@ export async function handleCreateRequest(c) {
   try {
     // Verify contact ownership
     const contactRes = await db.execute({
-      sql: "SELECT id, name FROM contacts WHERE id = ? AND firm_id = ? LIMIT 1",
-      args: [contactId, firmId],
+      sql: "SELECT id, name FROM clients WHERE id = ? AND firm_id = ? LIMIT 1",
+      args: [clientId, firmId],
     });
 
     if (contactRes.rows.length === 0) {
-      return c.json({ error: "Contact not found." }, 404);
+      return c.json({ error: "Client not found." }, 404);
     }
 
     const requestId = "req_" + crypto.randomUUID();
 
     await db.execute({
-      sql: `INSERT INTO requests (id, user_id, firm_id, contact_id, title, description, status, due_date, service_type, period_label, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      args: [requestId, userId, firmId, contactId, title, description, requestStatus, dueDate, serviceType, periodLabel],
+      sql: `INSERT INTO requests (id, user_id, firm_id, contact_id, client_id, title, description, status, due_date, service_type, period_label, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      args: [requestId, userId, firmId, contactId, clientId, title, description, requestStatus, dueDate, serviceType, periodLabel],
     });
 
     // Insert checklist items; positions follow the order sent (0-based, blank titles skipped).
@@ -186,7 +187,8 @@ export async function handleCreateRequest(c) {
       success: true,
       request: {
         id: requestId,
-        contactId,
+        clientId,
+        contactId, // compatibility response during foundation stage
         title,
         description,
         status: requestStatus,

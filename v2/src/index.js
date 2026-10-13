@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { handleListClients, handleCreateClient } from "./api/clients.js";
 import { handleLogin, handleRegister } from "./api/auth.js";
 import { handleWebhookVerify, handleWebhookEvent } from "./api/webhook.js";
 import {
@@ -99,6 +100,13 @@ app.use("/api/schedules/*", authMiddleware);
 app.use("/api/templates", authMiddleware);
 app.use("/api/user/*", authMiddleware);
 app.use("/api/admin/*", authMiddleware, adminOnlyMiddleware);
+
+// Dedicated Collectr clients (legacy contact routes remain until eviction)
+app.use("/api/clients", authMiddleware);
+app.use("/api/clients/*", authMiddleware);
+app.get("/api/clients", handleListClients);
+app.post("/api/clients", handleCreateClient);
+app.post("/api/clients/:id/requests", handleCreateRequest);
 
 // Contacts Endpoints
 app.get("/api/contacts", handleGetContacts);
