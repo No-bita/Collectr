@@ -6,6 +6,8 @@ import { sign } from "hono/jwt";
 import { app } from "../src/index.js";
 import { createLink } from "../src/db/client_links.js";
 import { createUploadSession } from "../src/db/upload_sessions.js";
+import { reviewItem } from "../src/db/request-state.js";
+import { StateConflict } from "../src/domain/states.js";
 
 // node:sqlite needs Node 22.5+. CI also runs Node 20, where this suite is skipped.
 let DatabaseSync;
@@ -229,6 +231,51 @@ test("staff review", { skip: SKIP }, async (t) => {
     assert.equal((await f.json("POST", "/api/requests/r1/close", other)).status, 404);
     assert.equal(f.q("SELECT status FROM request_items WHERE id='i1'")[0].status, "received");
     assert.equal(f.q("SELECT count(*) AS n FROM review_events")[0].n, 0);
+  });
+
+  await t.test("atomic: document superseded mid-review aborts every write", async () => {
+    const f = fixture();
+    const { documentId } = await f.upload();
+    // A newer version lands after the reviewer picked documentId.
+    f.raw.exec(`INSERT INTO upload_sessions (id, firm_id, request_id, item_id, link_id, object_key, declared_content_type, declared_size, original_filename, expires_at, idempotency_key, state, completed_at)
+      SELECT 'ses-new', firm_id, request_id, item_id, link_id, 'firms/f1/requests/r1/ses-new', 'application/pdf', 500, 'n.pdf', '2099-01-01', 'kx', 'completed', '2026-01-01' FROM upload_sessions LIMIT 1;
+      INSERT INTO documents (id, firm_id, request_id, item_id, upload_session_id, object_key, content_type, size_bytes, etag, version)
+      VALUES ('doc-new','f1','r1','i1','ses-new','firms/f1/requests/r1/ses-new','application/pdf',500,'e',2);`);
+    const before = f.q("SELECT count(*) AS n FROM activities")[0].n;
+    for (const action of ["accept", "needs_replacement"]) {
+      await assert.rejects(
+        reviewItem(f.db, { itemId: "i1", action, reason: "r", documentId, actor: { type: "staff", userId: "u1" }, scope: { firmId: "f1", requestId: "r1" } }),
+        (e) => e instanceof StateConflict,
+      );
+    }
+    assert.equal(f.q("SELECT status FROM request_items WHERE id='i1'")[0].status, "received");
+    assert.equal(f.q("SELECT state FROM documents WHERE id=?", documentId)[0].state, "received");
+    assert.equal(f.q("SELECT count(*) AS n FROM review_events")[0].n, 0);
+    assert.equal(f.q("SELECT count(*) AS n FROM activities")[0].n, before);
+  });
+
+  await t.test("atomic: item changed between validation and write aborts every write", async () => {
+    const f = fixture();
+    const { documentId } = await f.upload();
+    const racing = { ...f.db, execute: f.db.execute.bind(f.db), async batch(q) {
+      f.raw.exec("UPDATE request_items SET status='under_review' WHERE id='i1'");
+      return f.db.batch(q);
+    } };
+    await assert.rejects(
+      reviewItem(racing, { itemId: "i1", action: "accept", reason: "", documentId, actor: { type: "staff", userId: "u1" }, scope: { firmId: "f1", requestId: "r1" } }),
+      (e) => e instanceof StateConflict && e.currentStatus === "under_review",
+    );
+    assert.equal(f.q("SELECT state FROM documents WHERE id=?", documentId)[0].state, "received");
+    assert.equal(f.q("SELECT count(*) AS n FROM review_events")[0].n, 0);
+    assert.equal(f.q("SELECT count(*) AS n FROM activities WHERE activity_type='item_transition'")[0].n, 1);
+  });
+
+  await t.test("successful review writes transition activity and review event together", async () => {
+    const f = fixture();
+    await f.upload();
+    await f.json("POST", "/api/requests/r1/items/i1/review", { body: { action: "accept" } });
+    assert.equal(f.q("SELECT count(*) AS n FROM review_events")[0].n, 1);
+    assert.equal(f.q("SELECT count(*) AS n FROM activities WHERE activity_type='item_transition'")[0].n, 2);
   });
 
   await t.test("a user with no firm membership is refused", async () => {
