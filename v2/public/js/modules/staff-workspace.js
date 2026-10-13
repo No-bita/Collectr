@@ -3,10 +3,10 @@ import { el, escapeHtml } from '../core/dom.js';
 // DEMO WORKSPACE: a clickable simulation of the staff product. Nothing here talks to a backend.
 // All state lives in this browser (localStorage). "Reset demo data" restores the seed below.
 // The status transitions mirror v2/src/domain/states.js so the demo behaves like the real thing.
-const STORE_KEY = 'collectr-demo-workspace-v1';
+const STORE_KEY = 'collectr-demo-workspace-v2';
 const FIRM = 'Rao & Associates';
 // Pills say whose turn it is. Internal states stay distinct (missing vs needs_replacement); the pill unifies them.
-const labels = { missing: 'Waiting on client', received: 'Needs your review', under_review: 'Needs your review', accepted: 'Accepted', needs_replacement: 'Waiting on client', waived: 'Waived', closed: 'Closed' };
+const labels = { missing: 'Waiting on client', received: 'Needs your review', under_review: 'Needs your review', accepted: 'Accepted', needs_replacement: 'Waiting on client', waived: 'Not needed', closed: 'Closed' };
 const TRANSITIONS = {
   missing: ['received', 'waived'],
   received: ['under_review', 'accepted', 'needs_replacement'],
@@ -49,6 +49,7 @@ function seed() {
       it('Bank statement', 'Statement for the financial year.', 'accepted', 'icici-fy26.pdf', { uploaded: '5 Oct, 6:30 pm' }),
       it('Form 26AS / AIS', 'Download from the income tax portal.', 'waived', '', { reason: 'AIS pulled by the firm directly.' }),
     ], log: ['12 Oct, 4:45 pm|Waived Form 26AS / AIS: AIS pulled by the firm directly.', '12 Oct, 4:40 pm|Accepted Bank statement', '5 Oct, 6:30 pm|Client uploaded Bank statement', '4 Oct, 10:00 am|Request created and link shared'] },
+    { id: 'REQ-2043', client: 'Sharma Textiles Pvt Ltd', contact: 'Vikram Sharma', phone: '+91 98200 11452', title: 'GSTR-9, FY 2025-26', service: 'GST annual return', period: 'FY 2025-26', due: '2026-12-31', lifecycle: 'open', token: 'hn4v7ya3', items: TEMPLATES['GST annual return'].map(([t, d]) => it(t, d, 'missing', '')), log: ['11 Oct, 10:30 am|Request created and link shared'] },
     { id: 'REQ-2042', client: 'Anand Logistics', contact: 'Deepa Anand', phone: '+91 98111 90456', title: 'GSTR-3B, September 2026', service: 'GST filing', period: 'Sep 2026', due: '2026-10-20', lifecycle: 'open', token: 'r2k8ms4j', items: TEMPLATES['GST filing'].map(([t, d, r]) => it(t, d, 'missing', '', { required: r !== false })), log: ['13 Oct, 1:10 pm|Request created and link shared'] },
     { id: 'REQ-2037', client: 'Verma Pharma', contact: 'Sanjay Verma', phone: '+91 97300 55218', title: 'GSTR-9, FY 2025-26', service: 'GST annual return', period: 'FY 2025-26', due: '2026-12-31', lifecycle: 'open', token: 'z9c3tf1u', items: [
       it('GSTR-1 summary', 'All twelve months.', 'accepted', 'gstr1-fy26.pdf', { uploaded: '2 Oct, 3:15 pm' }),
@@ -85,11 +86,40 @@ function collectionState(r) {
   if (req.every(i => ['accepted', 'waived'].includes(i.status))) return 'accepted';
   return 'received';
 }
-const progress = (r) => { const req = r.items.filter(i => i.required); return `${req.filter(i => ['accepted', 'waived'].includes(i.status)).length} / ${req.length}`; };
+const DONE = ['accepted', 'waived'];
+const ARRIVED = ['received', 'under_review'];
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+function tally(reqs) {
+  const pending = [], review = []; let n = 0, done = 0, got = 0;
+  reqs.forEach(r => r.items.forEach(i => {
+    if (ARRIVED.includes(i.status)) review.push({ r, i });
+    if (!i.required) return;
+    n++;
+    if (DONE.includes(i.status)) done++;
+    if (DONE.includes(i.status) || ARRIVED.includes(i.status)) got++;
+    if (['missing', 'needs_replacement'].includes(i.status)) pending.push({ r, i });
+  }));
+  return { n, done, got, pending, review };
+}
+const progress = (r) => { const t = tally([r]); return `${t.done} of ${plural(t.n, 'document')} done`; };
+function buildClient(name, reqs) {
+  const open = reqs.filter(r => r.lifecycle !== 'closed');
+  const state = !open.length ? 'closed' : open.some(r => collectionState(r) === 'missing') ? 'missing' : open.some(r => collectionState(r) === 'received') ? 'received' : 'accepted';
+  const pool = (open.length ? open.filter(r => collectionState(r) === state) : reqs).slice().sort((a, b) => a.due.localeCompare(b.due));
+  const lead = pool[0];
+  return { name, reqs, open, state, lead, due: lead.due, s: tally(open.length ? open : reqs) };
+}
+const RANK = { missing: 0, received: 1, accepted: 2, closed: 3 };
+function clientList() {
+  const m = new Map();
+  requests.forEach(r => { if (!m.has(r.client)) m.set(r.client, []); m.get(r.client).push(r); });
+  return [...m].map(([name, reqs]) => buildClient(name, reqs)).sort((a, b) => RANK[a.state] - RANK[b.state] || a.due.localeCompare(b.due) || a.name.localeCompare(b.name));
+}
+const reviewQueue = () => clientList().flatMap(c => c.open.flatMap(r => r.items.filter(i => ARRIVED.includes(i.status)).map(i => ({ r, i }))));
 const initials = (name) => name.replace(/[^A-Za-z& ]/g, '').split(' ').filter(w => w && w !== '&').slice(0, 2).map(w => w[0].toUpperCase()).join('');
 const hue = (name) => [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
 const avatar = (name) => `<span class="avatar" style="--h:${hue(name)}" aria-hidden="true">${escapeHtml(initials(name))}</span>`;
-const meter = (r) => { const req = r.items.filter(i => i.required); const done = req.filter(i => ['accepted', 'waived'].includes(i.status)).length; const got = req.filter(i => ['received', 'under_review', 'accepted', 'waived'].includes(i.status)).length; const pct = (n) => req.length ? Math.round(n / req.length * 100) : 0; return `<span class="meter" aria-hidden="true"><i class="got" style="width:${pct(got)}%"></i><i class="ok" style="width:${pct(done)}%"></i></span>`; };
+const meter = (t) => { const pct = (n) => t.n ? Math.round(n / t.n * 100) : 0; return `<span class="meter" aria-hidden="true"><i class="got" style="width:${pct(t.got)}%"></i><i class="ok" style="width:${pct(t.done)}%"></i></span>`; };
 const badge = (s) => `<span class="state-badge state-${escapeHtml(s)}">${escapeHtml(labels[s])}</span>`;
 
 function transition(r, item, to, text, reason = '') {
@@ -107,22 +137,35 @@ function toast(msg) {
 const shareLink = (r) => `https://collectr.demo/upload?t=${r.token}`;
 
 /* ---------- list ---------- */
+function nextStep(c) {
+  const names = (list) => { const t = list.slice(0, 2).map(x => x.i.title + (x.i.status === 'needs_replacement' ? ' (new copy)' : '')); return t.join(', ') + (list.length > 2 ? ` +${list.length - 2} more` : ''); };
+  if (c.state === 'missing') return `<strong>Chase ${plural(c.s.pending.length, 'document')}</strong><small>${escapeHtml(names(c.s.pending))}</small>`;
+  if (c.state === 'received') return `<strong>Review ${plural(c.s.review.length, 'document')}</strong><small>${escapeHtml(names(c.s.review))}</small>`;
+  if (c.state === 'accepted') return '<strong>Ready to wrap up</strong><small>Every document is done</small>';
+  return '<strong>Closed</strong><small>Nothing left to do</small>';
+}
 function renderList() {
+  const cs = clientList();
+  const reviewCount = reviewQueue().length;
   const filters = ['all', 'missing', 'received', 'accepted', 'closed'];
   el('request-stats').innerHTML = filters.map(f => {
-    const n = f === 'all' ? requests.length : requests.filter(r => collectionState(r) === f).length;
-    return `<button type="button" class="stat-filter" data-filter="${f}" aria-pressed="${activeFilter === f}"><strong>${n}</strong><span>${f === 'all' ? 'All requests' : labels[f]}</span></button>`;
+    if (f === 'received') return `<button type="button" class="stat-filter" data-filter="received" data-go="review" aria-label="Needs your review: ${plural(reviewCount, 'document')}. Open the review inbox."><strong>${reviewCount}</strong><span>${labels[f]}</span><em>${reviewCount ? 'Open review inbox →' : 'Inbox is clear'}</em></button>`;
+    const n = f === 'all' ? cs.length : cs.filter(c => c.state === f).length;
+    return `<button type="button" class="stat-filter" data-filter="${f}" aria-pressed="${activeFilter === f}"><strong>${n}</strong><span>${f === 'all' ? 'All clients' : labels[f]}</span></button>`;
   }).join('');
-  const visible = requests.filter(r => (activeFilter === 'all' || collectionState(r) === activeFilter) && `${r.client} ${r.title} ${r.service} ${r.id}`.toLowerCase().includes(query));
-  el('result-count').textContent = `${visible.length} of ${requests.length} requests shown`;
-  el('request-rows').innerHTML = visible.map(r => `<tr class="row-link" tabindex="0" data-open="${escapeHtml(r.id)}" aria-label="Open ${escapeHtml(r.client)}, ${escapeHtml(r.title)}">
-    <td><div class="client-cell">${avatar(r.client)}<div><strong>${escapeHtml(r.client)}</strong><small>${escapeHtml(r.title)} / ${escapeHtml(r.id)}</small></div></div></td>
-    <td data-label="Service">${escapeHtml(r.service)}<small>${escapeHtml(r.period)}</small></td>
-    <td data-label="Due">${escapeHtml(fmtDue(r.due))}</td>
-    <td data-label="Accepted / waived"><span class="count">${progress(r)}</span>${meter(r)}</td>
-    <td data-label="Collection state">${badge(collectionState(r))}</td>
-    <td class="row-chevron" aria-hidden="true">›</td>
-  </tr>`).join('');
+  el('start-review').textContent = reviewCount ? `Review inbox (${reviewCount})` : 'Review inbox';
+  const visible = cs.filter(c => (activeFilter === 'all' || c.state === activeFilter) && `${c.name} ${c.reqs.map(r => `${r.title} ${r.service} ${r.id}`).join(' ')}`.toLowerCase().includes(query));
+  el('result-count').textContent = `${visible.length} of ${plural(cs.length, 'client')} shown, most urgent first`;
+  el('request-rows').innerHTML = visible.map(c => {
+    const sub = c.reqs.length === 1 ? `${escapeHtml(c.lead.title)} <span class="quiet">${escapeHtml(c.lead.id)}</span>` : `${plural(c.open.length || c.reqs.length, 'job')}: ${escapeHtml((c.open.length ? c.open : c.reqs).map(r => r.title).join(' + '))}`;
+    return `<tr class="row-link" tabindex="0" data-open="${escapeHtml(c.lead.id)}" aria-label="Open ${escapeHtml(c.name)}">
+    <td><div class="client-cell">${avatar(c.name)}<div><strong>${escapeHtml(c.name)}</strong><small>${sub}</small></div></div></td>
+    <td data-label="Next step">${nextStep(c)}</td>
+    <td data-label="Due">${escapeHtml(fmtDue(c.due))}</td>
+    <td data-label="Progress"><span class="count">${c.s.done} of ${plural(c.s.n, 'document')} done</span>${meter(c.s)}</td>
+    <td data-label="Status">${badge(c.state)}</td>
+    <td class="row-end">${c.state === 'missing' ? `<button type="button" class="remind-btn" data-act="remind-client" data-client="${escapeHtml(c.name)}">Send reminder</button>` : ''}<span class="chev" aria-hidden="true">›</span></td>
+  </tr>`; }).join('');
   el('empty-state').hidden = visible.length > 0;
   document.querySelector('.table-wrap').hidden = visible.length === 0;
 }
@@ -140,21 +183,23 @@ function renderDetail(r) {
   const state = collectionState(r);
   const closed = r.lifecycle === 'closed';
   const canClose = !closed && state === 'accepted';
-  const items = r.items.map(i => `<li id="item-${escapeHtml(i.id)}"><div class="item-heading"><div><h3>${escapeHtml(i.title)}</h3><small>${i.required ? 'Required' : 'Optional'}</small></div>${badge(i.status)}</div>
+  const items = r.items.map(i => `<li id="item-${escapeHtml(i.id)}"><div class="item-heading"><div><h3>${escapeHtml(i.title)}</h3><small>${i.required ? 'Needed' : 'Optional'}</small></div>${badge(i.status)}</div>
     <p class="item-description">${escapeHtml(i.description)}</p>
     ${i.reason ? `<p class="item-reason">${i.status === 'needs_replacement' ? 'Replacement requested: ' : i.status === 'waived' ? 'Waived: ' : 'Note: '}${escapeHtml(i.reason)}</p>` : ''}
     <span class="file-label">${i.file ? `${escapeHtml(i.file)} / ${escapeHtml(i.size)} / uploaded ${escapeHtml(i.uploaded)}` : 'Nothing uploaded yet'}</span>
     ${itemActions(r, i)}<div class="inline-slot" data-slot="${escapeHtml(i.id)}"></div></li>`).join('');
   const log = r.log.map(l => { const [t, ...rest] = l.split('|'); return `<li><time>${escapeHtml(t)}</time><span>${escapeHtml(rest.join('|'))}</span></li>`; }).join('');
-  el('detail-view').innerHTML = `<a class="back-link" href="#requests">← All requests</a>
+  el('detail-view').innerHTML = `<a class="back-link" href="#requests">← All clients</a>
     <div class="page-heading"><div><p class="eyebrow">${escapeHtml(r.id)}</p><div class="detail-client">${avatar(r.client)}<span>${escapeHtml(r.client)}</span></div><h1 id="detail-heading" tabindex="-1">${escapeHtml(r.title)}</h1><p>${escapeHtml(r.service)} / ${escapeHtml(r.period)} / ${escapeHtml(r.contact)}, ${escapeHtml(r.phone)}</p></div>${badge(state)}</div>
-    <div class="detail-meta"><span>Due: ${escapeHtml(fmtDue(r.due))}</span><span>Request: ${closed ? 'Closed' : 'Open'}</span><span>${progress(r)} required items accepted or waived</span></div>
+    ${requests.filter(x => x.client === r.client && x.id !== r.id).length ? `<p class="sibling-jobs">Also for ${escapeHtml(r.client)}: ${requests.filter(x => x.client === r.client && x.id !== r.id).map(x => `<a href="#request/${escapeHtml(x.id)}">${escapeHtml(x.title)}</a>`).join(', ')}</p>` : ''}
+    <div class="detail-meta">
+<span>Due: ${escapeHtml(fmtDue(r.due))}</span><span>Status: ${closed ? 'Closed' : 'Open'}</span><span>${progress(r)}</span></div>
     <div class="detail-grid"><section class="detail-card" aria-labelledby="checklist-heading"><h2 id="checklist-heading">Document checklist</h2><p>Receipt means a file arrived. Acceptance requires staff review.</p><ul class="checklist">${items}</ul></section>
     <div class="side-stack"><aside class="detail-card" aria-labelledby="next-heading"><h2 id="next-heading">Client link</h2>
-      ${closed ? '<p>This request is closed, so the client link no longer takes uploads.</p>' : `<p>The client opens this on their phone. No account needed.</p><div class="link-box"><code>${escapeHtml(shareLink(r))}</code></div>
+      ${closed ? '<p>This job is closed, so the client link no longer takes uploads.</p>' : `<p>The client opens this on their phone. No account needed.</p><div class="link-box"><code>${escapeHtml(shareLink(r))}</code></div>
       <button type="button" data-act="copy-link">Copy link</button><button type="button" data-act="share-wa">Share on WhatsApp</button><button type="button" data-act="client-view" class="primary">Preview client upload</button>`}
-      <h2 class="side-h">Close request</h2>
-      ${closed ? '<p>Closed. Nothing more to do here.</p>' : `<p>${canClose ? 'Every required item is accepted or waived.' : 'Available once every required item is accepted or waived.'}</p><button type="button" data-act="close" ${canClose ? '' : 'disabled'}>Close request</button>`}
+      <h2 class="side-h">Wrap up</h2>
+      ${closed ? '<p>Closed. Nothing more to do here.</p>' : `<p>${canClose ? 'Every needed document is done.' : 'Available once every needed document is done.'}</p><button type="button" data-act="close" ${canClose ? '' : 'disabled'}>Close this job</button>`}
     </aside>
     <aside class="detail-card" aria-labelledby="activity-heading"><h2 id="activity-heading">Activity</h2><ol class="activity">${log}</ol></aside></div></div>`;
 }
@@ -164,16 +209,21 @@ function route(focus = false) {
   const hash = window.location.hash;
   const id = hash.startsWith('#request/') ? hash.slice('#request/'.length) : null;
   const r = find(id);
-  el('requests-view').hidden = Boolean(id);
+  const inbox = hash === '#review';
+  el('requests-view').hidden = Boolean(id) || inbox;
+  el('review-view').hidden = !inbox;
+  el('guide').hidden = Boolean(id) || inbox;
   el('detail-view').hidden = !id;
-  if (id && r) renderDetail(r);
-  else if (id) el('detail-view').innerHTML = '<a class="back-link" href="#requests">← All requests</a><h1 id="detail-heading" tabindex="-1">Request not found</h1><p>No request with that ID in this demo workspace.</p>';
+  if (inbox) renderInbox();
+  else if (id && r) renderDetail(r);
+  else if (id) el('detail-view').innerHTML = '<a class="back-link" href="#requests">← All clients</a><h1 id="detail-heading" tabindex="-1">Not found</h1><p>Nothing with that ID in this demo workspace.</p>';
   else renderList();
   const nav = document.querySelectorAll('.workspace-header nav a');
   nav.forEach(l => l.removeAttribute('aria-current'));
-  nav[hash === '#guide' ? 1 : 0].setAttribute('aria-current', 'page');
+  const here = inbox ? '#review' : hash === '#guide' ? '#guide' : '#requests';
+  nav.forEach(l => { if (l.getAttribute('href') === here) l.setAttribute('aria-current', 'page'); });
   if (focus) {
-    const t = hash === '#guide' ? el('guide-heading') : id ? el('detail-heading') : el('requests-heading');
+    const t = inbox ? el('review-heading') : hash === '#guide' ? el('guide-heading') : id ? el('detail-heading') : el('requests-heading');
     t.focus(); t.scrollIntoView({ block: 'start' });
   }
 }
@@ -191,7 +241,7 @@ el('modal').addEventListener('cancel', () => { clientOpenFor = null; });
 /* ---------- new request ---------- */
 function newRequestForm() {
   const services = Object.keys(TEMPLATES);
-  openModal(`<form id="new-form" class="modal-body" method="dialog"><h2 id="modal-title">New document request</h2><p>Pick a service and Collectr drafts the checklist. Edit it before you share the link.</p>
+  openModal(`<form id="new-form" class="modal-body" method="dialog"><h2 id="modal-title">Request documents</h2><p>Pick a service and Collectr drafts the checklist. Edit it before you share the link.</p>
     <label>Client name<input name="client" required placeholder="e.g. Gupta Traders" autocomplete="off" /></label>
     <label>Contact person<input name="contact" placeholder="e.g. Neha Gupta" autocomplete="off" /></label>
     <label>WhatsApp number<input name="phone" required inputmode="tel" placeholder="+91 98XXX XXXXX" autocomplete="off" /></label>
@@ -199,7 +249,7 @@ function newRequestForm() {
     <label>Period<input name="period" required placeholder="e.g. Oct 2026" /></label>
     <label>Due date<input name="due" type="date" required /></label>
     <fieldset><legend>Checklist</legend><div id="nf-items"></div><button type="button" id="nf-add" class="link-button">+ Add a document</button></fieldset>
-    <div class="modal-actions"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Create request and get link</button></div></form>`);
+    <div class="modal-actions"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Create and get link</button></div></form>`);
   const form = el('new-form');
   const d = new Date(); d.setDate(d.getDate() + 14); // default: two weeks from today, local time
   form.due.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -229,7 +279,7 @@ function newRequestForm() {
   });
 }
 function shareDialog(r) {
-  openModal(`<div class="modal-body"><h2 id="modal-title">Request created</h2><p>Share this link with ${escapeHtml(r.contact)}. They open it on their phone, no login needed.</p>
+  openModal(`<div class="modal-body"><h2 id="modal-title">Ready to share</h2><p>Share this link with ${escapeHtml(r.contact)}. They open it on their phone, no login needed.</p>
     <div class="link-box"><code>${escapeHtml(shareLink(r))}</code></div>
     <p class="wa-preview">Hi ${escapeHtml(r.contact.split(' ')[0])}, ${escapeHtml(FIRM)} needs a few documents for ${escapeHtml(r.title)}. Upload them here: ${escapeHtml(shareLink(r))}</p>
     <div class="modal-actions"><button type="button" data-act="copy-link" data-req="${escapeHtml(r.id)}">Copy link</button><button type="button" data-act="mark-shared" data-req="${escapeHtml(r.id)}">Mark as shared on WhatsApp</button><button type="button" class="primary" data-act="open-created" data-req="${escapeHtml(r.id)}">Open request</button></div>
@@ -267,6 +317,43 @@ function reviewDialog(r, i) {
 }
 const refreshBehind = (r) => { if (window.location.hash === `#request/${r.id}`) renderDetail(r); else route(false); };
 
+/* ---------- review inbox ---------- */
+const skipped = new Set();
+function renderInbox() {
+  const q = reviewQueue();
+  const todo = q.filter(x => !skipped.has(x.i.id));
+  const cur = todo[0];
+  let body;
+  if (!q.length) body = '<div class="inbox-empty"><h2>Inbox clear</h2><p>Nothing is waiting for your review. New uploads from clients land here.</p><a class="back-link" href="#requests">← Back to clients</a></div>';
+  else if (!cur) body = '<div class="inbox-empty"><h2>That is the rest, for now</h2><p>You skipped the remaining documents.</p><button type="button" class="primary" data-act="inbox-reset">Review skipped documents</button></div>';
+  else {
+    const { r, i } = cur;
+    body = `<div class="inbox-grid"><section class="detail-card inbox-card" aria-labelledby="ib-title"><p class="eyebrow">${plural(todo.length, 'document')} left to review</p>
+      <h2 id="ib-title">${escapeHtml(i.title)}</h2><p>${avatar(r.client)} <strong>${escapeHtml(r.client)}</strong> / ${escapeHtml(r.title)}</p>
+      <div class="doc-preview" role="img" aria-label="Document preview placeholder"><div class="doc-page"><span></span><span></span><span></span><span></span><span></span></div><div><strong>${escapeHtml(i.file)}</strong><small>${escapeHtml(i.size)} / uploaded ${escapeHtml(i.uploaded)}</small><small>Preview is a placeholder in this demo.</small></div></div>
+      <p>Check it is the right document and readable. Collectr does not read or verify the contents for you.</p>
+      <label>If you need another copy, tell the client why<textarea id="ib-reason" rows="2" placeholder="e.g. The last page is cut off."></textarea></label>
+      <div class="modal-actions"><button type="button" data-act="inbox-skip" data-item="${escapeHtml(i.id)}">Skip for now</button><button type="button" data-act="inbox-replace" data-req="${escapeHtml(r.id)}" data-item="${escapeHtml(i.id)}">Ask for a new copy</button><button type="button" class="primary" data-act="inbox-accept" data-req="${escapeHtml(r.id)}" data-item="${escapeHtml(i.id)}">Accept</button></div></section>
+      <aside class="detail-card" aria-labelledby="ib-next"><h2 id="ib-next">Up next</h2>${todo.length > 1 ? `<ul class="up-next">${todo.slice(1, 7).map(x => `<li><strong>${escapeHtml(x.i.title)}</strong><small>${escapeHtml(x.r.client)}</small></li>`).join('')}</ul>${todo.length > 7 ? `<p class="quiet">+${todo.length - 7} more</p>` : ''}` : '<p>This is the last one.</p>'}</aside></div>`;
+  }
+  el('review-view').innerHTML = `<a class="back-link" href="#requests">← All clients</a><div class="page-heading"><div><p class="eyebrow">Review inbox</p><h1 id="review-heading" tabindex="-1">Documents to review</h1><p>Everything your clients have sent, one after another. Accept it, or ask for a new copy.</p></div></div>${body}`;
+}
+const afterDecision = () => { renderInbox(); const b = document.querySelector('[data-act="inbox-accept"]'); if (b) b.focus(); else el('review-heading').focus(); };
+
+/* ---------- client-level reminder ---------- */
+function remindDialog(c) {
+  const byReq = new Map();
+  c.s.pending.forEach(x => { if (!byReq.has(x.r.id)) byReq.set(x.r.id, { r: x.r, items: [] }); byReq.get(x.r.id).items.push(x.i); });
+  const first = c.lead.contact.split(' ')[0];
+  const lines = [`Hi ${first}, this is ${FIRM}. ${plural(c.s.pending.length, 'document')} still pending:`, ''];
+  byReq.forEach(({ r, items }) => { lines.push(`${r.title}`); items.forEach(i => lines.push(`- ${i.title}${i.status === 'needs_replacement' ? ' (new copy needed)' : ''}`)); lines.push(`Upload here: ${shareLink(r)}`, ''); });
+  lines.push('Thank you!');
+  openModal(`<div class="modal-body"><h2 id="modal-title">Remind ${escapeHtml(c.name)}</h2><p>One message with everything pending, to ${escapeHtml(c.lead.contact)} on ${escapeHtml(c.lead.phone)}.</p>
+    <p class="sim-label">Simulated preview. Nothing is sent from this demo.</p>
+    <pre class="wa-preview wa-bundle">${escapeHtml(lines.join('\n'))}</pre>
+    <div class="modal-actions"><button type="button" data-close>Cancel</button><button type="button" class="primary" data-act="send-client-reminder" data-client="${escapeHtml(c.name)}">Send (simulated)</button></div></div>`);
+}
+
 /* ---------- inline waive form ---------- */
 function waiveForm(i) {
   const slot = document.querySelector(`[data-slot="${i.id}"]`);
@@ -278,6 +365,19 @@ function waiveForm(i) {
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
+  if (act === 'remind-client' || act === 'send-client-reminder') {
+    const c = clientList().find(x => x.name === t.dataset.client); if (!c) return;
+    if (act === 'remind-client') remindDialog(c);
+    else {
+      const k = new Map(); c.s.pending.forEach(x => k.set(x.r, (k.get(x.r) || 0) + 1));
+      k.forEach((n, r) => addLog(r, `Reminder sent on WhatsApp: ${plural(n, 'document')} pending`));
+      save(); closeModal(); refresh();
+      toast('Reminder logged. In the real product it goes out on WhatsApp.');
+    }
+    return;
+  }
+  if (act === 'inbox-reset') { skipped.clear(); renderInbox(); return; }
+  if (act === 'inbox-skip') { skipped.add(t.dataset.item); afterDecision(); return; }
   const id = t.dataset.req || (window.location.hash.startsWith('#request/') ? window.location.hash.slice(9) : null);
   const r = find(id);
   const item = r && r.items.find(x => x.id === t.dataset.item);
@@ -292,6 +392,13 @@ document.addEventListener('click', async e => {
   else if (act === 'cancel-inline') t.closest('.inline-slot').innerHTML = '';
   else if (act === 'review' && r && item) reviewDialog(r, item);
   else if (act === 'view' && r && item) { openModal(`<div class="modal-body"><h2 id="modal-title">${escapeHtml(item.title)}</h2><div class="doc-preview"><div class="doc-page"><span></span><span></span><span></span><span></span><span></span></div><div><strong>${escapeHtml(item.file)}</strong><small>${escapeHtml(item.size)} / uploaded ${escapeHtml(item.uploaded)}</small><small>Preview is a placeholder in this demo.</small></div></div><div class="modal-actions"><button type="button" class="primary" data-close>Done</button></div></div>`); }
+  else if (act === 'inbox-accept' && r && item) { if (transition(r, item, 'accepted', `Accepted ${item.title}`)) toast(`${item.title} accepted.`); afterDecision(); }
+  else if (act === 'inbox-replace' && r && item) {
+    const reason = (el('ib-reason').value || '').trim();
+    if (!reason) { el('ib-reason').focus(); toast('Add a short reason so the client knows what to fix.'); return; }
+    if (transition(r, item, 'needs_replacement', `Asked for a replacement: ${item.title}`, reason)) toast('New copy requested. In the real product the client is told on WhatsApp.');
+    afterDecision();
+  }
   else if (act === 'accept' && r && item) { if (transition(r, item, 'accepted', `Accepted ${item.title}`)) toast(`${item.title} accepted.`); closeModal(); refreshBehind(r); }
   else if (act === 'replace' && r && item) {
     const reason = (el('rv-reason').value || '').trim();
@@ -319,13 +426,15 @@ document.addEventListener('change', e => {
   refresh();
 });
 const openRow = (tr) => { if (tr && tr.dataset.open) window.location.hash = `#request/${tr.dataset.open}`; };
-el('request-rows').addEventListener('click', e => openRow(e.target.closest('tr')));
+el('request-rows').addEventListener('click', e => { if (!e.target.closest('button')) openRow(e.target.closest('tr')); });
+el('start-review').addEventListener('click', () => { window.location.hash = '#review'; });
 el('request-rows').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('tr')) openRow(e.target); });
 el('new-request').addEventListener('click', newRequestForm);
-el('reset-demo').addEventListener('click', () => { requests = seed(); save(); activeFilter = 'all'; query = ''; el('request-search').value = ''; window.location.hash = '#requests'; route(false); toast('Demo data reset.'); });
+el('reset-demo').addEventListener('click', () => { skipped.clear(); requests = seed(); save(); activeFilter = 'all'; query = ''; el('request-search').value = ''; window.location.hash = '#requests'; route(false); toast('Demo data reset.'); });
 el('request-search').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); renderList(); });
 el('request-stats').addEventListener('click', e => {
   const b = e.target.closest('[data-filter]'); if (!b) return;
+  if (b.dataset.go === 'review') { window.location.hash = '#review'; return; }
   activeFilter = b.dataset.filter; renderList();
   document.querySelector(`[data-filter="${activeFilter}"]`).focus();
 });
