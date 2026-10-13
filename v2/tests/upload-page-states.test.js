@@ -8,6 +8,8 @@ const rootDir = fs.existsSync(path.join(process.cwd(), 'public')) ? process.cwd(
 const html = fs.readFileSync(path.join(rootDir, 'public', 'upload.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
+const visible = (n) => !n.hidden && n.style.display !== 'none';
+
 function makeNode(id) {
   return {
     id, hidden: false, style: {}, dataset: {}, textContent: '', innerHTML: '', children: [],
@@ -39,12 +41,16 @@ async function loadPage({ search, session }) {
     navigator: { userAgent: 'node' },
   };
   vm.createContext(ctx);
-  vm.runInContext(script.replace('const params = new URLSearchParams(window.location.search);', 'const params = new URLSearchParams(window.location.search);'), ctx);
-  await new Promise((r) => setTimeout(r, 20));
-  return { nodes: (id) => document.getElementById(id) };
+  vm.runInContext(script, ctx);
+  const nodes_ = (id) => document.getElementById(id);
+  // Wait for the async init to land in one of the three states (no fixed sleep).
+  const settled = () => ['recoveryCard', 'allDoneBanner', 'nextUpCard'].some((id) => visible(nodes_(id)));
+  const deadline = Date.now() + 3000;
+  while (!settled() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+  assert.ok(settled(), 'page never reached a known state');
+  return { nodes: nodes_ };
 }
 
-const visible = (n) => !n.hidden && n.style.display !== 'none';
 const item = (over = {}) => ({ id: 'i1', title: 'PAN Card', description: 'ID proof', required: true, status: 'missing', allowed_types: 'pdf', max_bytes: 1048576, upload_count: 0, ...over });
 
 test('completed request leads with the receipt and hides every upload invitation', async () => {
