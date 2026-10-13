@@ -317,7 +317,7 @@
     <div class="portal-card">
       
       <!-- Welcome Header -->
-      <div class="portal-header">
+      <div class="portal-header" id="portalHeader">
         <div class="header-icon-circle">📄</div>
         <h1 id="clientGreeting">Namaste,</h1>
         <p id="requestSubtitle" style="margin: 0.25rem 0 0; font-size: 14px; color: var(--text-muted);" hidden></p>
@@ -330,6 +330,29 @@
       </div>
 
       <div id="sessionErrorAlert" style="background: var(--status-danger-bg); border: 1px solid var(--border); color: var(--status-danger-text); padding: 1rem; border-radius: 10px; font-size: 14px; margin-bottom: 1.5rem; text-align: center;" hidden></div>
+
+      <!-- All Documents Completed Reassurance Banner -->
+      <div class="success-banner" id="allDoneBanner" hidden style="margin-bottom: 1.25rem; background: var(--success-light); border: 1px solid var(--success-border); border-radius: 12px; padding: 1.25rem; display: flex; align-items: center; gap: 1rem;">
+        <div class="success-icon-circle" style="width: 32px; height: 32px; background: var(--success); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px;">✓</div>
+        <div class="success-text">
+          <div style="font-size: 15px; font-weight: 600; color: #1C8C5E;">Everything's sent. Nicely done.</div>
+          <div style="font-size: 13px; color: #15803D; margin-top: 0.2rem;">Nothing else to send. Your CA team will take it from here.</div>
+        </div>
+      </div>
+
+      <!-- Recovery state: bad or missing link. Explanation plus one next step, no upload invitation. -->
+      <div id="recoveryCard" hidden style="text-align: center; padding: 1rem 0.5rem 0.5rem;">
+        <div id="recoveryTitle" style="font-size: 17px; font-weight: 600; color: var(--text-main);"></div>
+        <p id="recoveryBody" style="margin: 0.5rem 0 0; font-size: 14px; color: var(--text-muted);"></p>
+        <p id="recoveryStep" style="margin: 0.75rem 0 0; font-size: 14px; color: var(--text-main); font-weight: 500;"></p>
+      </div>
+
+      <!-- Missing-items state: lead with the next real task. -->
+      <div id="nextUpCard" hidden style="background: var(--accent-light); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+        <div style="font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em;">Next up</div>
+        <div id="nextUpTitle" style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-top: 0.2rem;"></div>
+        <div id="nextUpHint" style="font-size: 13px; color: var(--text-muted); margin-top: 0.2rem;"></div>
+      </div>
 
       <!-- Upload Progress Meta Bar -->
       <div id="progressContainer" style="display: none;">
@@ -348,20 +371,11 @@
       </div>
 
       <!-- Drag and Drop Additional Upload Box -->
-      <div class="dropzone-box" id="dropzoneBox" >
+      <div class="dropzone-box" id="dropzoneBox" hidden style="display: none;">
         <div class="dropzone-title">Got a file handy? Drop it in.</div>
         <div class="dropzone-sub">
           Drag & drop your file here or <a href="javascript:void(0)">browse / snap photo</a><br/>
           We'll pop it on the next item that still needs one
-        </div>
-      </div>
-
-      <!-- All Documents Completed Reassurance Banner -->
-      <div class="success-banner" id="allDoneBanner" hidden style="background: var(--success-light); border: 1px solid var(--success-border); border-radius: 12px; padding: 1.25rem; display: flex; align-items: center; gap: 1rem;">
-        <div class="success-icon-circle" style="width: 32px; height: 32px; background: var(--success); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px;">✓</div>
-        <div class="success-text">
-          <div style="font-size: 15px; font-weight: 600; color: #1C8C5E;">Everything's sent. Nicely done.</div>
-          <div style="font-size: 13px; color: #15803D; margin-top: 0.2rem;">Your CA team will take it from here.</div>
         </div>
       </div>
 
@@ -398,9 +412,9 @@
     const TYPE_TOKEN_LABEL = { pdf: "PDF", jpg: "JPG", jpeg: "JPG", png: "PNG" };
 
     const ERROR_COPY = {
-      not_found: "We can't find this link. Please ask your CA team for a fresh one.",
-      expired: "This link has expired. Please ask your CA team for a fresh one.",
-      revoked: "This link has been switched off. Please ask your CA team for a fresh one.",
+      not_found: "We can't find a request for this link.",
+      expired: "This link has expired.",
+      revoked: "This link has been switched off.",
       request_closed: "This request has been closed, so uploads are paused.",
       item_not_found: "That item is no longer on your list. Please refresh the page.",
       item_closed: "That item is already sorted, so no more files are needed for it.",
@@ -500,14 +514,28 @@
       }
     }
 
+    // Bad or missing link: say what happened, give one next step, offer no upload.
+    function showRecovery(title, body, step) {
+      ["portalHeader", "progressContainer", "docStack", "dropzoneBox", "allDoneBanner", "nextUpCard", "sessionErrorAlert"].forEach(id => {
+        const node = el(id);
+        if (node) { node.hidden = true; node.style.display = "none"; }
+      });
+      el("recoveryTitle").textContent = title;
+      el("recoveryBody").textContent = body;
+      el("recoveryStep").textContent = step;
+      el("recoveryCard").hidden = false;
+    }
+
     async function initPortal() {
       const errBox = el("sessionErrorAlert");
       errBox.hidden = true;
 
       if (!token) {
-        errBox.innerHTML = `⚠️ <strong>No upload link found</strong><br/>Please open the exact link your CA team sent you on WhatsApp.`;
-        errBox.hidden = false;
-        el("docStack").innerHTML = `<p style="text-align: center; padding: 2rem; color: #ef4444; font-weight: 600;">This page needs the link from your CA team.</p>`;
+        showRecovery(
+          "This page needs your personal link",
+          "Each upload page belongs to one request, so it can't open without the link that came with it.",
+          "Open the exact link your CA team sent you on WhatsApp, or ask them for a new one."
+        );
         return;
       }
 
@@ -517,9 +545,11 @@
         renderItemsStack(currentSession.items || []);
         setupDropzoneHandlers();
       } catch (err) {
-        errBox.innerHTML = `⚠️ <strong>Link not working</strong><br/>${escapeHtml(err.message)}<br/><span style="font-size: 0.75rem; margin-top: 0.5rem; display: block; color: #475569;">Please message your CA team on WhatsApp and they'll send a fresh link.</span>`;
-        errBox.hidden = false;
-        el("docStack").innerHTML = "";
+        showRecovery(
+          "This link isn't working",
+          err.message,
+          "Open the exact link your CA team sent you on WhatsApp, or ask them for a new one."
+        );
       }
     }
 
@@ -543,15 +573,42 @@
       el("progressText").textContent = `${doneCount} of ${total} sent`;
       el("progressFillBar").style.width = `${total > 0 ? (doneCount / total) * 100 : 0}%`;
 
+      const allDone = total > 0 && doneCount === total;
+
+      // Completed state: lead with the receipt, drop every upload invitation.
       const banner = el("allDoneBanner");
       if (banner) {
-        const allDone = total > 0 && doneCount === total;
         banner.hidden = !allDone;
         banner.style.display = allDone ? "flex" : "none";
       }
+      const sub = el("requestSubtitle");
+      if (allDone && sub) {
+        sub.textContent = currentSession && currentSession.firm_name
+          ? `Here's your receipt for ${currentSession.firm_name}.`
+          : "Here's your receipt.";
+        sub.hidden = false;
+      }
+      if (progContainer && allDone) progContainer.style.display = "none";
+
+      // Missing-items state: lead with the next real task.
+      const next = allDone ? null : nextOpenItem();
+      const nextCard = el("nextUpCard");
+      if (nextCard) {
+        nextCard.hidden = !next;
+        if (next) {
+          el("nextUpTitle").textContent = next.title || "Document";
+          el("nextUpHint").textContent = itemState(next) === "replace"
+            ? "Your CA team needs a clearer or different copy of this one."
+            : (next.description || itemHint(next));
+        }
+      }
 
       const dropzone = el("dropzoneBox");
-      if (dropzone) dropzone.style.display = nextOpenItem() ? "" : "none";
+      if (dropzone) {
+        const showDrop = !allDone && !!next;
+        dropzone.hidden = !showDrop;
+        dropzone.style.display = showDrop ? "" : "none";
+      }
 
       if (items.length === 0) {
         stack.innerHTML = `<p style="text-align: center; padding: 1.5rem; color: #64748b;">Nothing on your list yet. Enjoy the quiet.</p>`;
@@ -574,7 +631,9 @@
           row.style.background = "#f0fdf4";
           row.style.borderColor = "#bbf7d0";
         }
-        if (!closed) row.onclick = () => promptMobileUploadChoice(item.id);
+        const canUpload = !allDone && !closed;
+        if (canUpload) row.onclick = () => promptMobileUploadChoice(item.id);
+        else row.style.cursor = "default";
 
         const badges = {
           open: ["pending", "Upload file"],
@@ -598,7 +657,7 @@
           </div>
           <div class="doc-right" id="doc-status-col-${escapeHtml(item.id)}">
             <span class="upload-status-indicator ${badgeClass}">${badgeText}</span>
-            ${closed ? "" : '<span class="arrow-icon">›</span>'}
+            ${canUpload ? '<span class="arrow-icon">›</span>' : ""}
           </div>
         `;
         stack.appendChild(row);
