@@ -183,3 +183,20 @@ test("Issue #16: redelivered terminal occurrences are never overwritten by termi
     assert.equal(res.reason, "insufficient_credits", "flows past the request guard into the credit check as before");
   });
 });
+
+test("Retired loan_cases: pending occurrence tied to a case is skipped before dispatch", async () => {
+  const occurrences = [{ ...baseOccurrence, operational_status: "claimed", executed_at: undefined }];
+  const db = createConsumerMockDb({
+    occurrences,
+    schedules: [{ ...baseSchedule, request_id: null, case_id: "case_1" }],
+    users: [{ id: "usr_1", username: "Test", credit_balance: 900000 }],
+  });
+  const res = await processScheduledOccurrence("occ_1", { ENVIRONMENT: "development" }, db);
+  assert.equal(res.handled, true);
+  assert.equal(res.status, "skipped");
+  assert.equal(res.reason, "legacy_case");
+  assert.equal(occurrences[0].operational_status, "skipped");
+  assert.equal(occurrences[0].skip_reason, "legacy_case");
+  assert.ok(occurrences[0].executed_at, "execution timestamp is set");
+  assert.ok(db.writes.some((w) => w.sql.startsWith("UPDATE schedules SET status = 'completed'")), "one-off schedule finalized");
+});
