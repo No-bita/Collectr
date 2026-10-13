@@ -233,4 +233,4 @@ export async function handleCloseRequest(c) {
   } catch (err) {
     return handleError(c, err, "Close request");
   }
-  }
+}
