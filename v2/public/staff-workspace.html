@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Requests | Collectr</title>
+  <title>Clients | Collectr</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -11,27 +11,28 @@
   <link rel="stylesheet" href="/css/staff-workspace.css" />
 </head>
 <body class="staff-workspace">
-  <a class="skip-link" href="#workspace-content">Skip to requests</a>
+  <a class="skip-link" href="#workspace-content">Skip to content</a>
   <div class="workspace-shell">
     <header class="workspace-header">
       <a class="workspace-brand" href="#requests"><span class="workspace-mark" aria-hidden="true">C</span>Collectr</a>
-      <nav aria-label="Workspace"><a href="#requests" aria-current="page">Requests</a><a href="#guide">Status guide</a></nav>
+      <nav aria-label="Workspace"><a href="#requests" aria-current="page">Clients</a><a href="#review">Review inbox</a><a href="#guide">Status guide</a></nav>
       <span class="demo-label">Demo workspace</span>
     </header>
     <main id="workspace-content" tabindex="-1">
       <section id="requests-view" aria-labelledby="requests-heading">
-        <div class="page-heading"><div><p class="eyebrow">Firm workspace</p><h1 id="requests-heading" tabindex="-1">Document requests</h1><p>See what's missing, what's arrived, and what's been accepted.</p></div>
-          <div class="future-action"><button type="button" id="new-request" class="primary">New request</button></div>
+        <div class="page-heading"><div><p class="eyebrow">Firm workspace</p><h1 id="requests-heading" tabindex="-1">Clients</h1><p>Chase what is pending, review what has arrived, close what is done.</p></div>
+          <div class="future-action"><button type="button" id="start-review">Review inbox</button><button type="button" id="new-request" class="primary">Request documents</button></div>
         </div>
-        <div id="request-stats" class="request-stats" aria-label="Filter requests by collection state"></div>
-        <section class="request-panel" aria-label="Request list">
-          <div class="list-toolbar"><div><h2>All requests</h2><p id="result-count" role="status" aria-live="polite"></p></div><label class="search-field">Search requests<input id="request-search" type="search" placeholder="Client, service or request ID" autocomplete="off" /></label></div>
-          <div class="table-wrap"><table class="requests-table"><caption class="sr-only">Document requests. Select a request to see its checklist.</caption><thead><tr><th scope="col">Client / request</th><th scope="col">Service</th><th scope="col">Due</th><th scope="col">Accepted / waived</th><th scope="col">Collection state</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead><tbody id="request-rows"></tbody></table></div>
-          <div id="empty-state" class="empty-state" hidden><h3>No matching requests</h3><p>Try another client name or reset your filters.</p><button id="reset-filters" type="button">Reset filters</button></div>
+        <div id="request-stats" class="request-stats" aria-label="Filter clients by status"></div>
+        <section class="request-panel" aria-label="Client list">
+          <div class="list-toolbar"><div><h2>Who needs you today</h2><p id="result-count" role="status" aria-live="polite"></p></div><label class="search-field">Search clients<input id="request-search" type="search" placeholder="Client or service" autocomplete="off" /></label></div>
+          <div class="table-wrap"><table class="requests-table"><caption class="sr-only">Clients, most urgent first. Select a client to see their documents.</caption><thead><tr><th scope="col">Client</th><th scope="col">Next step</th><th scope="col">Due</th><th scope="col">Progress</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="request-rows"></tbody></table></div>
+          <div id="empty-state" class="empty-state" hidden><h3>No matching clients</h3><p>Try another name or reset your filters.</p><button id="reset-filters" type="button">Reset filters</button></div>
         </section>
       </section>
+      <section id="review-view" aria-labelledby="review-heading" hidden></section>
       <section id="detail-view" aria-labelledby="detail-heading" hidden></section>
-      <section id="guide" class="status-guide" aria-labelledby="guide-heading"><p class="eyebrow">How to read this workspace</p><h2 id="guide-heading" tabindex="-1">Received is not accepted.</h2><div class="guide-grid"><p><strong>Waiting on client</strong>At least one required document is still missing, or the client has been asked to send it again.</p><p><strong>Needs your review</strong>Required documents have arrived, but staff review is still needed.</p><p><strong>Accepted</strong>Every required item is accepted or waived. Closing the request is a separate step.</p></div><p>Collection states are separate from whether a request is open or closed. No OCR or automatic verification is claimed.</p></section>
+      <section id="guide" class="status-guide" aria-labelledby="guide-heading"><p class="eyebrow">How to read this workspace</p><h2 id="guide-heading" tabindex="-1">Received is not accepted.</h2><div class="guide-grid"><p><strong>Waiting on client</strong>At least one needed document is still missing, or the client has been asked to send it again.</p><p><strong>Needs your review</strong>The documents have arrived, but you still need to look at them.</p><p><strong>Accepted</strong>Every needed document is done. Closing the job is a separate step.</p></div><p>Status is separate from whether a job is open or closed. No OCR or automatic verification is claimed.</p></section>
     </main>
     <footer class="workspace-footer">Collectr / collection first, human review next <span>Demo workspace: firm and clients are fictional, changes stay in this browser. <button type="button" id="reset-demo" class="link-button">Reset demo data</button></span></footer>
   </div>
