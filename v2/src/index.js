@@ -52,10 +52,8 @@ import {
 
 import { handleCreateLink, handleListLinks, handleRevokeLink, handleRegenerateLink } from "./api/links.js";
 import { handleSessionRequest } from "./api/session.js";
-import { handleDirectUpload } from "./api/upload.js";
 import { handleUploadUrlRequest } from "./api/uploads.js";
 import { handleUploadComplete } from "./api/upload-complete.js";
-import { handleBulkImportCases, handleBulkPrecheck } from "./api/cases.js";
 
 import { scanAndClaimDueOccurrences } from "./scheduler/scanner.js";
 import { processScheduledOccurrence, handleQueueBatch } from "./scheduler/consumer.js";
@@ -87,13 +85,10 @@ app.post("/api/webhook", handleWebhookEvent);
 app.get("/api/session/:token", handleSessionRequest);
 app.post("/api/upload-url/:token", handleUploadUrlRequest);
 app.post("/api/upload-complete/:token", handleUploadComplete);
-app.post("/api/direct-upload/:token", handleDirectUpload);
 
 // Protected API Routes (Requires Auth Credentials)
 app.use("/api/contacts", authMiddleware);
 app.use("/api/contacts/*", authMiddleware);
-app.use("/api/cases", authMiddleware);
-app.use("/api/cases/*", authMiddleware);
 app.use("/api/requests/*", authMiddleware);
 app.use("/api/schedules", authMiddleware);
 app.use("/api/schedules/*", authMiddleware);
@@ -161,12 +156,6 @@ app.delete("/api/admin/failures/:id", handleDeleteAdminFailure);
 app.post("/api/admin/failures/clear", handleClearAllFailures);
 
 // Backward Compatibility Aliases for Frontend
-app.get("/api/cases", handleGetContacts);
-app.get("/api/cases/:id", handleGetContactWorkspace);
-app.post("/api/cases", handleCreateContact);
-app.patch("/api/cases/:id/status", handleUpdateContact);
-app.post("/api/cases/bulk-import", handleBulkImportCases);
-app.post("/api/cases/bulk-precheck", handleBulkPrecheck);
 app.get("/api/user/profile", async (c) => {
   const user = c.get("user");
   const db = getDbClient(c.env);
