@@ -59,21 +59,6 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     return { handled: true, status: "skipped", reason: "cancelled" };
   }
 
-  if (row.case_id) {
-    const caseRes = await db.execute({
-      sql: "SELECT status FROM loan_cases WHERE id = ? LIMIT 1",
-      args: [row.case_id],
-    }).catch(() => ({ rows: [] }));
-    if (caseRes.rows?.[0]?.status === "closed") {
-      await db.execute({
-        sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'case_closed', executed_at = datetime('now') WHERE id = ?",
-        args: [occurrenceId],
-      });
-      await finalizeOneOffSchedule(db, row.schedule_id);
-      return { handled: true, status: "skipped", reason: "case_closed" };
-    }
-  }
-
   if (row.request_id) {
     const reqRes = await db.execute({
       sql: "SELECT status FROM requests WHERE id = ? LIMIT 1",
@@ -164,12 +149,6 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
       sql: "UPDATE scheduled_occurrences SET operational_status = 'completed', provider_message_id = ?, message_id = ?, executed_at = datetime('now') WHERE id = ?",
       args: [pipeRes.providerMsgId || null, pipeRes.messageId || null, occurrenceId],
     });
-    if (row.case_id) {
-      await db.execute({
-        sql: "UPDATE loan_cases SET whatsapp_delivery_status = 'sent' WHERE id = ?",
-        args: [row.case_id],
-      }).catch(() => {});
-    }
     await finalizeOneOffSchedule(db, row.schedule_id);
     return { handled: true, status: "completed", providerMsgId: pipeRes.providerMsgId, messageId: pipeRes.messageId };
   }
