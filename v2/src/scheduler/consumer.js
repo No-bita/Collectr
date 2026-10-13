@@ -59,6 +59,17 @@ export async function processScheduledOccurrence(occurrenceId, env, db) {
     return { handled: true, status: "skipped", reason: "cancelled" };
   }
 
+  // Legacy cases are retired: a queued occurrence still tied to a case
+  // must never reach dispatch, so skip it here.
+  if (row.case_id) {
+    await db.execute({
+      sql: "UPDATE scheduled_occurrences SET operational_status = 'skipped', skip_reason = 'legacy_case', executed_at = datetime('now') WHERE id = ?",
+      args: [occurrenceId],
+    });
+    await finalizeOneOffSchedule(db, row.schedule_id);
+    return { handled: true, status: "skipped", reason: "legacy_case" };
+  }
+
   if (row.request_id) {
     const reqRes = await db.execute({
       sql: "SELECT status FROM requests WHERE id = ? LIMIT 1",
