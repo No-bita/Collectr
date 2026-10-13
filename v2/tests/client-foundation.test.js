@@ -14,7 +14,7 @@ function fixture({ beforeFoundation = false } = {}) {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys=ON');
   const files = fs.readdirSync(migrationDir).filter(f => f.endsWith('.sql')).sort();
-  for (const f of files.filter(f => !f.startsWith('0007'))) raw.exec(fs.readFileSync(migrationDir + f, 'utf8'));
+  for (const f of files.filter(f => f < '0007')) raw.exec(fs.readFileSync(migrationDir + f, 'utf8'));
   raw.exec(`INSERT INTO users(id,username,password_hash) VALUES ('u1','one','x'),('u2','two','x');
     INSERT INTO firms(id,name) VALUES ('f1','Firm One'),('f2','Firm Two');
     INSERT INTO firm_members(firm_id,user_id) VALUES ('f1','u1'),('f2','u2');
