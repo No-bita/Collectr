@@ -54,6 +54,7 @@ import { handleCreateLink, handleListLinks, handleRevokeLink, handleRegenerateLi
 import { handleSessionRequest } from "./api/session.js";
 import { handleUploadUrlRequest } from "./api/uploads.js";
 import { handleUploadComplete } from "./api/upload-complete.js";
+import { handleGetRequestReview, handleReviewItem, handleDownloadDocument, handleCloseRequest } from "./api/review.js";
 
 import { scanAndClaimDueOccurrences } from "./scheduler/scanner.js";
 import { processScheduledOccurrence, handleQueueBatch } from "./scheduler/consumer.js";
@@ -90,6 +91,7 @@ app.post("/api/upload-complete/:token", handleUploadComplete);
 app.use("/api/contacts", authMiddleware);
 app.use("/api/contacts/*", authMiddleware);
 app.use("/api/requests/*", authMiddleware);
+app.use("/api/documents/*", authMiddleware);
 app.use("/api/schedules", authMiddleware);
 app.use("/api/schedules/*", authMiddleware);
 app.use("/api/templates", authMiddleware);
@@ -121,6 +123,12 @@ app.post("/api/contacts/:id/requests", handleCreateRequest);
 app.patch("/api/requests/:id/status", handleUpdateRequestStatus);
 app.post("/api/requests/:id/items", handleAddRequestItem);
 app.patch("/api/requests/:requestId/items/:itemId", handleUpdateRequestItem);
+
+// Staff review (issue #10)
+app.get("/api/requests/:id", handleGetRequestReview);
+app.post("/api/requests/:id/items/:itemId/review", handleReviewItem);
+app.post("/api/requests/:id/close", handleCloseRequest);
+app.get("/api/documents/:id/download", handleDownloadDocument);
 
 // Staff client links
 app.post("/api/requests/:id/links", handleCreateLink);
