@@ -85,6 +85,10 @@ function collectionState(r) {
   return 'received';
 }
 const progress = (r) => { const req = r.items.filter(i => i.required); return `${req.filter(i => ['accepted', 'waived'].includes(i.status)).length} / ${req.length}`; };
+const initials = (name) => name.replace(/[^A-Za-z& ]/g, '').split(' ').filter(w => w && w !== '&').slice(0, 2).map(w => w[0].toUpperCase()).join('');
+const hue = (name) => [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+const avatar = (name) => `<span class="avatar" style="--h:${hue(name)}" aria-hidden="true">${escapeHtml(initials(name))}</span>`;
+const meter = (r) => { const req = r.items.filter(i => i.required); const done = req.filter(i => ['accepted', 'waived'].includes(i.status)).length; const got = req.filter(i => ['received', 'under_review', 'accepted', 'waived'].includes(i.status)).length; const pct = (n) => req.length ? Math.round(n / req.length * 100) : 0; return `<span class="meter" aria-hidden="true"><i class="got" style="width:${pct(got)}%"></i><i class="ok" style="width:${pct(done)}%"></i></span>`; };
 const badge = (s) => `<span class="state-badge state-${escapeHtml(s)}">${escapeHtml(labels[s])}</span>`;
 
 function transition(r, item, to, text, reason = '') {
@@ -111,10 +115,10 @@ function renderList() {
   const visible = requests.filter(r => (activeFilter === 'all' || collectionState(r) === activeFilter) && `${r.client} ${r.title} ${r.service} ${r.id}`.toLowerCase().includes(query));
   el('result-count').textContent = `${visible.length} of ${requests.length} requests shown`;
   el('request-rows').innerHTML = visible.map(r => `<tr>
-    <td><strong>${escapeHtml(r.client)}</strong><small>${escapeHtml(r.title)} / ${escapeHtml(r.id)}</small></td>
+    <td><div class="client-cell">${avatar(r.client)}<div><strong>${escapeHtml(r.client)}</strong><small>${escapeHtml(r.title)} / ${escapeHtml(r.id)}</small></div></div></td>
     <td data-label="Service">${escapeHtml(r.service)}<small>${escapeHtml(r.period)}</small></td>
     <td data-label="Due">${escapeHtml(fmtDue(r.due))}</td>
-    <td data-label="Accepted / waived">${progress(r)}<small>required items</small></td>
+    <td data-label="Accepted / waived"><span class="count">${progress(r)}</span>${meter(r)}</td>
     <td data-label="Collection state">${badge(collectionState(r))}</td>
     <td><a class="detail-link" href="#request/${escapeHtml(r.id)}" aria-label="Open ${escapeHtml(r.client)} request ${escapeHtml(r.id)}">Open request</a></td>
   </tr>`).join('');
@@ -142,7 +146,7 @@ function renderDetail(r) {
     ${itemActions(r, i)}<div class="inline-slot" data-slot="${escapeHtml(i.id)}"></div></li>`).join('');
   const log = r.log.map(l => { const [t, ...rest] = l.split('|'); return `<li><time>${escapeHtml(t)}</time><span>${escapeHtml(rest.join('|'))}</span></li>`; }).join('');
   el('detail-view').innerHTML = `<a class="back-link" href="#requests">← All requests</a>
-    <div class="page-heading"><div><p class="eyebrow">${escapeHtml(r.id)} / ${escapeHtml(r.client)}</p><h1 id="detail-heading" tabindex="-1">${escapeHtml(r.title)}</h1><p>${escapeHtml(r.service)} / ${escapeHtml(r.period)} / ${escapeHtml(r.contact)}, ${escapeHtml(r.phone)}</p></div>${badge(state)}</div>
+    <div class="page-heading"><div><p class="eyebrow">${escapeHtml(r.id)}</p><div class="detail-client">${avatar(r.client)}<span>${escapeHtml(r.client)}</span></div><h1 id="detail-heading" tabindex="-1">${escapeHtml(r.title)}</h1><p>${escapeHtml(r.service)} / ${escapeHtml(r.period)} / ${escapeHtml(r.contact)}, ${escapeHtml(r.phone)}</p></div>${badge(state)}</div>
     <div class="detail-meta"><span>Due: ${escapeHtml(fmtDue(r.due))}</span><span>Request: ${closed ? 'Closed' : 'Open'}</span><span>${progress(r)} required items accepted or waived</span></div>
     <div class="detail-grid"><section class="detail-card" aria-labelledby="checklist-heading"><h2 id="checklist-heading">Document checklist</h2><p>Receipt means a file arrived. Acceptance requires staff review.</p><ul class="checklist">${items}</ul></section>
     <div class="side-stack"><aside class="detail-card" aria-labelledby="next-heading"><h2 id="next-heading">Client link</h2>
